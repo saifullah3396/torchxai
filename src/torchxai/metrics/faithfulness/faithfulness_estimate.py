@@ -273,8 +273,8 @@ def eval_faithfulness_estimate_single_sample(
         # the first element will be when the feature with lowest importance is added to the baseline
         # the last element will be when all features are added to the baseline
         return (
-            list(inputs_perturbed_fwd_diff.numpy()),
-            list(attributions_sum_perturbed.numpy()),
+            list(inputs_perturbed_fwd_diff.detach().cpu().numpy()),
+            list(attributions_sum_perturbed.detach().cpu().numpy()),
         )
 
     def _sum_faithfulness_estimate_tensors(agg_tensors, tensors):

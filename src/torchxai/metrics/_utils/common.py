@@ -121,98 +121,37 @@ def _feature_masks_to_groups_and_counts(
 
 
 def _generate_random_perturbation_masks(
-    inputs_expanded: tuple[torch.Tensor, ...],
-    n_grouped_features: torch.Tensor,
-    grouped_feature_counts: torch.Tensor,
-    perturbation_probability: float = 0.1,
-    attribution_shape: Tuple[int, ...] = None,
-) -> tuple[torch.Tensor, ...]:
-    if isinstance(inputs_expanded, torch.Tensor):
-        inputs_expanded = (inputs_expanded,)
-
-    total_samples = len(n_grouped_features[0])
-    print("total_samples", total_samples, n_grouped_features[0])
-    perturbation_masks = tuple()
-    for input, n_grouped_features_per_type, grouped_feature_counts_per_type in zip(
-        inputs_expanded, n_grouped_features, grouped_feature_counts
-    ):
-        print("input", input.shape)
-        perturbations_per_input_type = []
-        for (
-            repeated_input,
-            n_grouped_features_per_sample,
-            grouped_feature_counts_per_sample,
-        ) in zip(
-            input.chunk(total_samples, dim=0),
-            n_grouped_features_per_type,
-            grouped_feature_counts_per_type,
-        ):
-            print("repeated_input", repeated_input.shape)
-            x = (
-                torch.rand(
-                    (repeated_input.shape[0], n_grouped_features_per_sample),
-                    device=input.device,
-                )
-                < perturbation_probability
-            )
-            print(x)
-            random_perturbation_per_sample_repetition = (
-                # (
-                #     torch.arange(
-                #         (n_grouped_features_per_sample),
-                #         device=input.device,
-                #     ).repeat(repeated_input.shape[0], 1)
-                #     < 224
-                # )
-                (
-                    torch.rand(
-                        (repeated_input.shape[0], n_grouped_features_per_sample),
-                        device=input.device,
-                    )
-                    < perturbation_probability
-                )
-                # randomly perturb 25% of the features in the group. Each group corresponds to repetitions of a single sample
-                # so each sample is first repeated N times and for those N repetitions we generate random perturbations based on
-                # the feature mask of this sample. All features belonging to the same group are perturbed together
-                # this means if the PAD tokens are present in the input all PAD tokens are also perturbed together so
-                # all of them correspond to a single feature
-                # Example feature mask: CLS, 0, 0, 0, 1, 1, 1, 2, 3, 4, 5, ... , 102, 102, 102, SEP, PAD, PAD, PAD # INPUT SAMPLE
-                # In this case the feature groups are CLS, 0, 1, 2, 3, 4, 5, ..., 102, SEP, PAD
-                # so by doing above we generate random perturbations for each of the feature groups as follows
-                # So above will generate example perturbation as:
-                # 1. CLS, 0, PTB, 2, PTB, 4, 5, ..., 102, SEP, PTB,
-                # 2. CLS, 0, 1, PTB, 3, 4, PTB, ..., 102, PTB, PAD,
-                # .
-                # .
-                # .
-                # 10. PTB, 0, 1, PTB, 3, 4, PTB, ..., 102, SEP, PTB, where is the number of times each input sample is repeated
-                .repeat_interleave(
-                    repeats=grouped_feature_counts_per_sample, dim=1
-                )  # After doing this example perturbation becomes
-                # 1. CLS, 0, 0, 0, PTB, PTB, PTB, 2, PTB, 4, 5, ..., 102, 102, 102, SEP, PTB, PTB, PTB # notice this corresponds to the input sample
-                # 2. CLS, 0, 0, 0, 1, 1, 1, PTB, 3, 4, PTB, ..., 102, 102, 102, PTB, PAD, PAD, PAD,
-                # .
-                # .
-                # .
-                # 10. PTB, 0, 0, 0, 1, 1, 1, PTB, 3, 4, PTB, ..., 102, 102, 102 SEP, PTB, PTB, PTB,
-                .view(repeated_input.shape[0], *attribution_shape)
-            )
-            perturbations_per_input_type.append(
-                random_perturbation_per_sample_repetition
-            )
-        perturbation_masks += (torch.cat(perturbations_per_input_type, dim=0),)
-    print(perturbation_masks)
-    return perturbation_masks
-
-
-def _generate_random_perturbation_masks_v2(
     total_perturbations_per_feature_group: int,
     n_grouped_features: torch.Tensor,
     grouped_feature_counts: torch.Tensor,
     perturbation_probability: float = 0.1,
     attribution_shape: Tuple[int, ...] = None,
     device: torch.device = torch.device("cpu"),
+    generator: torch.Generator = None,
 ) -> tuple[torch.Tensor, ...]:
+    """
+    Generates random perturbation masks for the input attributions. The perturbation masks are generated based on the
+    feature groups present in the input attributions. The perturbation probability is the probability of perturbing a
+    feature group. The perturbation masks are generated for each feature group in the input attributions and are repeated
+    for each sample in the batch.
+
+    Each group corresponds to repetitions of a single sample
+    so each sample is first repeated N times and for those N repetitions we generate random perturbations based on
+    the feature mask of this sample. All features belonging to the same group are perturbed together
+    this means if the PAD tokens are present in the input all PAD tokens are also perturbed together so
+    all of them correspond to a single feature
+    Example feature mask: CLS, 0, 0, 0, 1, 1, 1, 2, 3, 4, 5, ... , 102, 102, 102, SEP, PAD, PAD, PAD # INPUT SAMPLE
+    In this case the feature groups are CLS, 0, 1, 2, 3, 4, 5, ..., 102, SEP, PAD
+    so by doing above we generate random perturbations for each of the feature groups as follows
+    Above will generate example perturbation as:
+    1. CLS, 0, PTB, 2, PTB, 4, 5, ..., 102, SEP, PTB,
+    2. CLS, 0, 1, PTB, 3, 4, PTB, ..., 102, PTB, PAD,
+    .
+    .
+    .
+    10. PTB, 0, 1, PTB, 3, 4, PTB, ..., 102, SEP, PTB, where is the number of times each input sample is repeated
+    """
+
     perturbation_masks = tuple()
     for n_grouped_features_per_type, grouped_feature_counts_per_type in zip(
         n_grouped_features, grouped_feature_counts
@@ -233,6 +172,7 @@ def _generate_random_perturbation_masks_v2(
                             n_grouped_features_per_sample,
                         ),
                         device=device,
+                        generator=generator,
                     )
                     < perturbation_probability
                 )
@@ -321,8 +261,6 @@ def _reduce_tensor_with_indices(
 
 def _draw_perturbated_inputs(perturbed_inputs):
     import matplotlib.pyplot as plt
-    import numpy as np
-    from matplotlib.colors import ListedColormap
 
     fig, axes = plt.subplots(figsize=(20, 10))
     axes.matshow(

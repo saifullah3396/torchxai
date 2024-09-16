@@ -483,15 +483,10 @@ def faithfulness_corr(
         else:
             feature_masks = _construct_default_feature_masks(attributions)
 
-        grouped_feature_counts, n_grouped_features = (
-            _feature_masks_to_groups_and_counts(feature_masks)
-        )
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturb_samples,
-            n_grouped_features,
-            grouped_feature_counts,
+            feature_masks,
             perturbation_probability=perturbation_probability,
-            attribution_shape=attributions[0][0].shape,
             device=attributions[0][0].device,
         )
         bsz = inputs[0].size(0)

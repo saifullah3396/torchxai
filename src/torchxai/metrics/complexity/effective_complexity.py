@@ -3,12 +3,13 @@
 from typing import Tuple
 
 import torch
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def effective_complexity(
-    attributions: Tuple[torch.Tensor, ...], eps: float = 1.0e-5
+    attributions: Tuple[torch.Tensor, ...],
+    eps: float = 1.0e-5,
+    normalize_attribution: bool = True,
 ) -> torch.Tensor:
     """
     Implementation of Effective complexity metric by Nguyen at el., 2020. This implementation
@@ -18,6 +19,8 @@ def effective_complexity(
 
     Effective complexity measures how many attributions in absolute values are exceeding a certain threshold (eps)
     where a value above the specified threshold implies that the features are important and under indicates it is not.
+    Effective complexity requires the attributions to be normalized to return reasonable outputs since the original
+    attributions may have different scales and effective complexity is sensitive to the scale of the attributions.
 
     References:
         1) An-phi Nguyen and María Rodríguez Martínez.: "On quantitative aspects of model
@@ -27,6 +30,7 @@ def effective_complexity(
         attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
             tensor in the tuple has shape (batch_size, num_features).
         eps (float): The threshold value for attributions to be considered important.
+        normalize_attribution (bool): If True, the attributions are normalized to sum to 1.
     Returns:
         Tensor: A tensor of scalar effective complexity per
                 input example. The first dimension is equal to the
@@ -60,6 +64,10 @@ def effective_complexity(
 
         # flatten the feature dims into a single dim
         attributions = attributions.view(bsz, -1).float()
+
+        # normalize the attributions sample-wise in the batch if required
+        if normalize_attribution:
+            attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise effective complexity of the attribution map
         return torch.sum(attributions.abs() > eps, dim=1)

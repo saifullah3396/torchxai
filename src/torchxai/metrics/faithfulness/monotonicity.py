@@ -268,7 +268,7 @@ def eval_monotonicity_single_sample(
         # on each feature group perturbation
         # the first element will be when the feature with lowest importance is added to the baseline
         # the last element will be when all features are added to the baseline
-        return (list(baselines_perturbed_fwd.numpy()),)
+        return (list(baselines_perturbed_fwd.detach().cpu().numpy()),)
 
     def _sum_monotonicity_tensors(agg_tensors, tensors):
         return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))

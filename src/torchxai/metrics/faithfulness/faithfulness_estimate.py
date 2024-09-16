@@ -544,6 +544,7 @@ def faithfulness_estimate(
         baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
     additional_forward_args = _format_additional_forward_args(additional_forward_args)
     attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+    feature_masks = _format_tensor_into_tuples(feature_masks)  # type: ignore
 
     # Make sure that inputs and corresponding attributions have matching sizes.
     assert len(inputs) == len(attributions), (

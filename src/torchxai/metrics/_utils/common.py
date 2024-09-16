@@ -34,7 +34,10 @@ def _validate_feature_mask(tensor: Tuple[torch.Tensor, ...]) -> None:
         }, "Tensor must be of an integer dtype (torch.int8, torch.int16, torch.int32, or torch.int64)."
         assert torch.all(t >= 0), "tensor values must be non-negative integers"
 
-        diff = t[1:] - t[:-1]
+        # get the unique values in the tensor
+        unique_vals = torch.unique(t)
+
+        diff = unique_vals[1:] - unique_vals[:-1]
         assert torch.all(diff >= 0) and torch.all(
             diff <= 1
         ), "tensor values must be strictly increasing with a step of one"

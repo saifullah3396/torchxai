@@ -24,7 +24,7 @@ def default_zero_baseline_func():
         for input, mask, noisy_baseline in zip(
             inputs, perturbation_masks, zero_baselines
         ):
-            input[mask.view_as(input)] = noisy_baseline[mask.view_as(input)]
+            input[mask.expand_as(input)] = noisy_baseline[mask.expand_as(input)]
         return inputs
 
     return wrapped
@@ -52,7 +52,7 @@ def default_perturb_func(noise_scale: float = 0.02):
                 for x in inputs
             )
         for input, mask, baseline in zip(inputs, perturbation_masks, baselines):
-            input[mask.view_as(input)] = baseline[mask.view_as(input)]
+            input[mask.expand_as(input)] = baseline[mask.expand_as(input)]
         return inputs
 
     return wrapped

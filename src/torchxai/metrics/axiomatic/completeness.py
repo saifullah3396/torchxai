@@ -22,12 +22,11 @@ def completeness(
     target: TargetType = None,
 ) -> Tensor:
     """
-    This implementation reuses some code from the implementation of the captum infidelity metric and the implementation
-    of the completeness metric in python quantus library.
-
     Implementation of Completeness test by Sundararajan et al., 2017, also referred
     to as Summation to Delta by Shrikumar et al., 2017 and Conservation by
-    Montavon et al., 2018.
+    Montavon et al., 2018. This implementation reuses the batch-computation ideas from captum and therefore it is fully
+    compatible with the Captum library. In addition, the implementation takes some ideas about the implementation
+    of the metric from the python Quantus library.
 
     Attribution completeness asks that the total attribution is proportional to the explainable
     evidence at the output/ or some function of the model output. Or, that the attributions
@@ -55,9 +54,9 @@ def completeness(
                 multiple input tensors are provided, the examples must
                 be aligned appropriately.
 
-        baselines (scalar, Tensor, tuple of scalar, or Tensor, optional):
-                Baselines define reference values which sometimes represent ablated
-                values and are used to compare with the actual inputs to compute
+        baselines (scalar, Tensor, tuple of scalar, or Tensor):
+                Baselines define reference values against which the completeness is measured which sometimes
+                represent ablated values and are used to compare with the actual inputs to compute
                 importance scores in attribution algorithms. They can be represented
                 as:
 
@@ -107,19 +106,6 @@ def completeness(
                 For local attributions we can use real-valued perturbations
                 whereas for global attributions that perturbation is binary.
                 https://arxiv.org/abs/1901.09392
-
-                If we want to compute the infidelity of global attributions we
-                can use a binary perturbation matrix that will allow us to select
-                a subset of features from `inputs` or `inputs - baselines` space.
-                This will allow us to approximate sensitivity-n for a global
-                attribution algorithm.
-
-                `infidelity_perturb_func_decorator` function decorator is a helper
-                function that computes perturbations under the hood if perturbed
-                inputs are provided.
-
-                For more details about how to use `infidelity_perturb_func_decorator`,
-                please, read the documentation about `perturb_func`
 
                 Attributions have the same shape and dimensionality as the inputs.
                 If inputs is a single tensor then the attributions is a single
@@ -176,13 +162,13 @@ def completeness(
         >>> net = ImageClassifier()
         >>> saliency = Saliency(net)
         >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
-        >>> baseline = torch.zeros(2, 3, 32, 32)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
         >>> # Computes saliency maps for class 3.
         >>> attribution = saliency.attribute(input, target=3)
         >>> # define a perturbation function for the input
 
         >>> # Computes completeness score for saliency maps
-        >>> completeness = completeness(net, input, attribution, baseline)
+        >>> completeness = completeness(net, input, attribution, baselines)
     """
 
     with torch.no_grad():

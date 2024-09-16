@@ -2,7 +2,6 @@
 
 from typing import Any, Callable, Tuple, Union, cast
 
-import numpy as np
 import torch
 from captum._utils.common import (
     ExpansionTypes,
@@ -14,17 +13,13 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import (
-    _divide_and_aggregate_metrics_n_features,
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
-    _draw_perturbated_inputs,
-    _draw_perturbated_inputs_with_splits,
     _format_tensor_feature_dim,
     _reduce_tensor_with_indices,
     _split_tensors_to_tuple_tensors,
@@ -117,7 +112,6 @@ def compute_aopc_scores_vectorized(
     return aopc_scores
 
 
-@log_usage()
 def eval_aopcs_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -165,35 +159,6 @@ def eval_aopcs_single_sample(
                 )
                 perturbed_inputs.append(input.clone())
         perturbed_inputs = torch.cat(perturbed_inputs)
-
-        # this is for debugging purposes, to see the perturbed inputs in a matrix form
-        # for every 12 inputs in the batch, first is descending, second is ascending and the rest are random
-        # and then this repeats for the next 12 inputs
-        # for example a minimum batch size will always be 12 for current_n_perturbed_features=1
-        # print some info for indices,
-        # print(
-        #     "descending",
-        #     descending_attribution_indices[
-        #         current_n_steps - current_n_perturbed_features : current_n_steps
-        #     ],
-        # )
-        # print(
-        #     "ascending",
-        #     ascending_attribution_indices[
-        #         current_n_steps - current_n_perturbed_features : current_n_steps
-        #     ],
-        # )
-        # print(
-        #     "rand",
-        #     rand_attribution_indices[
-        #         :,
-        #         current_n_steps - current_n_perturbed_features : current_n_steps,
-        #     ],
-        # )
-        # _draw_perturbated_inputs(perturbed_inputs=perturbed_inputs)
-        # _draw_perturbated_inputs_with_splits(
-        #     perturbed_inputs=perturbed_inputs, inputs_shape=inputs_shape
-        # )
 
         targets_expanded = _expand_target(
             target,
@@ -282,7 +247,7 @@ def eval_aopcs_single_sample(
         )[:total_features_perturbed]
 
         # get the gathererd-attributions sorted in a random order of their importance n times
-        generator = torch.Generator().manual_seed(seed)
+        generator = torch.Generator().manual_seed(seed) if seed is not None else None
         rand_attribution_indices = torch.stack(
             [
                 torch.randperm(
@@ -323,7 +288,6 @@ def eval_aopcs_single_sample(
     return aopc_scores
 
 
-@log_usage()
 def aopc(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -332,11 +296,206 @@ def aopc(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
+    max_features_processed_per_example: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
     seed: int = 0,
 ) -> Tensor:
+    """
+    Implementation of Area over the Perturbation Curve by Samek et al., 2015. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library.
+
+    Consider a greedy iterative procedure that consists of measuring how the class
+    encoded in the image (e.g. as measured by the function f) disappears when we
+    progressively remove information from the image x, a process referred to as
+    region perturbation, at the specified locations.
+
+    References:
+        1) Wojciech Samek et al.: "Evaluating the visualization of what a deep
+        neural network has learned." IEEE transactions on neural networks and
+        learning systems 28.11 (2016): 2660-2673.
+
+    Args:
+        forward_func (Callable):
+                The forward function of the model or any modification of it.
+
+        inputs (Tensor or tuple[Tensor, ...]): Input for which
+                attributions are computed. If forward_func takes a single
+                tensor as input, a single input tensor should be provided.
+                If forward_func takes multiple tensors as input, a tuple
+                of the input tensors should be provided. It is assumed
+                that for all given input tensors, dimension 0 corresponds
+                to the number of examples (aka batch size), and if
+                multiple input tensors are provided, the examples must
+                be aligned appropriately.
+
+        baselines (scalar, Tensor, tuple of scalar, or Tensor):
+                Baselines define reference values against which the completeness is measured which sometimes
+                represent ablated values and are used to compare with the actual inputs to compute
+                importance scores in attribution algorithms. They can be represented
+                as:
+
+                - a single tensor, if inputs is a single tensor, with
+                  exactly the same dimensions as inputs or the first
+                  dimension is one and the remaining dimensions match
+                  with inputs.
+
+                - a single scalar, if inputs is a single tensor, which will
+                  be broadcasted for each input value in input tensor.
+
+                - a tuple of tensors or scalars, the baseline corresponding
+                  to each tensor in the inputs' tuple can be:
+
+                - either a tensor with matching dimensions to
+                  corresponding tensor in the inputs' tuple
+                  or the first dimension is one and the remaining
+                  dimensions match with the corresponding
+                  input tensor.
+
+                - or a scalar, corresponding to a tensor in the
+                  inputs' tuple. This scalar value is broadcasted
+                  for corresponding input tensor.
+
+                Default: None
+
+        attributions (Tensor or tuple[Tensor, ...]):
+                Attribution scores computed based on an attribution algorithm.
+                This attribution scores can be computed using the implementations
+                provided in the `captum.attr` package. Some of those attribution
+                approaches are so called global methods, which means that
+                they factor in model inputs' multiplier, as described in:
+                https://arxiv.org/abs/1711.06104
+                Many global attribution algorithms can be used in local modes,
+                meaning that the inputs multiplier isn't factored in the
+                attribution scores.
+                This can be done duing the definition of the attribution algorithm
+                by passing `multipy_by_inputs=False` flag.
+                For example in case of Integrated Gradients (IG) we can obtain
+                local attribution scores if we define the constructor of IG as:
+                ig = IntegratedGradients(multipy_by_inputs=False)
+
+                Some attribution algorithms are inherently local.
+                Examples of inherently local attribution methods include:
+                Saliency, Guided GradCam, Guided Backprop and Deconvolution.
+
+                For local attributions we can use real-valued perturbations
+                whereas for global attributions that perturbation is binary.
+                https://arxiv.org/abs/1901.09392
+
+                If we want to compute the infidelity of global attributions we
+                can use a binary perturbation matrix that will allow us to select
+                a subset of features from `inputs` or `inputs - baselines` space.
+                This will allow us to approximate sensitivity-n for a global
+                attribution algorithm.
+
+                Attributions have the same shape and dimensionality as the inputs.
+                If inputs is a single tensor then the attributions is a single
+                tensor as well. If inputs is provided as a tuple of tensors
+                then attributions will be tuples of tensors as well.
+
+        feature_mask (Tensor or tuple[Tensor, ...], optional):
+                    feature_mask defines a mask for the input, grouping
+                    features which should be perturbed together. feature_mask
+                    should contain the same number of tensors as inputs.
+                    Each tensor should
+                    be the same size as the corresponding input or
+                    broadcastable to match the input tensor. Each tensor
+                    should contain integers in the range 0 to num_features
+                    - 1, and indices corresponding to the same feature should
+                    have the same value.
+                    Note that features within each input tensor are perturbed
+                    independently (not across tensors).
+                    If the forward function returns a single scalar per batch,
+                    we enforce that the first dimension of each mask must be 1,
+                    since attributions are returned batch-wise rather than per
+                    example, so the attributions must correspond to the
+                    same features (indices) in each input example.
+                    If None, then a feature mask is constructed which assigns
+                    each scalar within a tensor as a separate feature, which
+                    is perturbed independently.
+                    Default: None
+
+        additional_forward_args (Any, optional): If the forward function
+                requires additional arguments other than the inputs for
+                which attributions should not be computed, this argument
+                can be provided. It must be either a single additional
+                argument of a Tensor or arbitrary (non-tuple) type or a tuple
+                containing multiple additional arguments including tensors
+                or any arbitrary python types. These arguments are provided to
+                forward_func in order, following the arguments in inputs.
+                Note that the perturbations are not computed with respect
+                to these arguments.
+
+                Default: None
+        target (int, tuple, Tensor, or list, optional): Indices for selecting
+                predictions from output(for classification cases,
+                this is usually the target class).
+                If the network returns a scalar value per example, no target
+                index is necessary.
+                For general 2D outputs, targets can be either:
+
+                - A single integer or a tensor containing a single
+                  integer, which is applied to all input examples
+
+                - A list of integers or a 1D tensor, with length matching
+                  the number of examples in inputs (dim 0). Each integer
+                  is applied as the target for the corresponding example.
+
+                  For outputs with > 2 dimensions, targets can be either:
+
+                - A single tuple, which contains #output_dims - 1
+                  elements. This target index is applied to all examples.
+
+                - A list of tuples with length equal to the number of
+                  examples in inputs (dim 0), and each tuple containing
+                  #output_dims - 1 elements. Each tuple is applied as the
+                  target for the corresponding example.
+
+                Default: None
+        max_features_processed_per_example (int, optional): The number of maximum input
+                features that are processed together for every example. In case the number of
+                features to be perturbed in each example (`total_features_perturbed`) exceeds
+                `max_features_processed_per_example`, they will be sliced
+                into batches of `max_features_processed_per_example` examples and processed
+                in a sequential order. However the total effective batch size will still be
+                `max_features_processed_per_example * (2 + n_random_perms)` as in each
+                perturbation step, `max_features_processed_per_example * (2 + n_random_perms)` features
+                are processed. If `max_features_processed_per_example` is None, all
+                examples are processed together. `max_features_processed_per_example` should
+                at least be equal `(2 + n_random_perms)` and at most
+                `total_features_perturbed * (2 + n_random_perms)`.
+        eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
+                variances. If the absolute value of the attribution scores or the model forward variances
+                is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity
+                metric. Default: 1e-5
+        total_features_perturbed (int, optional): The total number of features that will be perturbed in the
+            descending, ascending and random order, to compute the AOPC scores. Default: 100
+        n_random_perms (int, optional): The number of random permutations of the feature importance scores
+            that will be used to compute the AOPC scores for the random runs. Default: 10
+        seed (int, optional): The seed value for the random number generator for reproducibility. Default: 0
+    Returns:
+        completeness (Tensor): A tensor of scalar completeness scores per
+                input example. The first dimension is equal to the
+                number of examples in the input batch and the second
+                dimension is one.
+
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
+        >>> aopc_desc, aopc_asc, aopc_rand = aopc(net, input, attribution, baselines)
+    """
+
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
     if baselines is None:
@@ -383,7 +542,7 @@ def aopc(
                 else None
             ),
             target=target[sample_idx] if target is not None else None,
-            max_examples_per_batch=max_examples_per_batch,
+            max_examples_per_batch=max_features_processed_per_example,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,
@@ -395,76 +554,3 @@ def aopc(
         aopc_batch[:, 1, :],
         aopc_batch[:, 2:, :].mean(1),
     )  # descending, ascending, random
-
-
-# This is for testing code
-# import torch
-# from torch import nn
-
-# torch.manual_seed(0)
-
-
-# class DummyModel(nn.Module):
-#     def __init__(self):
-#         super().__init__()
-
-#     def forward(self, a, b, c, d):
-#         bs = a.shape[0]
-#         return a[:, :, 0]
-
-
-# model = DummyModel()
-
-# import numpy as np
-# import torch
-
-# dummy_input = (
-#     torch.randn(2, 12, 768),
-#     torch.randn(2, 12, 768),
-#     torch.randn(2, 12, 768),
-#     torch.randn(2, 18, 768),
-# )
-# dummy_baseline = (
-#     torch.zeros(2, 12, 768),
-#     torch.zeros(2, 12, 768),
-#     torch.zeros(2, 12, 768),
-#     torch.zeros(2, 18, 768),
-# )
-# dummy_attr = tuple(x.sum(-1) for x in dummy_input)
-
-
-# def example_feature_mask(start_idx, dim=12):
-#     feature_group_size = 1
-#     return (
-#         torch.arange(0, dim, feature_group_size).repeat_interleave(feature_group_size)[
-#             :dim
-#         ]
-#         / feature_group_size
-#     ).long().unsqueeze(0) + start_idx
-
-
-# token_feature_masks = example_feature_mask(start_idx=0)
-# position_feature_masks = example_feature_mask(start_idx=token_feature_masks.max() + 1)
-# bbox_feature_masks = example_feature_mask(start_idx=position_feature_masks.max() + 1)
-# image_feature_masks = example_feature_mask(
-#     start_idx=bbox_feature_masks.max() + 1, dim=18
-# )
-# # image_feature_masks =  torch.arange(196).unsqueeze(0)+bbox_feature_masks.max()+1
-
-# dummy_feature_masks = (
-#     token_feature_masks.repeat(2, 1),
-#     position_feature_masks.repeat(2, 1),
-#     bbox_feature_masks.repeat(2, 1),
-#     image_feature_masks.repeat(2, 1),
-# )
-# dummy_feature_masks_shapes = tuple(x.shape for x in dummy_feature_masks)
-
-# aopc(
-#     forward_func=model,
-#     inputs=dummy_input,
-#     attributions=dummy_attr,
-#     baselines=dummy_baseline,
-#     feature_masks=dummy_feature_masks,
-#     target=torch.tensor([0, 0]),
-#     max_examples_per_batch=24,
-# )

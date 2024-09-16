@@ -1,4 +1,5 @@
-from logging import warning
+#!/usr/bin/env python3
+
 from typing import Tuple
 
 import torch
@@ -9,7 +10,10 @@ from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 def complexity(attributions: Tuple[torch.Tensor, ...]):
     """
-    Implementation of Complexity metric by Bhatt et al., 2020.
+    Implementation of Complexity metric by Bhatt et al., 2020. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library.
 
     Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
     magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain
@@ -25,6 +29,20 @@ def complexity(attributions: Tuple[torch.Tensor, ...]):
             tensor in the tuple has shape (batch_size, num_features).
     Returns:
         Tensor: The complexity of each attribution in the batch.
+
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
+        >>> complexity_scores = complexity(attribution)
     """
     with torch.no_grad():
         if not isinstance(attributions, tuple):

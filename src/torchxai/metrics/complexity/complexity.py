@@ -4,7 +4,6 @@ from typing import Tuple
 
 import torch
 from torch.distributions import Categorical
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
@@ -54,22 +53,20 @@ def complexity(attributions: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         bsz = attributions[0].shape[0]
 
         # flatten feature tuple tensors into a single tensor of shape [batch_size, num_features]
-        attributions, _ = _tuple_tensors_to_tensors(attributions)
+        attributions_base, _ = _tuple_tensors_to_tensors(attributions)
 
         # flatten the feature dims into a single dim
-        attributions = attributions.view(bsz, -1).float()
+        attributions = (
+            attributions_base.view(bsz, -1).float().abs()
+        )  # add epsilon to avoid zero attributions
 
-        # see if there is any case where athe attribution is zero
+        # see if there is any case where the attribution is zero
         for attribution in attributions:
-            if torch.all(attribution == 0):
-                attribution += 1.0e-8
+            if torch.norm(attribution) == 0:
+                attribution += 1e-8
 
-        # compute batch-wise fractional contribution of each feature
-        attributions_abs = attributions.abs()
-        total_sum = torch.sum(attributions_abs, dim=1)
-        fractional_contribution = attributions_abs / (
-            (total_sum.unsqueeze(-1).expand(attributions_abs.shape))
-        )
+        # normalize the attributions to get fractional contribution
+        attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise entropy of the fractional contribution
-        return Categorical(probs=fractional_contribution).entropy()
+        return Categorical(probs=attributions).entropy()

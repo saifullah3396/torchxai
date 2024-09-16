@@ -23,7 +23,7 @@ from torchxai.metrics._utils.common import (
     _generate_random_perturbation_masks,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_perturb_func
+from torchxai.metrics._utils.perturbation import default_random_perturb_func
 
 
 @log_usage()
@@ -35,7 +35,7 @@ def faithfulness_corr(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_perturb_func(),
+    perturb_func: Callable = default_random_perturb_func(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     perturbation_probability: float = 0.1,

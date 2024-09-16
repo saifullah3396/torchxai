@@ -30,7 +30,7 @@ def default_zero_baseline_func():
     return wrapped
 
 
-def default_perturb_func(noise_scale: float = 0.02):
+def default_random_perturb_func(noise_scale: float = 0.02):
     def wrapped(
         inputs: TensorOrTupleOfTensorsGeneric,
         perturbation_masks: TensorOrTupleOfTensorsGeneric,

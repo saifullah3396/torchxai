@@ -23,7 +23,7 @@ from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_perturb_func
+from torchxai.metrics._utils.perturbation import default_random_perturb_func
 
 
 def eval_monotonicity_corr_and_non_sens_single_sample(
@@ -34,7 +34,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_perturb_func(),
+    perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_example: int = None,
     eps: float = 1e-5,
 ) -> Tensor:
@@ -284,7 +284,7 @@ def monotonicity_corr_and_non_sens(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_perturb_func(),
+    perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_example: int = None,
     eps: float = 1e-5,

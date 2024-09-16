@@ -14,11 +14,9 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
 from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
-    _feature_masks_to_groups_and_counts,
     _format_tensor_tuple_feature_dim,
     _generate_random_perturbation_masks,
     _validate_feature_mask,
@@ -39,6 +37,7 @@ def faithfulness_corr(
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     perturbation_probability: float = 0.1,
+    show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
@@ -267,6 +266,7 @@ def faithfulness_corr(
         perturbation_probability (float, optional): The perturbation probability effectively defines
             how many features in the input are perturbed in each perturbation of the input.
             Default: 0.1
+        show_progress (bool, optional): Displays the progress of the metric computation.
         set_same_perturbation_mask_for_batch (bool): This is only a flag for debugging/tests where we can check if
             multiple runs are consistent for same inputs repeated in a batch. If set to True, the same perturbation
             mask is used for all examples in the batch. This is useful for debugging and testing purposes.
@@ -509,6 +509,7 @@ def faithfulness_corr(
             _next_faithfulness_corr_tensors,
             agg_func=_sum_faithfulness_corr_tensors,
             max_examples_per_batch=max_examples_per_batch,
+            show_progress=show_progress,
         )
         perturbed_fwd_diffs = agg_tensors[0].detach().cpu()
         attributions_expanded_perturbed_sum = agg_tensors[1].detach().cpu()

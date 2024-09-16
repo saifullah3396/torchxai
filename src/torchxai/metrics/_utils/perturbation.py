@@ -18,7 +18,9 @@ def default_zero_baseline_func():
             inputs = (inputs,)
         if not isinstance(perturbation_masks, tuple):
             perturbation_masks = (perturbation_masks,)
-        zero_baselines = tuple(torch.zeros_like(x).float() for x in inputs)
+        zero_baselines = tuple(
+            torch.zeros_like(x, device=x.device).float() for x in inputs
+        )
         for input, mask, noisy_baseline in zip(
             inputs, perturbation_masks, zero_baselines
         ):
@@ -44,7 +46,8 @@ def default_perturb_func(noise_scale: float = 0.02):
             # generate random noise if baselines are not provided
             baselines = tuple(
                 torch.tensor(
-                    np.random.uniform(low=-noise_scale, high=noise_scale, size=x.shape)
+                    np.random.uniform(low=-noise_scale, high=noise_scale, size=x.shape),
+                    device=x.device,
                 ).float()
                 for x in inputs
             )

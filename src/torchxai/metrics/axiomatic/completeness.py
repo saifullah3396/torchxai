@@ -30,7 +30,9 @@ def completeness(
 
     Attribution completeness asks that the total attribution is proportional to the explainable
     evidence at the output/ or some function of the model output. Or, that the attributions
-    add up to the difference between the model output F at the input x and the baseline b.
+    add up to the difference between the model output F at the input x and the baseline b. This is essentially
+    the same as `convergence_delta` returned from captum however this works independently of the attribution method
+    and the availability of `convergence_delta` calculation in Captum.
 
     References:
         1) Completeness - Mukund Sundararajan et al.: "Axiomatic attribution for deep networks."

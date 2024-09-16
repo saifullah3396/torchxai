@@ -2,6 +2,9 @@ SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
 
 export PYTHONPATH=$SCRIPTPATH/../src:$SCRIPTPATH/../tests
 
+# basic test
+python -W ignore -m unittest -v $SCRIPTPATH/../tests/metrics/test_imports.py
+
 # axiomatic
 python -W ignore -m unittest -v $SCRIPTPATH/../tests/metrics/axiomatic/test_completeness.py
 python -W ignore -m unittest -v $SCRIPTPATH/../tests/metrics/axiomatic/test_non_sensitivity.py

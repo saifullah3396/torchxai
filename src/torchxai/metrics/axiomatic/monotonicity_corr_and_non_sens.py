@@ -127,7 +127,9 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             expansion_type=ExpansionTypes.repeat_interleave,
         )
         inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
-        inputs_fwd_inv = 1.0 if np.abs(inputs_fwd) < eps else 1.0 / np.abs(inputs_fwd)
+        inputs_fwd_inv = (
+            1.0 if torch.abs(inputs_fwd) < eps else 1.0 / torch.abs(inputs_fwd)
+        )
         inputs_perturbed_fwd = _run_forward(
             forward_func,
             inputs_perturbed,

@@ -6,7 +6,7 @@ from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensor
 from torch import Tensor
 
 
-def infidelity_metric(
+def infidelity(
     forward_func: Callable,
     perturb_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,

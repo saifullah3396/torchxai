@@ -5,7 +5,6 @@ from typing import Tuple
 import numpy as np
 import torch
 from torch import Tensor
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 

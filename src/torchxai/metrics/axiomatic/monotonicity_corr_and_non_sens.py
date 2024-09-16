@@ -5,6 +5,7 @@ from typing import Any, Callable, Tuple, Union, cast
 import numpy as np
 import scipy
 import torch
+import tqdm
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -15,7 +16,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -37,6 +37,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_example: int = None,
     eps: float = 1e-5,
+    show_progress: bool = False,
 ) -> Tensor:
     def _generate_perturbations(
         current_n_perturbed_features: int, current_feature_indices: int, feature_masks
@@ -204,6 +205,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             _next_monotonicity_corr_tensors,
             agg_func=_sum_monotonicity_corr_tensors,
             max_features_processed_per_example=max_features_processed_per_example,
+            show_progress=show_progress,
         )
 
         # compute monotonocity corr metric
@@ -274,7 +276,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         non_sens = compute_non_sens(
             perturbed_fwd_diffs_relative_vars, feature_group_attribution_scores
         )
-    return monotonicity_corr, non_sens
+    return monotonicity_corr, non_sens, n_features
 
 
 def monotonicity_corr_and_non_sens(
@@ -288,7 +290,8 @@ def monotonicity_corr_and_non_sens(
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_example: int = None,
     eps: float = 1e-5,
-) -> Tensor:
+    show_progress: bool = False,
+) -> tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Monotonicity Correlation and NonSensitivity by Nguyen at el., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -512,6 +515,7 @@ def monotonicity_corr_and_non_sens(
                 variances. If the absolute value of the attribution scores or the model forward variances
                 is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity
                 metric. Default: 1e-5
+        show_progress (bool, optional): Displays the progress of the computation. Default: True
     Returns:
         A tuple of tensors:
             monotonicity_corr_batch (Tensor): A tensor of scalar monotonicity_corr scores per
@@ -522,6 +526,9 @@ def monotonicity_corr_and_non_sens(
                     input example. The first dimension is equal to the
                     number of examples in the input batch and the second
                     dimension is one.
+            n_features_batch (Tensor): A tensor of scalar values that represent the total number of
+                    features that are processed in the input batch. The first dimension is equal to the
+                    number of examples in the input batch and the second dimension is one.
 
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
@@ -535,7 +542,7 @@ def monotonicity_corr_and_non_sens(
         >>> # define a perturbation function for the input
 
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
-        >>> monotonicity_corr, non_sens = monotonicity_corr_and_non_sens(net, input, attribution, baselines)
+        >>> monotonicity_corr, non_sens, n_features = monotonicity_corr_and_non_sens(net, input, attribution, baselines)
     """
 
     with torch.no_grad():
@@ -553,12 +560,19 @@ def monotonicity_corr_and_non_sens(
             attributions must match. Found number of tensors in the inputs is: {} and in the
             attributions: {}"""
         ).format(len(inputs), len(attributions))
+        if feature_masks is not None:
+            for feature_mask, attribution in zip(feature_masks, attributions):
+                assert feature_mask.shape == attribution.shape, (
+                    """The shape of the feature mask and the attribution
+                    must match. Found feature mask shape: {} and attribution shape: {}"""
+                ).format(feature_mask.shape, attribution.shape)
 
         bsz = inputs[0].size(0)
         monotonicity_corr_batch = []
         non_sens_batch = []
-        for sample_idx in range(bsz):
-            monotonicity_corr, non_sens = (
+        n_features_batch = []
+        for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
+            monotonicity_corr, non_sens, n_features = (
                 eval_monotonicity_corr_and_non_sens_single_sample(
                     forward_func=forward_func,
                     inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
@@ -587,11 +601,14 @@ def monotonicity_corr_and_non_sens(
                     n_perturbations_per_feature=n_perturbations_per_feature,
                     max_features_processed_per_example=max_features_processed_per_example,
                     eps=eps,
+                    show_progress=show_progress,
                 )
             )
 
             monotonicity_corr_batch.append(monotonicity_corr)
             non_sens_batch.append(non_sens)
+            n_features_batch.append(n_features)
         monotonicity_corr_batch = torch.tensor(monotonicity_corr_batch)
         non_sens_batch = torch.tensor(non_sens_batch)
-        return monotonicity_corr_batch, non_sens_batch
+        n_features_batch = torch.tensor(n_features_batch)
+        return monotonicity_corr_batch, non_sens_batch, n_features_batch

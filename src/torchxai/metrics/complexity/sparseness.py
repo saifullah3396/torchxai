@@ -18,7 +18,12 @@ def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
 
     Sparseness is quantified using the Gini Index applied to the vector of the absolute values of attributions. The
     test asks that features that are truly predictive of the output F(x) should have significant contributions, and
-    similarly, that irrelevant (or weakly-relevant) features should have negligible contributions.
+    similarly, that irrelevant (or weakly-relevant) features should have negligible contributions. A higher sparseness
+    score indicates that the attributions are more sparse, i.e., a few features have high attribution values and the
+    rest have low attribution values. This is desirable as it indicates that the model is using a few features to make
+    decisions.
+
+    Sparseness does not require the attributions be normalized to return correct outputs.
 
     Assumptions:
         - Based on the implementation of the authors as found on the following link:

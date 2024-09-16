@@ -21,7 +21,7 @@ def _validate_feature_mask(tensor: Tuple[torch.Tensor, ...]) -> None:
         tensor = (tensor,)
 
     bsz = tensor[0].size(0)
-    flat_tensor = torch.cat([x.view(bsz, -1) for x in tensor], dim=-1)
+    flat_tensor = torch.cat([x.contiguous().view(bsz, -1) for x in tensor], dim=-1)
 
     for t in flat_tensor:
         # Check if all elements are non-negative integers
@@ -125,8 +125,7 @@ def _feature_masks_to_groups_and_counts(
 
 def _generate_random_perturbation_masks(
     total_perturbations_per_feature_group: int,
-    n_grouped_features: torch.Tensor,
-    grouped_feature_counts: torch.Tensor,
+    feature_masks: Tuple[torch.Tensor, ...],
     perturbation_probability: float = 0.1,
     attribution_shape: Tuple[int, ...] = None,
     device: torch.device = torch.device("cpu"),
@@ -155,10 +154,16 @@ def _generate_random_perturbation_masks(
     10. PTB, 0, 1, PTB, 3, 4, PTB, ..., 102, SEP, PTB, where is the number of times each input sample is repeated
     """
 
+    feature_type_shapes = tuple(x.shape[1:] for x in feature_masks)
+    grouped_feature_counts, n_grouped_features = _feature_masks_to_groups_and_counts(
+        feature_masks
+    )
     perturbation_masks = tuple()
-    for n_grouped_features_per_type, grouped_feature_counts_per_type in zip(
-        n_grouped_features, grouped_feature_counts
-    ):
+    for (
+        n_grouped_features_per_type,
+        grouped_feature_counts_per_type,
+        target_expand_shape,
+    ) in zip(n_grouped_features, grouped_feature_counts, feature_type_shapes):
         perturbations_per_input_type = []
         for (
             n_grouped_features_per_sample,
@@ -203,7 +208,7 @@ def _generate_random_perturbation_masks(
                 # .
                 # .
                 # 10. PTB, 0, 0, 0, 1, 1, 1, PTB, 3, 4, PTB, ..., 102, 102, 102 SEP, PTB, PTB, PTB,
-                .view(total_perturbations_per_feature_group, *attribution_shape)
+                .view(total_perturbations_per_feature_group, *target_expand_shape)
             )
             perturbations_per_input_type.append(
                 random_perturbation_per_sample_repetition

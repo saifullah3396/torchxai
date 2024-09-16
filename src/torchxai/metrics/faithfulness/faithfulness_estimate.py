@@ -5,6 +5,7 @@ from typing import Any, Callable, Tuple, Union, cast
 import numpy as np
 import scipy
 import torch
+import tqdm
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -17,7 +18,6 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
@@ -224,6 +224,7 @@ def eval_faithfulness_estimate_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_example: int = None,
+    show_progress: bool = False,
 ) -> Tensor:
     def _next_faithfulness_estimate_tensors(
         current_n_perturbed_features: int,
@@ -329,6 +330,7 @@ def eval_faithfulness_estimate_single_sample(
             _next_faithfulness_estimate_tensors,
             agg_func=_sum_faithfulness_estimate_tensors,
             max_features_processed_per_example=max_features_processed_per_example,
+            show_progress=show_progress,
         )
 
         agg_tensors = tuple(np.array(x).flatten() for x in agg_tensors)
@@ -355,6 +357,7 @@ def faithfulness_estimate(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_example: int = None,
+    show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Faithfulness Estimate by Alvares-Melis at el., 2018a and 2018b. This implementation
@@ -512,6 +515,7 @@ def faithfulness_estimate(
                 `max_features_processed_per_example`, they will be sliced
                 into batches of `max_features_processed_per_example` examples and processed
                 in a sequential order.
+        show_progress (bool, optional): Indicates whether to print the progress of the computation.
     Returns:
         Returns:
             A tuple of three tensors:
@@ -557,7 +561,7 @@ def faithfulness_estimate(
     faithfulness_estimate_batch = []
     attributions_sum_perturbed_batch = []
     inputs_perturbed_fwd_diffs_batch = []
-    for sample_idx in range(bsz):
+    for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
         (
             faithfulness_estimate,
             attributions_sum_perturbed,
@@ -590,13 +594,12 @@ def faithfulness_estimate(
             ),
             target=target[sample_idx] if target is not None else None,
             max_features_processed_per_example=max_features_processed_per_example,
+            show_progress=show_progress,
         )
         faithfulness_estimate_batch.append(faithfulness_estimate)
         attributions_sum_perturbed_batch.append(attributions_sum_perturbed)
         inputs_perturbed_fwd_diffs_batch.append(inputs_perturbed_fwd_diffs)
     faithfulness_estimate_batch = torch.tensor(faithfulness_estimate_batch)
-    attributions_sum_perturbed_batch = torch.tensor(attributions_sum_perturbed_batch)
-    inputs_perturbed_fwd_diffs_batch = torch.tensor(inputs_perturbed_fwd_diffs_batch)
     return (
         faithfulness_estimate_batch,
         attributions_sum_perturbed_batch,

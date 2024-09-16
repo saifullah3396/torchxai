@@ -5,14 +5,13 @@ from typing import Any, Optional, cast
 import torch
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
-from torch import Tensor
-from torch.nn import Module
-
 from tests.helpers.basic import (
     assertAllTensorsAreAlmostEqualWithNan,
     assertTensorAlmostEqual,
 )
 from tests.metrics.base import MetricTestsBase
+from torch import Tensor
+from torch.nn import Module
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 from torchxai.metrics.faithfulness.monotonicity import monotonicity
 
@@ -40,7 +39,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def test_basic_batch(self) -> None:
         monotonicity_per_run = []
@@ -61,7 +60,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def test_basic_additional_forward_args1(self) -> None:
         monotonicity_per_run = []
@@ -82,7 +81,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def test_classification_convnet_multi_targets(self) -> None:
         monotonicity_per_run = []
@@ -105,7 +104,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def test_classification_tpl_target(self) -> None:
         monotonicity_per_run = []
@@ -126,7 +125,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def test_classification_tpl_target_w_baseline_perturb(self) -> None:
         monotonicity_per_run = []
@@ -146,7 +145,7 @@ class Test(MetricTestsBase):
         assertAllTensorsAreAlmostEqualWithNan(
             self, [x.float() for x in monotonicity_per_run]
         )
-        assertAllTensorsAreAlmostEqualWithNan(self, [x.float() for x in fwds_per_run])
+        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
 
     def basic_model_assert(
         self,
@@ -208,9 +207,8 @@ class Test(MetricTestsBase):
             max_features_processed_per_example=max_features_processed_per_example,
         )
         attributions, _ = _tuple_tensors_to_tensors(attributions)
-        self.assertEqual(fwds.shape[0], attributions.shape[0])  # match batch size
-        self.assertEqual(
-            fwds[0].numel(), attributions[0].numel()
-        )  # match number of features
+        self.assertEqual(len(fwds), attributions.shape[0])  # match batch size
+        for fwd, attribution in zip(fwds, attributions):
+            self.assertEqual(fwd.size, attribution.numel())  # match number of features
         assertTensorAlmostEqual(self, mono.float(), expected.float())
         return mono, fwds

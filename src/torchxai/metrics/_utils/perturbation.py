@@ -52,6 +52,9 @@ def default_random_perturb_func(noise_scale: float = 0.02):
                 for x in inputs
             )
         for input, mask, baseline in zip(inputs, perturbation_masks, baselines):
+            if len(input.shape) != len(mask.shape):
+                mask = mask.unsqueeze(-1)
+
             input[mask.expand_as(input)] = baseline[mask.expand_as(input)]
         return inputs
 

@@ -67,5 +67,9 @@ def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
 
         # compute batch-wise Gini Index of the attribution map
         return torch.tensor(
-            [gini_index(attribution.numpy() + 1e-8) for attribution in attributions]
+            [
+                gini_index(attribution.detach().cpu().numpy() + 1e-8)
+                for attribution in attributions
+            ],
+            device=attributions.device,
         )

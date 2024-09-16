@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import torch
+import tqdm
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -14,7 +15,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -123,7 +123,7 @@ def eval_aopcs_single_sample(
     max_features_processed_per_example: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
-    seed: int = 0,
+    seed: Optional[int] = None,
 ) -> Tensor:
     def _next_aopc_tensors(
         current_n_perturbed_features: int,
@@ -132,7 +132,6 @@ def eval_aopcs_single_sample(
         # get the indices of features that will be perturbed in the current iteration
         # for example if we do 1 by 1 perturbation, then the first iteration will perturb the first feature
         # the second iteration will perturb both the first and second feature and so on
-
         perturbed_inputs = []
         for feature_idx in range(
             current_n_steps - current_n_perturbed_features, current_n_steps
@@ -299,7 +298,8 @@ def aopc(
     max_features_processed_per_example: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
-    seed: int = 0,
+    seed: Optional[int] = None,
+    show_progress: bool = False,
 ) -> Tensor:
     """
     Implementation of Area over the Perturbation Curve by Samek et al., 2015. This implementation
@@ -474,7 +474,8 @@ def aopc(
             descending, ascending and random order, to compute the AOPC scores. Default: 100
         n_random_perms (int, optional): The number of random permutations of the feature importance scores
             that will be used to compute the AOPC scores for the random runs. Default: 10
-        seed (int, optional): The seed value for the random number generator for reproducibility. Default: 0
+        seed (int, optional): The seed value for the random number generator for reproducibility. Default: None
+        show_progress (bool, optional): Displays the progress of the computation. Default: False
     Returns:
         A tuple of three tensors:
         Tensor: - AOPC scores for the descending order of feature importance. The first dimension is equal to the
@@ -521,7 +522,7 @@ def aopc(
 
     bsz = inputs[0].size(0)
     aopc_batch = []
-    for sample_idx in range(bsz):
+    for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
         aopc_scores = eval_aopcs_single_sample(
             forward_func=forward_func,
             inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),

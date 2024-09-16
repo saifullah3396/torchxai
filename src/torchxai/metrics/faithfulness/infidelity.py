@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable
 
-import torch
-from captum._utils.common import (
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from sympy import per
 from torch import Tensor
 
 
@@ -26,6 +18,10 @@ def infidelity_metric(
     max_examples_per_batch: int = None,
     normalize: bool = False,
 ) -> Tensor:
+    """
+    A wrapper around the Captum library's infidelity metric.
+    """
+
     from captum.metrics import infidelity
 
     return infidelity(

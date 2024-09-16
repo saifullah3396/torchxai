@@ -120,7 +120,7 @@ def eval_aopcs_single_sample(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
+    max_features_processed_per_example: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
     seed: int = 0,
@@ -278,7 +278,7 @@ def eval_aopcs_single_sample(
                 n_features=min(total_features_perturbed, n_features),
                 metric_func=_next_aopc_tensors,
                 agg_func=_cat_aopc_tensors,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
         )
         aopc_scores = compute_aopc_scores_vectorized(
@@ -476,10 +476,16 @@ def aopc(
             that will be used to compute the AOPC scores for the random runs. Default: 10
         seed (int, optional): The seed value for the random number generator for reproducibility. Default: 0
     Returns:
-        completeness (Tensor): A tensor of scalar completeness scores per
-                input example. The first dimension is equal to the
-                number of examples in the input batch and the second
-                dimension is one.
+        A tuple of three tensors:
+        Tensor: - AOPC scores for the descending order of feature importance. The first dimension is equal to the
+                number of examples in the input batch and the second dimension is equal to the max number of features
+                perturbed per example.
+        Tensor: - AOPC scores for the ascending order of feature importance. The first dimension is equal to the
+                number of examples in the input batch and the second dimension is equal to the max number of features
+                perturbed per example.
+        Tensor: - AOPC scores for the random order of feature importance. The first dimension is equal to the
+                number of examples in the input batch and the second dimension is equal to the max number of features
+                perturbed per example.
 
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
@@ -492,7 +498,7 @@ def aopc(
         >>> attribution = saliency.attribute(input, target=3)
         >>> # define a perturbation function for the input
 
-        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
+        >>> # Computes the aopc scores for saliency maps
         >>> aopc_desc, aopc_asc, aopc_rand = aopc(net, input, attribution, baselines)
     """
 
@@ -542,7 +548,7 @@ def aopc(
                 else None
             ),
             target=target[sample_idx] if target is not None else None,
-            max_examples_per_batch=max_features_processed_per_example,
+            max_features_processed_per_example=max_features_processed_per_example,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,

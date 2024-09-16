@@ -16,6 +16,10 @@ def sensitivity_max(
     max_examples_per_batch: int = None,
     normalize: bool = False,
 ) -> Tensor:
+    """
+    A wrapper around the Captum library's infidelity metric.
+    """
+
     from captum.metrics import sensitivity_max
 
     return sensitivity_max(

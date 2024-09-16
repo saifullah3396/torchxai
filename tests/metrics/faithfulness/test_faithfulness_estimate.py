@@ -23,7 +23,7 @@ logger = getLogger(__name__)
 class Test(MetricTestsBase):
     def test_basic_single(self) -> None:
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -32,12 +32,12 @@ class Test(MetricTestsBase):
             self.basic_model_assert(
                 **self.basic_single_setup(),
                 expected=torch.tensor([1]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
 
     def test_basic_batch(self) -> None:
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -46,7 +46,7 @@ class Test(MetricTestsBase):
             self.basic_model_assert(
                 **self.basic_batch_setup(),
                 expected=torch.tensor([1, 1, 1]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
 
     def test_basic_additional_forward_args1(self) -> None:
@@ -56,7 +56,7 @@ class Test(MetricTestsBase):
             [],
         )
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -65,7 +65,7 @@ class Test(MetricTestsBase):
             faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
                 **self.basic_additional_forward_args_setup(),
                 expected=torch.tensor([torch.nan]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             faithfulness_per_run.append(faithfulness)
             attribution_sums_per_run.append(attribution_sums)
@@ -78,7 +78,7 @@ class Test(MetricTestsBase):
         self,
     ) -> None:
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -87,13 +87,13 @@ class Test(MetricTestsBase):
             self.basic_model_assert(
                 **self.classification_convnet_multi_targets_setup(),
                 expected=torch.tensor([0.4150] * 20),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-3,
             )
 
     def test_classification_tpl_target(self) -> None:
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -102,7 +102,7 @@ class Test(MetricTestsBase):
             self.basic_model_assert(
                 **self.classification_tpl_target_setup(),
                 expected=torch.tensor([0.9966, 1.0000, 1.0000, 1.0000]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-3,
             )
 
@@ -110,7 +110,7 @@ class Test(MetricTestsBase):
         self,
     ) -> None:
         # slight difference in expected output due to randomness in the default_perturb_func
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             5,
             1,
             40,
@@ -119,7 +119,7 @@ class Test(MetricTestsBase):
             self.basic_model_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 expected=torch.tensor([1.0000, 1.0000, 1.0000, 1.0000]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-3,
             )
 
@@ -133,7 +133,7 @@ class Test(MetricTestsBase):
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         multiply_by_inputs: bool = False,
         delta: float = 1.0e-4,
         set_zero_baseline: bool = False,
@@ -165,7 +165,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
             delta=delta,
         )
         return score
@@ -180,7 +180,7 @@ class Test(MetricTestsBase):
         feature_masks: TensorOrTupleOfTensorsGeneric = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         delta: float = 1.0e-4,
     ) -> Tensor:
         output, attributions_sum_perturbed, inputs_perturbed_fwd_diffs = (
@@ -192,7 +192,7 @@ class Test(MetricTestsBase):
                 feature_masks=feature_masks,
                 additional_forward_args=additional_forward_args,
                 target=target,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
         )
         assertTensorAlmostEqualWithNan(

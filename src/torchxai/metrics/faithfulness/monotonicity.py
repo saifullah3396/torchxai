@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 
-import warnings
-from calendar import c
 from typing import Any, Callable, Tuple, Union, cast
 
 import numpy as np
-import scipy
 import torch
 from captum._utils.common import (
     ExpansionTypes,
@@ -15,12 +12,9 @@ from captum._utils.common import (
     _format_baseline,
     _format_tensor_into_tuples,
     _run_forward,
-    safe_div,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
-from captum.metrics._utils.batching import _divide_and_aggregate_metrics
-from dacite import Optional
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
@@ -42,7 +36,7 @@ def eval_monotonicity_single_sample_tupled_computation(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
+    max_features_processed_per_example: int = None,
 ) -> Tensor:
     def _next_monotonicity_tensors(
         current_n_perturbed_features: int,
@@ -150,7 +144,7 @@ def eval_monotonicity_single_sample_tupled_computation(
             n_features,
             _next_monotonicity_tensors,
             agg_func=_sum_monotonicity_tensors,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
 
         # compute monotonicity corr metric
@@ -175,7 +169,7 @@ def monotonicity_tupled_computation(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
+    max_features_processed_per_example: int = None,
 ) -> Tensor:
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -208,7 +202,7 @@ def monotonicity_tupled_computation(
                 x[sample_idx].unsqueeze(0) for x in additional_forward_args
             ),
             target=target[sample_idx],
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
         monotonicity_batch.append(monotonicity)
     monotonicity_batch = torch.tensor(monotonicity_batch)
@@ -224,7 +218,7 @@ def eval_monotonicity_single_sample(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
+    max_features_processed_per_example: int = None,
 ) -> Tensor:
     def _next_monotonicity_tensors(
         current_n_perturbed_features: int,
@@ -320,7 +314,7 @@ def eval_monotonicity_single_sample(
             n_features,
             _next_monotonicity_tensors,
             agg_func=_sum_monotonicity_tensors,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
 
         # compute monotonicity corr metric
@@ -345,8 +339,191 @@ def monotonicity(
     feature_masks: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_examples_per_batch: int = None,
-) -> Tensor:
+    max_features_processed_per_example: int = None,
+) -> Tuple[Tensor, Tensor]:
+    """
+    Implementation of Monotonicity metric by Arya at el., 2019. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library.
+
+    Monotonicity tests if adding more positive evidence increases the probability
+    of classification in the specified class.
+
+    It captures attributions' faithfulness by incrementally adding each attribute
+    in order of increasing importance and evaluating the effect on model performance.
+    As more features are added, the performance of the model is expected to increase
+    and thus result in monotonically increasing model performance.
+
+    References:
+        1) Vijay Arya et al.: "One explanation does not fit all: A toolkit and taxonomy of ai explainability
+        techniques." arXiv preprint arXiv:1909.03012 (2019).
+        2) Ronny Luss et al.: "Generating contrastive explanations with monotonic attribute functions."
+        arXiv preprint arXiv:1905.12698 (2019).
+
+    Args:
+        forward_func (Callable):
+                The forward function of the model or any modification of it.
+
+        inputs (Tensor or tuple[Tensor, ...]): Input for which
+                attributions are computed. If forward_func takes a single
+                tensor as input, a single input tensor should be provided.
+                If forward_func takes multiple tensors as input, a tuple
+                of the input tensors should be provided. It is assumed
+                that for all given input tensors, dimension 0 corresponds
+                to the number of examples (aka batch size), and if
+                multiple input tensors are provided, the examples must
+                be aligned appropriately.
+
+        baselines (scalar, Tensor, tuple of scalar, or Tensor):
+                Baselines define reference values against which the completeness is measured which sometimes
+                represent ablated values and are used to compare with the actual inputs to compute
+                importance scores in attribution algorithms. They can be represented
+                as:
+
+                - a single tensor, if inputs is a single tensor, with
+                  exactly the same dimensions as inputs or the first
+                  dimension is one and the remaining dimensions match
+                  with inputs.
+
+                - a single scalar, if inputs is a single tensor, which will
+                  be broadcasted for each input value in input tensor.
+
+                - a tuple of tensors or scalars, the baseline corresponding
+                  to each tensor in the inputs' tuple can be:
+
+                - either a tensor with matching dimensions to
+                  corresponding tensor in the inputs' tuple
+                  or the first dimension is one and the remaining
+                  dimensions match with the corresponding
+                  input tensor.
+
+                - or a scalar, corresponding to a tensor in the
+                  inputs' tuple. This scalar value is broadcasted
+                  for corresponding input tensor.
+
+                Default: None
+
+        attributions (Tensor or tuple[Tensor, ...]):
+                Attribution scores computed based on an attribution algorithm.
+                This attribution scores can be computed using the implementations
+                provided in the `captum.attr` package. Some of those attribution
+                approaches are so called global methods, which means that
+                they factor in model inputs' multiplier, as described in:
+                https://arxiv.org/abs/1711.06104
+                Many global attribution algorithms can be used in local modes,
+                meaning that the inputs multiplier isn't factored in the
+                attribution scores.
+                This can be done duing the definition of the attribution algorithm
+                by passing `multipy_by_inputs=False` flag.
+                For example in case of Integrated Gradients (IG) we can obtain
+                local attribution scores if we define the constructor of IG as:
+                ig = IntegratedGradients(multipy_by_inputs=False)
+
+                Some attribution algorithms are inherently local.
+                Examples of inherently local attribution methods include:
+                Saliency, Guided GradCam, Guided Backprop and Deconvolution.
+
+                For local attributions we can use real-valued perturbations
+                whereas for global attributions that perturbation is binary.
+                https://arxiv.org/abs/1901.09392
+
+                If we want to compute the infidelity of global attributions we
+                can use a binary perturbation matrix that will allow us to select
+                a subset of features from `inputs` or `inputs - baselines` space.
+                This will allow us to approximate sensitivity-n for a global
+                attribution algorithm.
+
+                Attributions have the same shape and dimensionality as the inputs.
+                If inputs is a single tensor then the attributions is a single
+                tensor as well. If inputs is provided as a tuple of tensors
+                then attributions will be tuples of tensors as well.
+
+        feature_mask (Tensor or tuple[Tensor, ...], optional):
+                    feature_mask defines a mask for the input, grouping
+                    features which should be perturbed together. feature_mask
+                    should contain the same number of tensors as inputs.
+                    Each tensor should
+                    be the same size as the corresponding input or
+                    broadcastable to match the input tensor. Each tensor
+                    should contain integers in the range 0 to num_features
+                    - 1, and indices corresponding to the same feature should
+                    have the same value.
+                    Note that features within each input tensor are perturbed
+                    independently (not across tensors).
+                    If the forward function returns a single scalar per batch,
+                    we enforce that the first dimension of each mask must be 1,
+                    since attributions are returned batch-wise rather than per
+                    example, so the attributions must correspond to the
+                    same features (indices) in each input example.
+                    If None, then a feature mask is constructed which assigns
+                    each scalar within a tensor as a separate feature, which
+                    is perturbed independently.
+                    Default: None
+
+        additional_forward_args (Any, optional): If the forward function
+                requires additional arguments other than the inputs for
+                which attributions should not be computed, this argument
+                can be provided. It must be either a single additional
+                argument of a Tensor or arbitrary (non-tuple) type or a tuple
+                containing multiple additional arguments including tensors
+                or any arbitrary python types. These arguments are provided to
+                forward_func in order, following the arguments in inputs.
+                Note that the perturbations are not computed with respect
+                to these arguments.
+
+                Default: None
+        target (int, tuple, Tensor, or list, optional): Indices for selecting
+                predictions from output(for classification cases,
+                this is usually the target class).
+                If the network returns a scalar value per example, no target
+                index is necessary.
+                For general 2D outputs, targets can be either:
+
+                - A single integer or a tensor containing a single
+                  integer, which is applied to all input examples
+
+                - A list of integers or a 1D tensor, with length matching
+                  the number of examples in inputs (dim 0). Each integer
+                  is applied as the target for the corresponding example.
+
+                  For outputs with > 2 dimensions, targets can be either:
+
+                - A single tuple, which contains #output_dims - 1
+                  elements. This target index is applied to all examples.
+
+                - A list of tuples with length equal to the number of
+                  examples in inputs (dim 0), and each tuple containing
+                  #output_dims - 1 elements. Each tuple is applied as the
+                  target for the corresponding example.
+
+                Default: None
+        max_features_processed_per_example (int, optional): The number of maximum input
+                features that are processed together for every example. In case the number of
+                features to be perturbed in each example (`total_features_perturbed`) exceeds
+                `max_features_processed_per_example`, they will be sliced
+                into batches of `max_features_processed_per_example` examples and processed
+                in a sequential order.
+    Returns:
+        Returns:
+            A tuple of three tensors:
+            Tensor: - The monotonicity scores of the batch. The first dimension is equal to the
+                    number of examples in the input batch and the second dimension is 1.
+            Tensor: - The forward outputs when features are slowly added to baseline for monotonicity computation.
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the monotonicity scores for saliency maps
+        >>> monotonicity, asc_baseline_perturb_fwds = monotonicity(net, input, attribution, baselines)
+    """
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
     if baselines is None:
@@ -394,7 +571,7 @@ def monotonicity(
                 else None
             ),
             target=target[sample_idx] if target is not None else None,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
         monotonicity_batch.append(monotonicity)
         asc_baseline_perturbed_fwds_batch.append(asc_baseline_perturbed_fwds)

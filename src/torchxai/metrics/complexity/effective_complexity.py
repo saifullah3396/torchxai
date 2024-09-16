@@ -7,7 +7,9 @@ import torch
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
-def effective_complexity(attributions: Tuple[torch.Tensor, ...], eps: float = 1.0e-5):
+def effective_complexity(
+    attributions: Tuple[torch.Tensor, ...], eps: float = 1.0e-5
+) -> torch.Tensor:
     """
     Implementation of Effective complexity metric by Nguyen at el., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -26,7 +28,10 @@ def effective_complexity(attributions: Tuple[torch.Tensor, ...], eps: float = 1.
             tensor in the tuple has shape (batch_size, num_features).
         eps (float): The threshold value for attributions to be considered important.
     Returns:
-        Tensor: The complexity of each attribution in the batch.
+        Tensor: A tensor of scalar effective complexity per
+                input example. The first dimension is equal to the
+                number of examples in the input batch and the second
+                dimension is one.
 
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,

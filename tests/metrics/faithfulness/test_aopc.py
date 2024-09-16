@@ -25,7 +25,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -36,7 +36,7 @@ class Test(MetricTestsBase):
                 expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]]),
                 expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]]),
                 expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             aopc_desc_per_run.append(aopcs_desc)
             aopc_asc_per_run.append(aopcs_asc)
@@ -56,7 +56,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -67,7 +67,7 @@ class Test(MetricTestsBase):
                 expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]] * 3),
                 expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]] * 3),
                 expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             aopc_desc_per_run.append(aopcs_desc)
             aopc_asc_per_run.append(aopcs_asc)
@@ -87,7 +87,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -100,7 +100,7 @@ class Test(MetricTestsBase):
                     [[0.0000, 0.0000, -0.0167, -0.0500, -0.0800, -0.0750, -0.0643]]
                 ),
                 expected_features=7,  # total features are 6 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             aopc_desc_per_run.append(aopcs_desc)
             aopc_asc_per_run.append(aopcs_asc)
@@ -120,7 +120,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -200,7 +200,7 @@ class Test(MetricTestsBase):
                     * 20
                 ),
                 expected_features=17,  # total features are 16 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-2,
             )
             aopc_desc_per_run.append(aopcs_desc)
@@ -221,7 +221,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -253,7 +253,7 @@ class Test(MetricTestsBase):
                     ]
                 ),
                 expected_features=4,  # total features are 3 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1.0e-3,
             )
             aopc_desc_per_run.append(aopcs_desc)
@@ -274,7 +274,7 @@ class Test(MetricTestsBase):
         aopc_desc_per_run = []
         aopc_asc_per_run = []
         aopc_rand_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -306,7 +306,7 @@ class Test(MetricTestsBase):
                     ]
                 ),
                 expected_features=4,  # total features are 3 but aopc returns features + 1 since the fwd with no perturbation is also included
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1.0e-3,
             )
             aopc_desc_per_run.append(aopcs_desc)
@@ -336,7 +336,7 @@ class Test(MetricTestsBase):
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         multiply_by_inputs: bool = False,
         delta: float = 1e-4,
     ) -> Tensor:
@@ -363,7 +363,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
             delta=delta,
         )
         return score
@@ -381,7 +381,7 @@ class Test(MetricTestsBase):
         feature_masks: TensorOrTupleOfTensorsGeneric = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         delta: float = 1e-4,
     ) -> Tensor:
         aopcs_desc, aopcs_asc, aopcs_rand = aopc(
@@ -392,7 +392,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_features_processed_per_example=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
             seed=42,  # without generator the aopc random for each same input in batch will be different
         )
         attributions, _ = _tuple_tensors_to_tensors(attributions)

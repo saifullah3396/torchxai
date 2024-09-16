@@ -2,27 +2,22 @@ from typing import Any, Callable, Tuple, Union, cast
 
 import scipy
 import torch
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_additional_forward_args,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.common import (ExpansionTypes,
+                                  _expand_additional_forward_args,
+                                  _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_baseline, _format_tensor_into_tuples,
+                                  _run_forward)
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
 from torchxai.metrics._utils.common import (
-    _construct_default_feature_masks,
-    _feature_masks_to_groups_and_counts,
-    _format_tensor_tuple_feature_dim,
-    _generate_random_perturbation_masks,
-    _validate_feature_mask,
-)
+    _construct_default_feature_masks, _feature_masks_to_groups_and_counts,
+    _format_tensor_tuple_feature_dim, _generate_random_perturbation_masks,
+    _validate_feature_mask)
 from torchxai.metrics._utils.perturbation import default_perturb_func
 
 
@@ -40,7 +35,7 @@ def faithfulness_corr(
     max_examples_per_batch: int = None,
     perturbation_probability: float = 0.1,
     set_same_perturbation_mask_for_batch: bool = False,
-) -> Tensor:
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of faithfulness correlation by Bhatt et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -271,6 +266,29 @@ def faithfulness_corr(
             multiple runs are consistent for same inputs repeated in a batch. If set to True, the same perturbation
             mask is used for all examples in the batch. This is useful for debugging and testing purposes.
             Default: False
+        Returns:
+            A tuple of three tensors:
+            Tensor: - The faithfulness correlation scores of the batch. The first dimension is equal to the
+                    number of examples in the input batch and the second dimension is 1.
+            Tensor: - The sum of attributions for each perturbation step
+                    of the batch.
+            Tensor: - The forward difference between perturbed and unperturbed input for each perturbation step
+                    of the batch.
+
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the faithfulness correlation for saliency maps and also returns the corresponding processing
+        >>> # outputs
+        >>> faithfulness_corr, attribution_sums, perturbation_fwd_diffs = aopc(net, input, attribution)
     """
 
     def _generate_perturbations(

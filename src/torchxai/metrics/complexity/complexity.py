@@ -8,7 +8,7 @@ from torch.distributions import Categorical
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
-def complexity(attributions: Tuple[torch.Tensor, ...]):
+def complexity(attributions: Tuple[torch.Tensor, ...]) -> torch.Tensor:
     """
     Implementation of Complexity metric by Bhatt et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -28,8 +28,10 @@ def complexity(attributions: Tuple[torch.Tensor, ...]):
         attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
             tensor in the tuple has shape (batch_size, num_features).
     Returns:
-        Tensor: The complexity of each attribution in the batch.
-
+        Tensor: A tensor of scalar complexity scores per
+                input example. The first dimension is equal to the
+                number of examples in the input batch and the second
+                dimension is one.
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
         >>> # and returns an Nx10 tensor of class probabilities.

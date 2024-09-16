@@ -24,7 +24,7 @@ class Test(MetricTestsBase):
     def test_basic_single(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -32,7 +32,7 @@ class Test(MetricTestsBase):
             mono, fwds = self.basic_model_assert(
                 **self.basic_single_setup(),
                 expected=torch.tensor([True]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -45,7 +45,7 @@ class Test(MetricTestsBase):
     def test_basic_batch(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -53,7 +53,7 @@ class Test(MetricTestsBase):
             mono, fwds = self.basic_model_assert(
                 **self.basic_batch_setup(),
                 expected=torch.tensor([True] * 3),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -66,7 +66,7 @@ class Test(MetricTestsBase):
     def test_basic_additional_forward_args1(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -74,7 +74,7 @@ class Test(MetricTestsBase):
             mono, fwds = self.basic_model_assert(
                 **self.basic_additional_forward_args_setup(),
                 expected=torch.tensor([False]),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -87,7 +87,7 @@ class Test(MetricTestsBase):
     def test_classification_convnet_multi_targets(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -98,7 +98,7 @@ class Test(MetricTestsBase):
                     [True] * 20,
                     dtype=torch.float64,
                 ),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -110,7 +110,7 @@ class Test(MetricTestsBase):
     def test_classification_tpl_target(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -118,7 +118,7 @@ class Test(MetricTestsBase):
             mono, fwds = self.basic_model_assert(
                 **self.classification_tpl_target_setup(),
                 expected=torch.tensor([True] * 4),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -131,7 +131,7 @@ class Test(MetricTestsBase):
     def test_classification_tpl_target_w_baseline_perturb(self) -> None:
         monotonicity_per_run = []
         fwds_per_run = []
-        for max_examples_per_batch in [
+        for max_features_processed_per_example in [
             1,
             None,
             40,
@@ -139,7 +139,7 @@ class Test(MetricTestsBase):
             mono, fwds = self.basic_model_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 expected=torch.tensor([True] * 4),
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             monotonicity_per_run.append(mono)
             fwds_per_run.append(fwds)
@@ -158,7 +158,7 @@ class Test(MetricTestsBase):
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         multiply_by_inputs: bool = False,
     ) -> Tensor:
         attributions = attribution_fn.attribute(
@@ -181,7 +181,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
         return score
 
@@ -195,7 +195,7 @@ class Test(MetricTestsBase):
         feature_masks: TensorOrTupleOfTensorsGeneric = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
     ) -> Tensor:
         mono, fwds = monotonicity(
             forward_func=model,
@@ -205,7 +205,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
         attributions, _ = _tuple_tensors_to_tensors(attributions)
         self.assertEqual(fwds.shape[0], attributions.shape[0])  # match batch size

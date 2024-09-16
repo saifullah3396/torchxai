@@ -201,7 +201,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             n_features,
             _next_monotonicity_corr_tensors,
             agg_func=_sum_monotonicity_corr_tensors,
-            max_examples_per_batch=max_features_processed_per_example,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
 
         # compute monotonocity corr metric
@@ -511,10 +511,15 @@ def monotonicity_corr_and_non_sens(
                 is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity
                 metric. Default: 1e-5
     Returns:
-        completeness (Tensor): A tensor of scalar completeness scores per
-                input example. The first dimension is equal to the
-                number of examples in the input batch and the second
-                dimension is one.
+        A tuple of tensors:
+            monotonicity_corr_batch (Tensor): A tensor of scalar monotonicity_corr scores per
+                    input example. The first dimension is equal to the
+                    number of examples in the input batch and the second
+                    dimension is one.
+            non_sensitivity_batch (Tensor): A tensor of scalar non_sensitivity scores per
+                    input example. The first dimension is equal to the
+                    number of examples in the input batch and the second
+                    dimension is one.
 
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,

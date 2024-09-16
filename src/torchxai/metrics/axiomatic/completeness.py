@@ -151,7 +151,7 @@ def completeness(
 
                 Default: None
     Returns:
-        completeness (Tensor): A tensor of scalar completeness scores per
+        Tensor: A tensor of scalar completeness scores per
                 input example. The first dimension is equal to the
                 number of examples in the input batch and the second
                 dimension is one.

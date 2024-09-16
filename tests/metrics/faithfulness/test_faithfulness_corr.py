@@ -10,13 +10,10 @@ from torch.nn import Module
 
 from tests.helpers.basic import (
     assertAllTensorsAreAlmostEqualWithNan,
-    assertTensorAlmostEqual,
     assertTensorAlmostEqualWithNan,
     set_all_random_seeds,
 )
 from tests.metrics.base import MetricTestsBase
-from torchxai.metrics._utils import perturbation
-from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 from torchxai.metrics._utils.perturbation import (
     default_perturb_func,
     default_zero_baseline_func,

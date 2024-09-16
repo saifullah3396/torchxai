@@ -21,201 +21,201 @@ logger = getLogger(__name__)
 
 
 class Test(MetricTestsBase):
-    # def test_basic_single(self) -> None:
-    #     aopc_desc_per_run = []
-    #     aopc_asc_per_run = []
-    #     aopc_rand_per_run = []
-    #     for max_examples_per_batch in [
-    #         1,
-    #         None,
-    #         40,
-    #     ]:
-    #         aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
-    #             **self.basic_single_setup(),
-    #             expected_desc=torch.tensor([[0.0000, 0.5000, 0.6667]]),
-    #             expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]]),
-    #             expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]]),
-    #             expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
-    #             max_examples_per_batch=max_examples_per_batch,
-    #         )
-    #         aopc_desc_per_run.append(aopcs_desc)
-    #         aopc_asc_per_run.append(aopcs_asc)
-    #         aopc_rand_per_run.append(aopcs_rand)
+    def test_basic_single(self) -> None:
+        aopc_desc_per_run = []
+        aopc_asc_per_run = []
+        aopc_rand_per_run = []
+        for max_examples_per_batch in [
+            1,
+            None,
+            40,
+        ]:
+            aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
+                **self.basic_single_setup(),
+                expected_desc=torch.tensor([[0.0000, 0.5000, 0.6667]]),
+                expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]]),
+                expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]]),
+                expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
+                max_examples_per_batch=max_examples_per_batch,
+            )
+            aopc_desc_per_run.append(aopcs_desc)
+            aopc_asc_per_run.append(aopcs_asc)
+            aopc_rand_per_run.append(aopcs_rand)
 
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_desc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_asc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_rand_per_run]
-    #     )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_desc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_asc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_rand_per_run]
+        )
 
-    # def test_basic_batch(self) -> None:
-    #     aopc_desc_per_run = []
-    #     aopc_asc_per_run = []
-    #     aopc_rand_per_run = []
-    #     for max_examples_per_batch in [
-    #         1,
-    #         None,
-    #         40,
-    #     ]:
-    #         aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
-    #             **self.basic_batch_setup(),
-    #             expected_desc=torch.tensor([[0.0000, 0.5000, 0.6667]] * 3),
-    #             expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]] * 3),
-    #             expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]] * 3),
-    #             expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
-    #             max_examples_per_batch=max_examples_per_batch,
-    #         )
-    #         aopc_desc_per_run.append(aopcs_desc)
-    #         aopc_asc_per_run.append(aopcs_asc)
-    #         aopc_rand_per_run.append(aopcs_rand)
+    def test_basic_batch(self) -> None:
+        aopc_desc_per_run = []
+        aopc_asc_per_run = []
+        aopc_rand_per_run = []
+        for max_examples_per_batch in [
+            1,
+            None,
+            40,
+        ]:
+            aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
+                **self.basic_batch_setup(),
+                expected_desc=torch.tensor([[0.0000, 0.5000, 0.6667]] * 3),
+                expected_asc=torch.tensor([[0.0000, -0.5000, 0.0000]] * 3),
+                expected_rand=torch.tensor([[0.0000, 0.2000, 0.4667]] * 3),
+                expected_features=3,  # total features are 2 but aopc returns features + 1 since the fwd with no perturbation is also included
+                max_examples_per_batch=max_examples_per_batch,
+            )
+            aopc_desc_per_run.append(aopcs_desc)
+            aopc_asc_per_run.append(aopcs_asc)
+            aopc_rand_per_run.append(aopcs_rand)
 
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_desc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_asc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_rand_per_run]
-    #     )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_desc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_asc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_rand_per_run]
+        )
 
-    # def test_basic_additional_forward_args1(self) -> None:
-    #     aopc_desc_per_run = []
-    #     aopc_asc_per_run = []
-    #     aopc_rand_per_run = []
-    #     for max_examples_per_batch in [
-    #         1,
-    #         None,
-    #         40,
-    #     ]:
-    #         aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
-    #             **self.basic_additional_forward_args_setup(),
-    #             expected_desc=torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
-    #             expected_asc=torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
-    #             expected_rand=torch.tensor(
-    #                 [[0.0000, 0.0000, -0.0167, -0.0500, -0.0800, -0.0750, -0.0643]]
-    #             ),
-    #             expected_features=7,  # total features are 6 but aopc returns features + 1 since the fwd with no perturbation is also included
-    #             max_examples_per_batch=max_examples_per_batch,
-    #         )
-    #         aopc_desc_per_run.append(aopcs_desc)
-    #         aopc_asc_per_run.append(aopcs_asc)
-    #         aopc_rand_per_run.append(aopcs_rand)
+    def test_basic_additional_forward_args1(self) -> None:
+        aopc_desc_per_run = []
+        aopc_asc_per_run = []
+        aopc_rand_per_run = []
+        for max_examples_per_batch in [
+            1,
+            None,
+            40,
+        ]:
+            aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
+                **self.basic_additional_forward_args_setup(),
+                expected_desc=torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+                expected_asc=torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),
+                expected_rand=torch.tensor(
+                    [[0.0000, 0.0000, -0.0167, -0.0500, -0.0800, -0.0750, -0.0643]]
+                ),
+                expected_features=7,  # total features are 6 but aopc returns features + 1 since the fwd with no perturbation is also included
+                max_examples_per_batch=max_examples_per_batch,
+            )
+            aopc_desc_per_run.append(aopcs_desc)
+            aopc_asc_per_run.append(aopcs_asc)
+            aopc_rand_per_run.append(aopcs_rand)
 
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_desc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_asc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_rand_per_run]
-    #     )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_desc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_asc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_rand_per_run]
+        )
 
-    # def test_classification_convnet_multi_targets(self) -> None:
-    #     aopc_desc_per_run = []
-    #     aopc_asc_per_run = []
-    #     aopc_rand_per_run = []
-    #     for max_examples_per_batch in [
-    #         1,
-    #         None,
-    #         40,
-    #     ]:
-    #         aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
-    #             **self.classification_convnet_multi_targets_setup(),
-    #             expected_desc=torch.tensor(
-    #                 [
-    #                     [
-    #                         0.0000,
-    #                         7.5000,
-    #                         12.6667,
-    #                         22.0000,
-    #                         31.0000,
-    #                         37.0000,
-    #                         41.2857,
-    #                         44.5000,
-    #                         47.0000,
-    #                         49.0000,
-    #                         50.6364,
-    #                         52.0000,
-    #                         53.1538,
-    #                         54.1429,
-    #                         55.0000,
-    #                         55.7500,
-    #                         56.4118,
-    #                     ]
-    #                 ]
-    #                 * 20
-    #             ),
-    #             expected_asc=torch.tensor(
-    #                 [
-    #                     [
-    #                         0.0000,
-    #                         0.5000,
-    #                         2.0000,
-    #                         3.7500,
-    #                         5.6000,
-    #                         6.8333,
-    #                         7.7143,
-    #                         9.8750,
-    #                         12.0000,
-    #                         13.7000,
-    #                         16.1818,
-    #                         19.2500,
-    #                         22.9231,
-    #                         26.0714,
-    #                         28.8000,
-    #                         31.1875,
-    #                         33.2941,
-    #                     ]
-    #                 ]
-    #                 * 20
-    #             ),
-    #             expected_rand=torch.tensor(
-    #                 [
-    #                     [
-    #                         0.0000,
-    #                         3.1500,
-    #                         5.4000,
-    #                         7.6750,
-    #                         9.6800,
-    #                         12.5333,
-    #                         16.1000,
-    #                         19.3625,
-    #                         22.8000,
-    #                         26.2400,
-    #                         29.5727,
-    #                         32.5833,
-    #                         35.2308,
-    #                         37.5000,
-    #                         39.4667,
-    #                         41.1875,
-    #                         42.7059,
-    #                     ]
-    #                 ]
-    #                 * 20
-    #             ),
-    #             expected_features=17,  # total features are 16 but aopc returns features + 1 since the fwd with no perturbation is also included
-    #             max_examples_per_batch=max_examples_per_batch,
-    #             delta=1e-2
-    #         )
-    #         aopc_desc_per_run.append(aopcs_desc)
-    #         aopc_asc_per_run.append(aopcs_asc)
-    #         aopc_rand_per_run.append(aopcs_rand)
+    def test_classification_convnet_multi_targets(self) -> None:
+        aopc_desc_per_run = []
+        aopc_asc_per_run = []
+        aopc_rand_per_run = []
+        for max_examples_per_batch in [
+            1,
+            None,
+            40,
+        ]:
+            aopcs_desc, aopcs_asc, aopcs_rand = self.basic_model_assert(
+                **self.classification_convnet_multi_targets_setup(),
+                expected_desc=torch.tensor(
+                    [
+                        [
+                            0.0000,
+                            7.5000,
+                            12.6667,
+                            22.0000,
+                            31.0000,
+                            37.0000,
+                            41.2857,
+                            44.5000,
+                            47.0000,
+                            49.0000,
+                            50.6364,
+                            52.0000,
+                            53.1538,
+                            54.1429,
+                            55.0000,
+                            55.7500,
+                            56.4118,
+                        ]
+                    ]
+                    * 20
+                ),
+                expected_asc=torch.tensor(
+                    [
+                        [
+                            0.0000,
+                            0.5000,
+                            2.0000,
+                            3.7500,
+                            5.6000,
+                            6.8333,
+                            7.7143,
+                            9.8750,
+                            12.0000,
+                            13.7000,
+                            16.1818,
+                            19.2500,
+                            22.9231,
+                            26.0714,
+                            28.8000,
+                            31.1875,
+                            33.2941,
+                        ]
+                    ]
+                    * 20
+                ),
+                expected_rand=torch.tensor(
+                    [
+                        [
+                            0.0000,
+                            3.1500,
+                            5.4000,
+                            7.6750,
+                            9.6800,
+                            12.5333,
+                            16.1000,
+                            19.3625,
+                            22.8000,
+                            26.2400,
+                            29.5727,
+                            32.5833,
+                            35.2308,
+                            37.5000,
+                            39.4667,
+                            41.1875,
+                            42.7059,
+                        ]
+                    ]
+                    * 20
+                ),
+                expected_features=17,  # total features are 16 but aopc returns features + 1 since the fwd with no perturbation is also included
+                max_examples_per_batch=max_examples_per_batch,
+                delta=1e-2,
+            )
+            aopc_desc_per_run.append(aopcs_desc)
+            aopc_asc_per_run.append(aopcs_asc)
+            aopc_rand_per_run.append(aopcs_rand)
 
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_desc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_asc_per_run]
-    #     )
-    #     assertAllTensorsAreAlmostEqualWithNan(
-    #         self, [x.float() for x in aopc_rand_per_run]
-    #     )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_desc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_asc_per_run]
+        )
+        assertAllTensorsAreAlmostEqualWithNan(
+            self, [x.float() for x in aopc_rand_per_run]
+        )
 
     def test_classification_tpl_target(self) -> None:
         aopc_desc_per_run = []
@@ -392,7 +392,7 @@ class Test(MetricTestsBase):
             feature_masks=feature_masks,
             additional_forward_args=additional_forward_args,
             target=target,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_examples_per_batch,
             seed=42,  # without generator the aopc random for each same input in batch will be different
         )
         attributions, _ = _tuple_tensors_to_tensors(attributions)

@@ -27,11 +27,11 @@ logger = getLogger(__name__)
 class Test(MetricTestsBase):
     def test_basic_single(self) -> None:
         outputs = []
-        for n_perturbations_per_feature, max_examples_per_batch in zip(
+        for n_perturbations_per_feature, max_features_processed_per_example in zip(
             [10, 10, 20],
             [
                 None,
-                10,
+                1,
                 40,
             ],
         ):
@@ -40,7 +40,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=torch.ones(1),
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             outputs.append(output)
 
@@ -48,11 +48,11 @@ class Test(MetricTestsBase):
 
     def test_basic_batch(self) -> None:
         outputs = []
-        for n_perturbations_per_feature, max_examples_per_batch in zip(
+        for n_perturbations_per_feature, max_features_processed_per_example in zip(
             [10, 10, 20],
             [
                 None,
-                10,
+                1,
                 40,
             ],
         ):
@@ -61,7 +61,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=torch.ones(3),
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             outputs.append(output)
 
@@ -69,11 +69,11 @@ class Test(MetricTestsBase):
 
     def test_basic_additional_forward_args1(self) -> None:
         outputs = []
-        for n_perturbations_per_feature, max_examples_per_batch in zip(
+        for n_perturbations_per_feature, max_features_processed_per_example in zip(
             [10, 10, 20],
             [
                 None,
-                10,
+                1,
                 40,
             ],
         ):
@@ -82,7 +82,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=torch.tensor([torch.nan]),
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             outputs.append(output)
 
@@ -117,11 +117,15 @@ class Test(MetricTestsBase):
                 dtype=torch.float64,
             ),
         ]
-        for n_perturbations_per_feature, max_examples_per_batch, expected_output in zip(
+        for (
+            n_perturbations_per_feature,
+            max_features_processed_per_example,
+            expected_output,
+        ) in zip(
             [10, 10, 20],
             [
                 None,
-                10,
+                1,
                 40,
             ],
             expected_outputs,
@@ -131,7 +135,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=expected_output,
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-3,
             )
             outputs.append(output)
@@ -140,11 +144,11 @@ class Test(MetricTestsBase):
 
     def test_classification_tpl_target(self) -> None:
         outputs = []
-        for n_perturbations_per_feature, max_examples_per_batch in zip(
+        for n_perturbations_per_feature, max_features_processed_per_example in zip(
             [10, 10, 20],
             [
                 None,
-                10,
+                1,
                 40,
             ],
         ):
@@ -153,7 +157,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=torch.tensor([1, 1, 1, 1]),
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
             )
             outputs.append(output)
 
@@ -166,8 +170,12 @@ class Test(MetricTestsBase):
             torch.tensor([1, 1, 1, 1]),
             torch.tensor([1, 1, 1, 1]),
         ]
-        for n_perturbations_per_feature, max_examples_per_batch, expected_output in zip(
-            [10, 10, 20],
+        for (
+            n_perturbations_per_feature,
+            max_features_processed_per_example,
+            expected_output,
+        ) in zip(
+            [10, 1, 20],
             [
                 None,
                 10,
@@ -180,7 +188,7 @@ class Test(MetricTestsBase):
                 perturb_func=default_perturb_func(),
                 expected=expected_output,
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                max_examples_per_batch=max_examples_per_batch,
+                max_features_processed_per_example=max_features_processed_per_example,
                 delta=1e-3,
             )
             outputs.append(output)
@@ -199,7 +207,7 @@ class Test(MetricTestsBase):
         target: Optional[TargetType] = None,
         perturb_func: Callable = default_perturb_func(),
         n_perturbations_per_feature: int = 10,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         multiply_by_inputs: bool = False,
         delta: float = 1e-4,
     ) -> Tensor:
@@ -224,7 +232,7 @@ class Test(MetricTestsBase):
             target=target,
             perturb_func=perturb_func,
             n_perturbations_per_feature=n_perturbations_per_feature,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
             delta=delta,
         )
         return score
@@ -240,7 +248,7 @@ class Test(MetricTestsBase):
         target: Optional[TargetType] = None,
         perturb_func: Callable = default_perturb_func(),
         n_perturbations_per_feature: int = 10,
-        max_examples_per_batch: int = None,
+        max_features_processed_per_example: int = None,
         delta: float = 1e-4,
     ) -> Tensor:
         output, _ = monotonicity_corr_and_non_sens(
@@ -252,7 +260,7 @@ class Test(MetricTestsBase):
             target=target,
             perturb_func=perturb_func,
             n_perturbations_per_feature=n_perturbations_per_feature,
-            max_examples_per_batch=max_examples_per_batch,
+            max_features_processed_per_example=max_features_processed_per_example,
         )
         if torch.isnan(expected).all():
             assert torch.isnan(output).all()

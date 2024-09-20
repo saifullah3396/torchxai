@@ -1,2 +1,4 @@
 **/**.pyc
 **/**.__pycache__
+scripts/data/
+scripts/output/

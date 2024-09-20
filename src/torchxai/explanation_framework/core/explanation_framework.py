@@ -359,6 +359,7 @@ class FusionExplanationFramework(ABC):
         batch: Dict[str, torch.Tensor],
         explanation_parameters: ExplanationParameters,
         explanations: torch.Tensor | Tuple[torch.Tensor],
+        model_outputs: torch.Tensor,
     ) -> None:
         pass
 
@@ -670,6 +671,7 @@ class FusionExplanationFramework(ABC):
                     batch=batch,
                     explanation_parameters=explanation_parameters,
                     explanations=reduced_explanations,
+                    model_outputs=model_outputs,
                 )
 
             # compute and save different explainability metrics

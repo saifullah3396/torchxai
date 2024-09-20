@@ -19,6 +19,7 @@ from torchxai.explanation_framework.core.explanation_framework import (
     FusionExplanationFramework,
 )
 from torchxai.explanation_framework.core.utils.general import (
+    ExplanationParameters,
     pretty_classification_report,
 )
 from torchxai.explanation_framework.core.utils.h5io import HFDataset
@@ -158,7 +159,31 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
     def _visualize_explanations(
         self,
         batch: Dict[str, torch.Tensor],
-        model_inputs: Dict[str, Any],
+        explanation_parameters: ExplanationParameters,
         explanations: torch.Tensor | Tuple[torch.Tensor],
+        model_outputs: torch.Tensor,
     ) -> None:
-        pass
+        from captum.attr import visualization as viz
+
+        images = explanation_parameters.model_inputs[0]
+        images = images.permute(0, 2, 3, 1) / 2 + 0.5
+        images = images.cpu().detach().numpy()
+        explanations = explanations[0]
+        explanations = explanations.permute(0, 2, 3, 1)
+        explanations = explanations.cpu().detach().numpy()
+
+        for idx in range(len(images)):
+            _ = viz.visualize_image_attr(
+                None, images[idx], method="original_image", title="Original Image"
+            )
+
+            _ = viz.visualize_image_attr(
+                explanations[idx],
+                images[idx],
+                method="blended_heat_map",
+                sign="all",
+                show_colorbar=True,
+                title="Overlayed Gradient Magnitudes",
+            )
+
+        exit()

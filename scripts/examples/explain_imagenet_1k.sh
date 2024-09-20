@@ -57,7 +57,7 @@ for ((i = 0; i < ${total_datasets}; i++)); do
             per_device_eval_batch_size=${batch_sizes[$j]} \
             checkpoint=${checkpoints[$i]} \
             test_model=false \
-            visualize_explanations=False"
+            visualize_explanations=True"
         )
     done
 done

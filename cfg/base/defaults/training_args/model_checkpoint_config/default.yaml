@@ -1,0 +1,9 @@
+dir: checkpoints
+every_n_epochs: null
+every_n_steps: 1000
+mode: max # min
+monitored_metric: validation/f1
+n_best_saved: 1
+n_saved: 1
+name_prefix: ""
+save_weights_only: false

@@ -6,7 +6,6 @@ from typing import Any, List, Tuple, Union
 import numpy as np
 import torch
 from captum.metrics import sensitivity_max
-from torchfusion.core.constants import DataKeys
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.core.batch_compute_cache.base import (
@@ -15,8 +14,10 @@ from torchxai.explanation_framework.core.batch_compute_cache.base import (
 from torchxai.explanation_framework.core.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
-from torchxai.explanation_framework.core.utils.constants import EMBEDDING_KEYS
-from torchxai.explanation_framework.core.utils.general import unpack_inputs
+from torchxai.explanation_framework.core.utils.general import (
+    ExplanationParameters,
+    unpack_explanation_parameters,
+)
 from torchxai.explanation_framework.core.utils.h5io import (
     HFIOMultiOutput,
     HFIOSingleOutput,
@@ -44,16 +45,15 @@ class SensitivityBatchComputeCache(BatchComputeCache):
     def compute_metric(
         self,
         explainer: FusionExplainer,
-        model_inputs: Tuple[Union[torch.Tensor, np.ndarray], ...],
+        explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ) -> Tuple[List[Union[torch.Tensor, np.ndarray]], Union[torch.Tensor, np.ndarray]]:
         (
             inputs,
             baselines,
             feature_masks,
-            extra_inputs,
-            _,
-        ) = unpack_inputs(model_inputs)
+            additional_forward_args,
+        ) = unpack_explanation_parameters(explanation_parameters)
 
         assert (
             inputs[0].shape[0] == batch_target_labels.shape[0]
@@ -64,13 +64,7 @@ class SensitivityBatchComputeCache(BatchComputeCache):
         args = dict(
             inputs=inputs,
             target=batch_target_labels,
-            additional_forward_args=(
-                # this tuple in this order must be passed see src/doclm/models/interpretable_layoutlmv3.py
-                # for forward method
-                extra_inputs[EMBEDDING_KEYS.TOKEN_TYPE_EMBEDDINGS],
-                extra_inputs[DataKeys.ATTENTION_MASKS],
-                extra_inputs[DataKeys.TOKEN_BBOXES],
-            ),
+            additional_forward_args=additional_forward_args,
         )
 
         fn_parameters = inspect.signature(explainer.explain).parameters

@@ -1,16 +1,25 @@
 from __future__ import annotations
 
 import hashlib
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 import pandas as pd
 import torch
+from attr import dataclass
 from sklearn.metrics import classification_report
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai import *  # noqa
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class ExplanationParameters:
+    model_inputs: Tuple[torch.Tensor, ...]
+    baselines: Tuple[torch.Tensor, ...]
+    feature_masks: Tuple[torch.Tensor, ...]
+    additional_forward_args: Tuple[Any]
 
 
 def pretty_classification_report(y_true: List[int], y_pred: List[int]) -> pd.DataFrame:
@@ -116,6 +125,7 @@ def perturb_fn_drop_batched_single_output(
         for input, n_grouped_features_per_type, grouped_feature_counts_per_type in zip(
             inputs, n_grouped_features, grouped_feature_counts
         ):
+
             drops_per_input_type = []
             for (
                 repeated_input,
@@ -188,33 +198,47 @@ def perturb_fn_drop_batched_single_output(
     return wrapped
 
 
-def unpack_inputs(model_inputs: dict[str, torch.Tensor]) -> Tuple[torch.Tensor, ...]:
-    (
-        inputs,
-        baselines,
-        feature_masks,
-        extra_inputs,
-    ) = (
-        model_inputs["input_embeddings"],
-        model_inputs["input_embeddings_ref"],
-        model_inputs["input_embeddings_feature_masks"],
-        model_inputs["extra_inputs"],
-    )
+def unpack_explanation_parameters(
+    explanation_parameters: ExplanationParameters,
+) -> Tuple[torch.Tensor, ...]:
+    if isinstance(explanation_parameters.model_inputs, dict):
+        assert isinstance(explanation_parameters.baselines, dict)
+        assert (
+            explanation_parameters.model_inputs.keys()
+            == explanation_parameters.baselines.keys()
+        )
+        assert (
+            explanation_parameters.model_inputs.keys()
+            == explanation_parameters.feature_masks.keys()
+        )
 
-    # sanity check for input embedding names
-    assert inputs.keys() == baselines.keys() == feature_masks.keys()
-    input_keys = list(inputs.keys())
+        inputs = tuple(explanation_parameters.model_inputs.values())
+        baselines = tuple(explanation_parameters.baselines.values())
+        feature_masks = tuple(explanation_parameters.feature_masks.values())
+        additional_forward_args = explanation_parameters.additional_forward_args
+    else:
+        inputs = explanation_parameters.model_inputs
+        baselines = explanation_parameters.baselines
+        feature_masks = explanation_parameters.feature_masks
+        additional_forward_args = explanation_parameters.additional_forward_args
 
-    # Ensure the shapes of inputs, baselines, and labels match
-    # this is a tuple of tensors [token_embeddings, position_embeddings, spatial_embeddings, image_embeddings]
-    inputs = tuple(inputs.values())
+    return inputs, baselines, feature_masks, additional_forward_args
 
-    # this is a tuple of tensors [token_embeddings_ref, position_embeddings_ref,
-    # spatial_embeddings_ref, image_embeddings_ref]
-    baselines = tuple(baselines.values())
 
-    # this is a tuple of tensors [token_embedding_feature_masks, position_embeddings_feature_masks,
-    # spatial_embeddings_feature_masks, image_embeddings_feature_masks]
-    feature_masks = tuple(feature_masks.values())
-
-    return inputs, baselines, feature_masks, extra_inputs, input_keys
+def create_labelled_patch_grid(
+    images: torch.Tensor, grid_size: int = 16
+) -> torch.Tensor:
+    feature_masks = []
+    for image in images:
+        # image dimensions are C x H x H
+        dim_x, dim_y = image.shape[1] // grid_size, image.shape[2] // grid_size
+        mask = (
+            torch.arange(dim_x * dim_y)
+            .view((dim_x, dim_y))
+            .repeat_interleave(grid_size, dim=0)
+            .repeat_interleave(grid_size, dim=1)
+            .long()
+            .unsqueeze(0)
+        )
+        feature_masks.append(mask)
+    return torch.stack(feature_masks)

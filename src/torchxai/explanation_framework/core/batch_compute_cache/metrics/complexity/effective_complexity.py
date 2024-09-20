@@ -6,6 +6,7 @@ import torch
 from torchxai.explanation_framework.core.batch_compute_cache.metrics.torchxai_metrics import (
     TorchXAIMetricBatchComputeCache,
 )
+from torchxai.explanation_framework.core.utils.general import ExplanationParameters
 from torchxai.explanation_framework.core.utils.h5io import (
     HFIOMultiOutput,
     HFIOSingleOutput,
@@ -26,7 +27,7 @@ class EffectiveComplexityBatchComputeCache(TorchXAIMetricBatchComputeCache):
         self,
         wrapped_model: Callable,
         explanations: Tuple[Union[torch.Tensor, np.ndarray], ...],
-        model_inputs: Tuple[Union[torch.Tensor, np.ndarray], ...],
+        explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ):
         kwargs = {}

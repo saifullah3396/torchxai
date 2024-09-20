@@ -83,7 +83,9 @@ class MonotonicityCorrNonSensitivityBatchComputeCache(TorchXAIMetricBatchCompute
                 [0, 1, 2],
             ):
                 assert np.allclose(
-                    loaded_outputs[output_name], outputs[self.metric_name][output_idx]
+                    loaded_outputs[output_name],
+                    outputs[self.metric_name][output_idx],
+                    equal_nan=True,
                 ), f"Loaded outputs do not match saved outputs: {loaded_outputs[output_name]} != {outputs[self.metric_name][output_idx]}"
 
     def load_outputs(self, sample_keys: List[str]) -> Tuple[torch.Tensor | np.ndarray]:

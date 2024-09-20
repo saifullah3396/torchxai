@@ -6,14 +6,15 @@ from typing import Any, Callable, List, Tuple, Union
 
 import numpy as np
 import torch
-from torchfusion.core.constants import DataKeys
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.core.batch_compute_cache.base import (
     BatchComputeCache,
 )
-from torchxai.explanation_framework.core.utils.constants import EMBEDDING_KEYS
-from torchxai.explanation_framework.core.utils.general import unpack_inputs
+from torchxai.explanation_framework.core.utils.general import (
+    ExplanationParameters,
+    unpack_explanation_parameters,
+)
 from torchxai.explanation_framework.core.utils.h5io import (
     HFIOMultiOutput,
     HFIOSingleOutput,
@@ -48,29 +49,35 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
         self,
         wrapped_model: Callable,
         explanations: Tuple[Union[torch.Tensor, np.ndarray], ...],
-        model_inputs: Tuple[Union[torch.Tensor, np.ndarray], ...],
+        explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ):
         (
             inputs,
             baselines,
             feature_masks,
-            extra_inputs,
-            _,
-        ) = unpack_inputs(model_inputs)
+            additional_forward_args,
+        ) = unpack_explanation_parameters(explanation_parameters)
+
+        assert (
+            inputs[0].shape[0] == batch_target_labels.shape[0],
+            f"Input and target labels shape must match, target labels shape: {batch_target_labels.shape}, input shape: {inputs[0].shape}",
+        )
+        assert (
+            inputs[0].shape[0] == baselines[0].shape[0]
+        ), f"Input and baselines shape must match, baselines shape: {baselines[0].shape}, input shape: {inputs[0].shape}"
+        assert (
+            inputs[0].shape[0] == explanations[0].shape[0]
+        ), f"Input and explanations shape must match, explanations shape: {explanations[0].shape}, input shape: {inputs[0].shape}"
 
         # Pass necessary arguments based on the explanation method's requirements
         kwargs = dict(
             inputs=inputs,
             target=batch_target_labels,
-            additional_forward_args=(
-                # this tuple in this order must be passed see src/doclm/models/interpretable_layoutlmv3.py
-                # for forward method
-                extra_inputs[EMBEDDING_KEYS.TOKEN_TYPE_EMBEDDINGS],
-                extra_inputs[DataKeys.ATTENTION_MASKS],
-                extra_inputs[DataKeys.TOKEN_BBOXES],
-            ),
+            additional_forward_args=(additional_forward_args),
         )
+
+        device = batch_target_labels.device
 
         if isinstance(feature_masks, tuple):
             feature_masks = tuple(
@@ -85,23 +92,26 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
                 mask.expand_as(explanation)
                 for mask, explanation in zip(feature_masks, explanations)
             )
+            feature_masks = tuple(mask.to(device) for mask in feature_masks)
         else:
             feature_masks = (
                 feature_masks.unsqueeze(-1)
                 if len(feature_masks.shape) != len(explanations.shape)
                 else feature_masks
             )
+            feature_masks = feature_masks.to(device)
+
         fn_parameters = inspect.signature(self.torchxai_metric).parameters
         if "forward_func" in fn_parameters:
             kwargs["forward_func"] = wrapped_model
         if "attributions" in fn_parameters:
             if isinstance(explanations, tuple):
                 kwargs["attributions"] = tuple(
-                    explanation.to(input.device)
+                    explanation.to(device)
                     for explanation, input in zip(explanations, inputs)
                 )
             else:
-                kwargs["attributions"] = explanations.to(inputs.device)
+                kwargs["attributions"] = explanations.to(device)
         if "feature_masks" in fn_parameters:
             kwargs["feature_masks"] = feature_masks
         if "baselines" in fn_parameters:
@@ -129,13 +139,15 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
         self,
         wrapped_model: Callable,
         explanations: Tuple[Union[torch.Tensor, np.ndarray], ...],
-        model_inputs: Tuple[Union[torch.Tensor, np.ndarray], ...],
+        explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ) -> Tuple[List[Union[torch.Tensor, np.ndarray]], Union[torch.Tensor, np.ndarray]]:
+        # prepare inputs
         kwargs = self._prepare_metric_input(
-            wrapped_model, explanations, model_inputs, batch_target_labels
+            wrapped_model, explanations, explanation_parameters, batch_target_labels
         )
 
+        # compute metric
         metric_scores = self.torchxai_metric(**kwargs, **self.metric_kwargs)
 
         if isinstance(metric_scores, tuple):

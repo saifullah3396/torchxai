@@ -68,18 +68,19 @@ from torchxai.explanation_framework.core.batch_compute_cache.metrics.faithfulnes
 from torchxai.explanation_framework.core.batch_compute_cache.metrics.robustness.sensitivity import (
     SensitivityBatchComputeCache,
 )
+from torchxai.explanation_framework.core.explained_model.base import ExplainedModel
 from torchxai.explanation_framework.core.explainers.factory import ExplainerFactory
 from torchxai.explanation_framework.core.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
-from torchxai.explanation_framework.core.model_forward_wrappers.base import (
-    ModelForwardWrapper,
-)
 from torchxai.explanation_framework.core.utils.constants import (
-    EXPLANATION_METRICS,
     RAW_EXPLANATION_DEPENDENT_METRICS,
+    ExplanationMetrics,
 )
-from torchxai.explanation_framework.core.utils.general import generate_unique_sample_key
+from torchxai.explanation_framework.core.utils.general import (
+    ExplanationParameters,
+    generate_unique_sample_key,
+)
 from torchxai.explanation_framework.core.utils.h5io import HFIOSingleOutput
 
 logger = get_logger()
@@ -123,7 +124,7 @@ class FusionExplanationFramework(ABC):
 
         # Model
         self._device: Optional[torch.device] = None
-        self._wrapped_model: Optional[ModelForwardWrapper] = None
+        self._wrapped_model: Optional[ExplainedModel] = None
 
     @property
     def dataset_labels(self) -> List[str]:
@@ -260,7 +261,7 @@ class FusionExplanationFramework(ABC):
         """
         return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def _setup_model(self) -> ModelForwardWrapper:
+    def _setup_model(self) -> ExplainedModel:
         """
         Setup the model for evaluation.
 
@@ -283,7 +284,7 @@ class FusionExplanationFramework(ABC):
         model.torch_model.to(self._device)
         model.torch_model.zero_grad()
 
-        return self._wrap_model(model.torch_model)
+        return self._prepare_model_for_explanation(model.torch_model)
 
     def _setup_output_file(self, runtime_config: DictConfig) -> Path:
         """
@@ -356,12 +357,12 @@ class FusionExplanationFramework(ABC):
     def _visualize_explanations(
         self,
         batch: Dict[str, torch.Tensor],
-        model_inputs: Dict[str, Any],
+        explanation_parameters: ExplanationParameters,
         explanations: torch.Tensor | Tuple[torch.Tensor],
     ) -> None:
         pass
 
-    def _wrap_model(self, model: torch.nn.Module) -> ModelForwardWrapper:
+    def _prepare_model_for_explanation(self, model: torch.nn.Module) -> ExplainedModel:
         """
         Wrap the model for explanation.
 
@@ -370,7 +371,7 @@ class FusionExplanationFramework(ABC):
         Args:
             model (torch.nn.Module): The model to wrap.
         """
-        return ModelForwardWrapper(model)
+        return ExplainedModel(model)
 
     def _save_sample_metadata(
         self,
@@ -396,7 +397,7 @@ class FusionExplanationFramework(ABC):
             batch (Mapping[str, torch.Tensor]): Batch of input data.
             model_outputs (Any): Model outputs.
         """
-        _, predicted_labels = model_outputs
+        predicted_labels = self._wrapped_model.output_to_labels(model_outputs)
         with HFIOSingleOutput(
             self._output_file.with_suffix(".metadata.h5")
         ) as hf_sample_data_io:
@@ -462,7 +463,7 @@ class FusionExplanationFramework(ABC):
         self,
         sample_keys: List[str],
         explainer: FusionExplainer,
-        model_inputs: Dict[str, Any],
+        explanation_parameters: ExplanationParameters,
         model_outputs: Any,
         runtime_config: DictConfig,
     ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]], bool]:
@@ -472,18 +473,17 @@ class FusionExplanationFramework(ABC):
         Args:
             sample_keys (List[str]): List of sample keys.
             explainer (TorchFusionExplainer): The explainer to be used.
-            model_inputs (Dict[str, Any]): Model inputs.
+            explanation_parameters (ExplanationParameters): Explanation parameters.
             model_outputs (Any): Model outputs.
             runtime_config (DictConfig): Runtime configuration.
         """
-        _, predicted_labels = model_outputs
         with HFIOSingleOutput(
             self._output_file.with_suffix(".explanation.h5")
         ) as hf_sample_data_io_explanations:
             # make a batch explanation computer
             explanations_computer = ExplanationsBatchComputeCache(
-                ["default"],
                 hf_sample_data_io_explanations,
+                None if len(explanation_parameters.model_inputs) == 1 else None,
                 explanation_reduce_fn=self._reduce_explanations,
             )
             all_dependent_metrics_cached = self._verify_depdendent_metrics_computed(
@@ -499,8 +499,10 @@ class FusionExplanationFramework(ABC):
                 explanations_computer.compute_and_save(
                     sample_keys=sample_keys,
                     explainer=explainer,
-                    model_inputs=model_inputs,
-                    batch_target_labels=predicted_labels,
+                    explanation_parameters=explanation_parameters,
+                    batch_target_labels=self._wrapped_model.output_to_labels(
+                        model_outputs
+                    ),
                     force_recompute=not all_dependent_metrics_cached,
                     train_baselines=self._train_baselines,
                 )
@@ -524,7 +526,7 @@ class FusionExplanationFramework(ABC):
         explainer: FusionExplainer,
         explanations: Union[torch.Tensor, Tuple[torch.Tensor, ...]],
         reduced_explanations: Union[torch.Tensor, Tuple[torch.Tensor, ...]],
-        model_inputs: Dict[str, Any],
+        explanation_parameters: ExplanationParameters,
         model_outputs: Any,
         runtime_config: DictConfig,
     ):
@@ -534,7 +536,7 @@ class FusionExplanationFramework(ABC):
             sample_keys (List[str]): List of sample keys.
             explainer (TorchFusionExplainer): The explainer to be used.
             explanations (Union[torch.Tensor, Tuple[torch.Tensor, ...]]): Explanations for the samples.
-            model_inputs (Dict[str, Any]): Inputs to the model.
+            explanation_parameters (ExplanationParameters): Explanation parameters.
             model_outputs (Any): Outputs from the model.
             runtime_config (DictConfig): Runtime configuration.
         Returns:
@@ -542,9 +544,9 @@ class FusionExplanationFramework(ABC):
         """
 
         # now check for all dependent metrics if any of them require re-computation
-        _, predicted_labels = model_outputs
+        predicted_labels = self._wrapped_model.output_to_labels(model_outputs)
         for metric, metric_kwargs in runtime_config.metrics.items():
-            if metric not in EXPLANATION_METRICS:
+            if metric not in [e.value for e in ExplanationMetrics]:
                 raise ValueError(f"Invalid metric: {metric}")
 
             with HFIOSingleOutput(
@@ -576,9 +578,8 @@ class FusionExplanationFramework(ABC):
                     # sensitivity requires the raw explanations
                     metric_scores = metric_computer.compute_and_save(
                         sample_keys=sample_keys,
-                        wrapped_model=self._wrapped_model,
                         explainer=explainer,
-                        model_inputs=model_inputs,
+                        explanation_parameters=explanation_parameters,
                         batch_target_labels=predicted_labels,
                     )
                 else:
@@ -590,13 +591,10 @@ class FusionExplanationFramework(ABC):
                             if metric in RAW_EXPLANATION_DEPENDENT_METRICS
                             else reduced_explanations
                         ),
-                        model_inputs=model_inputs,
+                        explanation_parameters=explanation_parameters,
                         batch_target_labels=predicted_labels,
                     )
                 logger.debug(f"{metric} scores: {metric_scores}")
-
-    def _construct_model_forward_wrapper(self) -> ModelForwardWrapper:
-        return ModelForwardWrapper(self._wrapped_model)
 
     def _generate_explanations(
         self,
@@ -638,12 +636,11 @@ class FusionExplanationFramework(ABC):
                 )
             ]
 
-            # Prepare model inputs and outputs
-            model_inputs, predicted_scores, predicted_labels = self._wrapped_model(
-                batch,
-                device=self._device,
+            # perform the model forward pass
+            explanation_parameters = self._wrapped_model.prepare_explanation_parameters(
+                batch=batch, device=self._device
             )
-            model_outputs = (predicted_scores, predicted_labels)
+            model_outputs = self._wrapped_model(*explanation_parameters.model_inputs)
 
             # Save sample metadata
             self._save_sample_metadata(sample_keys, batch, model_outputs)
@@ -653,11 +650,11 @@ class FusionExplanationFramework(ABC):
 
             # compute the explanations
             explanations, is_raw_explanation = self._compute_and_save_explanations(
-                sample_keys,
-                explainer,
-                model_inputs,
-                model_outputs,
-                runtime_config,
+                sample_keys=sample_keys,
+                explainer=explainer,
+                explanation_parameters=explanation_parameters,
+                model_outputs=model_outputs,
+                runtime_config=runtime_config,
             )
 
             if is_raw_explanation:
@@ -671,7 +668,7 @@ class FusionExplanationFramework(ABC):
             if runtime_config.visualize_explanations:
                 self._visualize_explanations(
                     batch=batch,
-                    model_inputs=model_inputs,
+                    explanation_parameters=explanation_parameters,
                     explanations=reduced_explanations,
                 )
 
@@ -681,7 +678,7 @@ class FusionExplanationFramework(ABC):
                 explainer=explainer,
                 explanations=explanations,
                 reduced_explanations=reduced_explanations,
-                model_inputs=model_inputs,
+                explanation_parameters=explanation_parameters,
                 model_outputs=model_outputs,
                 runtime_config=runtime_config,
             )
@@ -714,7 +711,6 @@ class FusionExplanationFramework(ABC):
         # Setup device and model
         self._device = self._setup_device()
         self._wrapped_model = self._setup_model()
-        self._model_forward_wrapper = self._construct_model_forward_wrapper()
 
         if runtime_config.test_model:
             self._evaluate_model()

@@ -1,4 +1,7 @@
-class EMBEDDING_KEYS:
+from enum import Enum
+
+
+class EmbeddingKeys(str, Enum):
     TOKEN_EMBEDDINGS = "token_embeddings"
     POSITION_EMBEDDINGS = "position_embeddings"
     SPATIAL_POSITION_EMBEDDINGS = "spatial_embeddings"
@@ -6,7 +9,7 @@ class EMBEDDING_KEYS:
     TOKEN_TYPE_EMBEDDINGS = "token_type_embeddings"
 
 
-class EXPLANATION_METRICS:
+class ExplanationMetrics(str, Enum):
     # axiomatic
     COMPLETENESS = "completeness"
     MONOTONICITY_CORR_AND_NON_SENS = "monotonicity_corr_and_non_sens"
@@ -28,7 +31,7 @@ class EXPLANATION_METRICS:
 
 
 RAW_EXPLANATION_DEPENDENT_METRICS = [
-    EXPLANATION_METRICS.INFIDELITY,
-    EXPLANATION_METRICS.COMPLETENESS,
-    EXPLANATION_METRICS.MONOTONICITY_CORR_AND_NON_SENS,
+    ExplanationMetrics.INFIDELITY,
+    ExplanationMetrics.COMPLETENESS,
+    ExplanationMetrics.MONOTONICITY_CORR_AND_NON_SENS,
 ]

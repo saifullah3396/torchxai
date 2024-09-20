@@ -6,22 +6,20 @@ import numpy as np
 import torch
 import tqdm
 from captum.metrics import infidelity
-from torchfusion.core.constants import DataKeys
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.core.batch_compute_cache.base import (
     BatchComputeCache,
 )
-from torchxai.explanation_framework.core.utils.constants import EMBEDDING_KEYS
 from torchxai.explanation_framework.core.utils.general import (
-    perturb_fn_drop_batched_single_output,
-    unpack_inputs,
+    ExplanationParameters,
+    unpack_explanation_parameters,
 )
 from torchxai.explanation_framework.core.utils.h5io import (
     HFIOMultiOutput,
     HFIOSingleOutput,
 )
-from torchxai.metrics._utils.common import _feature_masks_to_groups_and_counts
+from torchxai.metrics._utils.perturbation import perturb_fn_drop_batched_single_output
 
 logger = get_logger()
 
@@ -35,6 +33,7 @@ class InfidelityBatchComputeCache(BatchComputeCache):
         drop_probabilities: List[float] = [0.1, 0.25, 0.5],
         perturb_noise_scale: float = 0.02,
         n_perturb_samples: int = 10,
+        max_examples_per_batch: int = 100,
     ) -> None:
         super().__init__(
             metric_name=INFIDELITY_KEY,
@@ -43,21 +42,21 @@ class InfidelityBatchComputeCache(BatchComputeCache):
         self.drop_probabilities = drop_probabilities
         self.perturb_noise_scale = perturb_noise_scale
         self.n_perturb_samples = n_perturb_samples
+        self.max_examples_per_batch = max_examples_per_batch
 
     def compute_metric(
         self,
         wrapped_model: Callable,
         explanations: Tuple[Union[torch.Tensor, np.ndarray], ...],
-        model_inputs: Tuple[Union[torch.Tensor, np.ndarray], ...],
+        explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ) -> Tuple[List[Union[torch.Tensor, np.ndarray]], Union[torch.Tensor, np.ndarray]]:
         (
             inputs,
             baselines,
             feature_masks,
-            extra_inputs,
-            _,
-        ) = unpack_inputs(model_inputs)
+            additional_forward_args,
+        ) = unpack_explanation_parameters(explanation_parameters)
 
         assert (
             inputs[0].shape[0] == batch_target_labels.shape[0]
@@ -65,10 +64,6 @@ class InfidelityBatchComputeCache(BatchComputeCache):
         ), "Input, baselines, and target labels shape must match"
 
         # compute infidelity perturbation function which takes cares of grouped features
-        grouped_feature_counts, n_grouped_features = (
-            _feature_masks_to_groups_and_counts(feature_masks)
-        )
-
         if isinstance(explanations, tuple):
             explanations = tuple(
                 explanation.to(batch_target_labels.device)
@@ -83,8 +78,7 @@ class InfidelityBatchComputeCache(BatchComputeCache):
             self.drop_probabilities, desc="Drop Probabilities"
         ):
             perturb_fn_drop = perturb_fn_drop_batched_single_output(
-                grouped_feature_counts,
-                n_grouped_features,
+                feature_masks=feature_masks,
                 drop_probability=drop_probability,
             )
 
@@ -96,15 +90,9 @@ class InfidelityBatchComputeCache(BatchComputeCache):
                     inputs=inputs,
                     attributions=explanations,
                     baselines=baselines,
-                    additional_forward_args=(
-                        # this tuple in this order must be passed see src/doclm/models/interpretable_layoutlmv3.py
-                        # for forward method
-                        extra_inputs[EMBEDDING_KEYS.TOKEN_TYPE_EMBEDDINGS],
-                        extra_inputs[DataKeys.ATTENTION_MASKS],
-                        extra_inputs[DataKeys.TOKEN_BBOXES],
-                    ),
+                    additional_forward_args=additional_forward_args,
                     target=batch_target_labels,
-                    max_examples_per_batch=batch_target_labels.shape[0],
+                    max_examples_per_batch=self.max_examples_per_batch,
                     n_perturb_samples=self.n_perturb_samples,
                     normalize=True,
                 )

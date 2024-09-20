@@ -15,6 +15,7 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -30,7 +31,7 @@ from torchxai.metrics._utils.common import (
 
 def perturb_input(input, baseline, feature_mask, indices, feature_idx):
     # for each feature in the current step incrementally replace the baseline with the original sample
-    perturbation_mask = feature_mask == indices[feature_idx]
+    perturbation_mask = (feature_mask == indices[feature_idx]).expand_as(input)
     input[perturbation_mask] = baseline[
         perturbation_mask
     ]  # input[0] here since batch size is 1
@@ -157,6 +158,7 @@ def eval_aopcs_single_sample(
                     feature_idx=feature_idx,
                 )
                 perturbed_inputs.append(input.clone())
+
         perturbed_inputs = torch.cat(perturbed_inputs)
 
         targets_expanded = _expand_target(

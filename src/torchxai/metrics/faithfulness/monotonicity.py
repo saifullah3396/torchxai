@@ -17,6 +17,7 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
@@ -238,8 +239,8 @@ def eval_monotonicity_single_sample(
             perturbation_mask = (
                 feature_masks == ascending_attribution_indices[feature_idx]
             )
-            global_perturbed_baselines[perturbation_mask] = inputs[
-                perturbation_mask
+            global_perturbed_baselines[perturbation_mask.expand_as(inputs)] = inputs[
+                perturbation_mask.expand_as(inputs)
             ]  # input[0] here since batch size is 1
             baselines_perturbed.append(
                 global_perturbed_baselines[0].clone()

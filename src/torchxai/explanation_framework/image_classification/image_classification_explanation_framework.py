@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, Tuple
 
 import torch
 import tqdm
@@ -11,12 +11,9 @@ from torchfusion.core.models.utilities.data_collators import BatchToTensorDataCo
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai import *  # noqa
-from torchxai.explanation_framework.core.batch_compute_cache.explanations.explanations import (
-    EXPLANATIONS_KEY,
-    ExplanationsBatchComputeCache,
-)
-from torchxai.explanation_framework.core.explainers.torch_fusion_explainer import (
-    FusionExplainer,
+from torchxai.explanation_framework.core.explained_model.base import ExplainedModel
+from torchxai.explanation_framework.core.explained_model.image_classification import (
+    ExplainedModelForImageClassification,
 )
 from torchxai.explanation_framework.core.explanation_framework import (
     FusionExplanationFramework,
@@ -24,7 +21,7 @@ from torchxai.explanation_framework.core.explanation_framework import (
 from torchxai.explanation_framework.core.utils.general import (
     pretty_classification_report,
 )
-from torchxai.explanation_framework.core.utils.h5io import HFDataset, HFIOSingleOutput
+from torchxai.explanation_framework.core.utils.h5io import HFDataset
 
 logger = get_logger()
 
@@ -62,6 +59,17 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         )
         return CollateFnDict(train=collate_fn, validation=collate_fn, test=collate_fn)
 
+    def _prepare_model_for_explanation(self, model: torch.nn.Module) -> ExplainedModel:
+        """
+        Wrap the model for explanation.
+
+        Must be implemented by the derived class.
+
+        Args:
+            model (torch.nn.Module): The model to wrap.
+        """
+        return ExplainedModelForImageClassification(model)
+
     def _evaluate_model(self) -> None:
         """
         Evaluate the model and log the classification report.
@@ -72,10 +80,15 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         for batch in tqdm.tqdm(self._test_dataloader_full):
             with torch.no_grad():
                 # perform the model forward pass
-                _, _, predicted_labels = self._wrapped_model(batch, device=self._device)
+                explanation_parameters = (
+                    self._wrapped_model.prepare_explanation_parameters(
+                        batch=batch, device=self._device
+                    )
+                )
+                pred_probs = self._wrapped_model(explanation_parameters.model_inputs)
 
                 # get model predictions from the outputs
-                predicted_labels = predicted_labels.cpu()
+                predicted_labels = pred_probs.argmax(-1).cpu()
                 target_labels = batch[DataKeys.LABEL].cpu()
 
                 # append the predicted and target labels
@@ -85,71 +98,11 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         # log the classification report
         pretty_classification_report(all_target_labels, all_predicted_labels)
 
-    def _compute_and_save_explanations(
-        self,
-        sample_keys: List[str],
-        explainer: FusionExplainer,
-        model_inputs: Dict[str, Any],
-        model_outputs: Any,
-        runtime_config: DictConfig,
-    ) -> Tuple[Union[torch.Tensor, Tuple[torch.Tensor]], bool]:
-        """
-        Compute and save explanations and infidelity scores.
-
-        Args:
-            sample_keys (List[str]): List of sample keys.
-            explainer (TorchFusionExplainer): The explainer to be used.
-            model_inputs (Dict[str, Any]): Model inputs.
-            model_outputs (Any): Model outputs.
-            runtime_config (DictConfig): Runtime configuration.
-        """
-        _, predicted_labels = model_outputs
-        with HFIOSingleOutput(
-            self._output_file.with_suffix(".explanation.h5")
-        ) as hf_sample_data_io_explanations:
-            # make a batch explanation computer
-            explanations_computer = ExplanationsBatchComputeCache(
-                None,
-                hf_sample_data_io_explanations,
-                explanation_reduce_fn=self._reduce_explanations,
-            )
-            all_dependent_metrics_cached = self._verify_depdendent_metrics_computed(
-                sample_keys=sample_keys,
-                required_metrics=list(runtime_config.metrics.keys()),
-            )
-            if not all_dependent_metrics_cached:
-                logger.warning(
-                    "Recomputing explanations for this batch as dependent metrics are not cached."
-                )
-
-            explanation_outputs, is_raw_explanation = (
-                explanations_computer.compute_and_save(
-                    sample_keys=sample_keys,
-                    explainer=explainer,
-                    model_inputs=model_inputs,
-                    batch_target_labels=predicted_labels,
-                    force_recompute=not all_dependent_metrics_cached,
-                    train_baselines=self._train_baselines,
-                )
-            )
-
-            explanations = explanation_outputs[EXPLANATIONS_KEY]
-            for explanation in explanations:
-                logger.debug(f"Explanations: {explanation.shape}")
-
-            # change device to cpu
-            if isinstance(explanations, tuple):
-                explanations = tuple(x.detach().cpu() for x in explanations)
-            else:
-                explanations = explanations.detach().cpu()
-
-            return explanations, is_raw_explanation
-
     def _reduce_explanations(self, explanations) -> None:
         if isinstance(explanations, tuple):
-            return tuple(x.sum(-1) for x in explanations)
+            return tuple(x.sum(1).unsqueeze(1) for x in explanations)
         else:
-            return explanations.sum(-1)
+            return explanations.sum(1).unsqueeze(1)
 
     def _setup_train_baselines(
         self, runtime_config: DictConfig

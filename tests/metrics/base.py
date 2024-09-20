@@ -55,7 +55,6 @@ class MetricTestsBase(BaseTest):
             20, 1, 4, 4
         )
         target = torch.tensor([1] * 20)
-        outputs = model(inputs)
         return dict(
             model=model, inputs=inputs, attribution_fn=DeepLift(model), target=target
         )

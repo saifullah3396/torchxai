@@ -3,15 +3,15 @@ from logging import getLogger
 from typing import Any, Optional, cast
 
 import torch
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from captum.attr import Attribution
-from tests.helpers.basic import (
-    assertAllTensorsAreAlmostEqualWithNan,
-    assertTensorAlmostEqual,
-)
-from tests.metrics.base import MetricTestsBase
 from torch import Tensor
 from torch.nn import Module
+
+from tests.helpers.basic import (assertAllTensorsAreAlmostEqualWithNan,
+                                 assertTensorAlmostEqual)
+from tests.metrics.base import MetricTestsBase
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 from torchxai.metrics.faithfulness.monotonicity import monotonicity
 
@@ -153,7 +153,7 @@ class Test(MetricTestsBase):
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
         attribution_fn: Attribution,
-        feature_masks: TensorOrTupleOfTensorsGeneric = None,
+        feature_mask: TensorOrTupleOfTensorsGeneric = None,
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
@@ -177,7 +177,7 @@ class Test(MetricTestsBase):
             inputs=inputs,
             attributions=attributions,
             baselines=baselines,
-            feature_masks=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             target=target,
             max_features_processed_per_example=max_features_processed_per_example,
@@ -191,7 +191,7 @@ class Test(MetricTestsBase):
         inputs: TensorOrTupleOfTensorsGeneric,
         attributions: TensorOrTupleOfTensorsGeneric,
         baselines: Optional[BaselineType] = None,
-        feature_masks: TensorOrTupleOfTensorsGeneric = None,
+        feature_mask: TensorOrTupleOfTensorsGeneric = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
         max_features_processed_per_example: int = None,
@@ -201,7 +201,7 @@ class Test(MetricTestsBase):
             inputs=inputs,
             attributions=attributions,
             baselines=baselines,
-            feature_masks=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             target=target,
             max_features_processed_per_example=max_features_processed_per_example,

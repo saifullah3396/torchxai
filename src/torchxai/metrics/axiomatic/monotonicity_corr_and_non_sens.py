@@ -16,11 +16,12 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
-    _construct_default_feature_masks,
+    _construct_default_feature_mask,
     _validate_feature_mask,
 )
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
@@ -30,7 +31,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     target: TargetType = None,
@@ -40,7 +41,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     show_progress: bool = False,
 ) -> Tensor:
     def _generate_perturbations(
-        current_n_perturbed_features: int, current_feature_indices: int, feature_masks
+        current_n_perturbed_features: int, current_feature_indices: int, feature_mask
     ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
         r"""
         The perturbations are generated for each example
@@ -56,12 +57,12 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:
                 inputs_pert = inputs_expanded[0]
-                feature_masks_pert = feature_masks_expanded[0]
+                feature_mask_pert = feature_mask_expanded[0]
             else:
                 inputs_pert = inputs_expanded
-                feature_masks_pert = feature_masks_expanded
+                feature_mask_pert = feature_mask_expanded
             return perturb_func(
-                inputs=inputs_pert, perturbation_masks=feature_masks_pert
+                inputs=inputs_pert, perturbation_masks=feature_mask_pert
             )
 
         # repeat each current_n_perturbed_features times
@@ -73,11 +74,11 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             for input in inputs
         )
 
-        feature_masks_expanded = tuple(
+        feature_mask_expanded = tuple(
             torch.cat(
                 [(mask == feature_index) for feature_index in current_feature_indices]
             ).repeat_interleave(repeats=n_perturbations_per_feature, dim=0)
-            for mask in feature_masks
+            for mask in feature_mask
         )
         return call_perturb_func()
 
@@ -110,7 +111,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             current_n_steps - current_n_perturbed_features, current_n_steps
         )
         inputs_perturbed = _generate_perturbations(
-            current_n_perturbed_features, current_feature_indices, feature_masks
+            current_n_perturbed_features, current_feature_indices, feature_mask
         )
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         _validate_inputs_and_perturbations(
@@ -150,7 +151,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             torch.cat(
                 [
                     attribution[mask == feature_index]
-                    for attribution, mask in zip(attributions, feature_masks)
+                    for attribution, mask in zip(attributions, feature_mask)
                 ]
             )
             for feature_index in current_feature_indices
@@ -178,14 +179,14 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     with torch.no_grad():
         bsz = inputs[0].size(0)
         assert bsz == 1, "Batch size must be 1 for monotonicity_corr_single_sample"
-        if feature_masks is not None:
-            # assert that all elements in the feature_masks are unique and non-negative increasing
-            _validate_feature_mask(feature_masks)
+        if feature_mask is not None:
+            # assert that all elements in the feature_mask are unique and non-negative increasing
+            _validate_feature_mask(feature_mask)
         else:
-            feature_masks = _construct_default_feature_masks(attributions)
+            feature_mask = _construct_default_feature_mask(attributions)
 
         # this assumes a batch size of 1, this will not work for batch size > 1
-        n_features = max(x.max() for x in feature_masks).item() + 1
+        n_features = max(x.max() for x in feature_mask).item() + 1
 
         # the logic for this implementation as as follows:
         # each input is repeated n_perturbations_per_feature times to create an input of shape
@@ -196,7 +197,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         # so perturbation step will have the n_pertrubations_per_feature perturbations for the first feature, then
         # n_perturbations_per_feature perturbations for the second feature and so on.
         # and the total perturbation steps n_features are equal to total features that need to be perturbed
-        # in case of feature_masks, n_features is the total number of feature groups present in the inputs
+        # in case of feature_mask, n_features is the total number of feature groups present in the inputs
         # each group is perturbed together n_perturbations_per_feature times
         # in case there is no feature masks, then a corresponding feature mask is generated for each input feature
         agg_tensors = _divide_and_aggregate_metrics_n_perturbations_per_feature(
@@ -283,7 +284,7 @@ def monotonicity_corr_and_non_sens(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
@@ -552,7 +553,7 @@ def monotonicity_corr_and_non_sens(
             additional_forward_args
         )
         attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-        feature_masks = _format_tensor_into_tuples(feature_masks)  # type: ignore
+        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
 
         # Make sure that inputs and corresponding attributions have matching sizes.
         assert len(inputs) == len(attributions), (
@@ -560,12 +561,12 @@ def monotonicity_corr_and_non_sens(
             attributions must match. Found number of tensors in the inputs is: {} and in the
             attributions: {}"""
         ).format(len(inputs), len(attributions))
-        if feature_masks is not None:
-            for feature_mask, attribution in zip(feature_masks, attributions):
-                assert feature_mask.shape == attribution.shape, (
+        if feature_mask is not None:
+            for mask, attribution in zip(feature_mask, attributions):
+                assert mask.shape == attribution.shape, (
                     """The shape of the feature mask and the attribution
                     must match. Found feature mask shape: {} and attribution shape: {}"""
-                ).format(feature_mask.shape, attribution.shape)
+                ).format(mask.shape, attribution.shape)
 
         bsz = inputs[0].size(0)
         monotonicity_corr_batch = []
@@ -579,9 +580,9 @@ def monotonicity_corr_and_non_sens(
                     attributions=tuple(
                         attr[sample_idx].unsqueeze(0) for attr in attributions
                     ),
-                    feature_masks=(
-                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_masks)
-                        if feature_masks is not None
+                    feature_mask=(
+                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                        if feature_mask is not None
                         else None
                     ),
                     additional_forward_args=(

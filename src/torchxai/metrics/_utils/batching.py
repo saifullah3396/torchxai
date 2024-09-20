@@ -8,13 +8,13 @@ import torch
 from tqdm import tqdm
 
 
-def _feature_masks_to_feature_groups_and_counts(
-    feature_masks: Tuple[torch.Tensor, ...]
+def _feature_mask_to_feature_groups_and_counts(
+    feature_mask: Tuple[torch.Tensor, ...]
 ) -> Tuple:
     """This function takes a tuple of feature masks and returns the grouped feature counts and the number of grouped features.
 
     Args:
-        feature_masks (Tuple[torch.Tensor, ...]): Tuple of feature group masks for each feature type.
+        feature_mask (Tuple[torch.Tensor, ...]): Tuple of feature group masks for each feature type.
         For example, for a model with 4 feature types, the input would be a tuple of 4
         tensors where each tensor is of shape (batch_size, seq_length, n_features).
         And the feature type can be anything like token embeddings, position embeddings, bbox embeddings, etc.
@@ -41,10 +41,10 @@ def _feature_masks_to_feature_groups_and_counts(
                 ]
     """
 
-    batch_size = feature_masks[0].shape[0]
+    batch_size = feature_mask[0].shape[0]
     grouped_feature_counts = []
     n_grouped_features = []
-    for mask in feature_masks:
+    for mask in feature_mask:
         grouped_feature_counts.append([])
         n_grouped_features.append([])
         for idx in range(batch_size):
@@ -159,7 +159,7 @@ def _divide_and_aggregate_metrics_n_perturbations_per_feature(
     This function is used to slice large number of samples `n_perturb_samples` per
     input example into smaller pieces, computing the metrics for each small piece and
     aggregating the results a
-    print('feature_masks', tuple(x.shape for x in feature_masks))
+    print('feature_mask', tuple(x.shape for x in feature_mask))
     return 0 urbation purposes for example.
         metric_func (Callable): This function takes the number of samples per
                         input batch and returns an overall metric for each example.
@@ -243,7 +243,7 @@ def _divide_and_aggregate_metrics_n_features(
     This function is used to slice large number of samples `n_perturb_samples` per
     input example into smaller pieces, computing the metrics for each small piece and
     aggregating the results a
-    print('feature_masks', tuple(x.shape for x in feature_masks))
+    print('feature_mask', tuple(x.shape for x in feature_mask))
     return 0 urbation purposes for example.
         metric_func (Callable): This function takes the number of samples per
                         input batch and returns an overall metric for each example.

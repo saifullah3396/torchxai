@@ -5,7 +5,7 @@ from typing import Any, List, Tuple, Union
 
 import numpy as np
 import torch
-from captum.metrics import sensitivity_max
+from ignite.utils import convert_tensor
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.core.batch_compute_cache.base import (
@@ -22,6 +22,7 @@ from torchxai.explanation_framework.core.utils.h5io import (
     HFIOMultiOutput,
     HFIOSingleOutput,
 )
+from torchxai.metrics import sensitivity_max
 
 logger = get_logger()
 
@@ -34,6 +35,7 @@ class SensitivityBatchComputeCache(BatchComputeCache):
         hf_sample_data_io: Union[HFIOSingleOutput, HFIOMultiOutput],
         perturb_radius: float = 0.02,
         n_perturb_samples: int = 50,
+        max_examples_per_batch: int = 10,
     ) -> None:
         super().__init__(
             metric_name=SENSITIVITY_KEY,
@@ -41,6 +43,7 @@ class SensitivityBatchComputeCache(BatchComputeCache):
         )
         self.perturb_radius = perturb_radius
         self.n_perturb_samples = n_perturb_samples
+        self.max_examples_per_batch = max_examples_per_batch
 
     def compute_metric(
         self,
@@ -51,7 +54,7 @@ class SensitivityBatchComputeCache(BatchComputeCache):
         (
             inputs,
             baselines,
-            feature_masks,
+            feature_mask,
             additional_forward_args,
         ) = unpack_explanation_parameters(explanation_parameters)
 
@@ -68,8 +71,10 @@ class SensitivityBatchComputeCache(BatchComputeCache):
         )
 
         fn_parameters = inspect.signature(explainer.explain).parameters
-        if "feature_masks" in fn_parameters:
-            args["feature_masks"] = feature_masks
+        if "feature_mask" in fn_parameters:
+            args["feature_mask"] = convert_tensor(
+                feature_mask, device=batch_target_labels.device
+            )
         if "baselines" in fn_parameters:
             args["baselines"] = baselines
         if "return_convergence_delta" in fn_parameters:
@@ -91,7 +96,7 @@ class SensitivityBatchComputeCache(BatchComputeCache):
                 **args,
                 perturb_radius=self.perturb_radius,  # perturb each input by 0.02
                 n_perturb_samples=self.n_perturb_samples,  # compute sensitivity for only 50 perturbations because it is too expensive otherwise
-                max_examples_per_batch=batch_target_labels.shape[0],
+                max_examples_per_batch=self.max_examples_per_batch,
             )
             .detach()
             .cpu()

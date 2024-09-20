@@ -11,7 +11,7 @@ from torchxai.explanation_framework.core.explainers.torch_fusion_explainer impor
 )
 from torchxai.explanation_framework.core.explainers.utils import generate_mask_weights
 from torchxai.explanation_framework.core.utils.general import (
-    expand_feature_masks_to_inputs,
+    expand_feature_mask_to_inputs,
 )
 
 
@@ -59,7 +59,7 @@ class LimeExplainer(FusionExplainer):
         inputs: TensorOrTupleOfTensorsGeneric,
         target: TargetType,
         baselines: BaselineType = None,
-        feature_masks: Union[None, Tensor, Tuple[Tensor, ...]] = None,
+        feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
         weight_attributions: bool = True,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -78,14 +78,14 @@ class LimeExplainer(FusionExplainer):
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
         # Compute the attributions using Kernel SHAP
-        feature_masks = expand_feature_masks_to_inputs(feature_masks, inputs)
+        feature_mask = expand_feature_mask_to_inputs(feature_mask, inputs)
 
         # Compute the attributions using LIME
         attributions = self.explanation_fn.attribute(
             inputs=inputs,
             target=target,
             baselines=baselines,
-            feature_mask=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             n_samples=self.n_samples,
             perturbations_per_eval=self.perturbations_per_eval,
@@ -93,10 +93,8 @@ class LimeExplainer(FusionExplainer):
         )
 
         # Optionally weight attributions by the feature mask
-        if weight_attributions and feature_masks is not None:
-            feature_mask_weights = tuple(
-                generate_mask_weights(x) for x in feature_masks
-            )
+        if weight_attributions and feature_mask is not None:
+            feature_mask_weights = tuple(generate_mask_weights(x) for x in feature_mask)
             attributions = tuple(
                 attribution * feature_mask_weight
                 for attribution, feature_mask_weight in zip(

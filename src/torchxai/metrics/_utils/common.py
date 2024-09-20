@@ -43,7 +43,7 @@ def _validate_feature_mask(tensor: Tuple[torch.Tensor, ...]) -> None:
         ), "tensor values must be strictly increasing with a step of one"
 
 
-def _construct_default_feature_masks(
+def _construct_default_feature_mask(
     attributions: Tuple[torch.Tensor, ...]
 ) -> Tuple[torch.Tensor, ...]:
     """
@@ -54,12 +54,12 @@ def _construct_default_feature_masks(
         Tuple[torch.Tensor, ...]: The feature masks corresponding to each feature in the input tensor.
     """
     last_n_features = 0
-    feature_masks = []
+    feature_mask = []
     bsz = attributions[0].size(0)
     for attribution in attributions:
         # take each feature in attribution as a feature group and assign an increasing integer index to it
         n_features_in_attribution = attribution.view(bsz, -1).size(-1)
-        feature_masks.append(
+        feature_mask.append(
             (
                 torch.arange(n_features_in_attribution, device=attribution.device)
                 + last_n_features
@@ -69,10 +69,10 @@ def _construct_default_feature_masks(
         )
         last_n_features += n_features_in_attribution
 
-    feature_masks = tuple(feature_masks)
+    feature_mask = tuple(feature_mask)
 
-    _validate_feature_mask(feature_masks)
-    return feature_masks
+    _validate_feature_mask(feature_mask)
+    return feature_mask
 
 
 def _format_tensor_tuple_feature_dim(

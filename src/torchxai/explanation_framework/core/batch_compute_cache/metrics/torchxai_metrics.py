@@ -8,17 +8,12 @@ import numpy as np
 import torch
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.core.batch_compute_cache.base import (
-    BatchComputeCache,
-)
+from torchxai.explanation_framework.core.batch_compute_cache.base import \
+    BatchComputeCache
 from torchxai.explanation_framework.core.utils.general import (
-    ExplanationParameters,
-    unpack_explanation_parameters,
-)
-from torchxai.explanation_framework.core.utils.h5io import (
-    HFIOMultiOutput,
-    HFIOSingleOutput,
-)
+    ExplanationParameters, unpack_explanation_parameters)
+from torchxai.explanation_framework.core.utils.h5io import (HFIOMultiOutput,
+                                                            HFIOSingleOutput)
 
 logger = get_logger()
 
@@ -55,7 +50,7 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
         (
             inputs,
             baselines,
-            feature_masks,
+            feature_mask,
             additional_forward_args,
         ) = unpack_explanation_parameters(explanation_parameters)
 
@@ -79,27 +74,27 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
 
         device = batch_target_labels.device
 
-        if isinstance(feature_masks, tuple):
-            feature_masks = tuple(
+        if isinstance(feature_mask, tuple):
+            feature_mask = tuple(
                 (
                     mask.unsqueeze(-1)
                     if len(mask.shape) != len(explanation.shape)
                     else mask
                 )
-                for mask, explanation in zip(feature_masks, explanations)
+                for mask, explanation in zip(feature_mask, explanations)
             )
-            feature_masks = tuple(
+            feature_mask = tuple(
                 mask.expand_as(explanation)
-                for mask, explanation in zip(feature_masks, explanations)
+                for mask, explanation in zip(feature_mask, explanations)
             )
-            feature_masks = tuple(mask.to(device) for mask in feature_masks)
+            feature_mask = tuple(mask.to(device) for mask in feature_mask)
         else:
-            feature_masks = (
-                feature_masks.unsqueeze(-1)
-                if len(feature_masks.shape) != len(explanations.shape)
-                else feature_masks
+            feature_mask = (
+                feature_mask.unsqueeze(-1)
+                if len(feature_mask.shape) != len(explanations.shape)
+                else feature_mask
             )
-            feature_masks = feature_masks.to(device)
+            feature_mask = feature_mask.to(device)
 
         fn_parameters = inspect.signature(self.torchxai_metric).parameters
         if "forward_func" in fn_parameters:
@@ -112,8 +107,8 @@ class TorchXAIMetricBatchComputeCache(BatchComputeCache):
                 )
             else:
                 kwargs["attributions"] = explanations.to(device)
-        if "feature_masks" in fn_parameters:
-            kwargs["feature_masks"] = feature_masks
+        if "feature_mask" in fn_parameters:
+            kwargs["feature_mask"] = feature_mask
         if "baselines" in fn_parameters:
             kwargs["baselines"] = baselines
 

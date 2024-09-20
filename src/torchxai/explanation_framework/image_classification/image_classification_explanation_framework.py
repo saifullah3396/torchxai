@@ -60,7 +60,9 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         )
         return CollateFnDict(train=collate_fn, validation=collate_fn, test=collate_fn)
 
-    def _prepare_model_for_explanation(self, model: torch.nn.Module) -> ExplainedModel:
+    def _prepare_model_for_explanation(
+        self, model: torch.nn.Module, runtime_config: DictConfig
+    ) -> ExplainedModel:
         """
         Wrap the model for explanation.
 
@@ -69,7 +71,11 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         Args:
             model (torch.nn.Module): The model to wrap.
         """
-        return ExplainedModelForImageClassification(model)
+        return ExplainedModelForImageClassification(
+            model,
+            segmentation_fn=runtime_config.segmentation_fn,
+            segmentation_fn_kwargs=runtime_config.segmentation_fn_kwargs,
+        )
 
     def _evaluate_model(self) -> None:
         """
@@ -162,6 +168,7 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
         explanation_parameters: ExplanationParameters,
         explanations: torch.Tensor | Tuple[torch.Tensor],
         model_outputs: torch.Tensor,
+        runtime_config: DictConfig,
     ) -> None:
         from captum.attr import visualization as viz
 
@@ -183,7 +190,5 @@ class ImageClassificationExplanationFramework(FusionExplanationFramework):
                 method="blended_heat_map",
                 sign="all",
                 show_colorbar=True,
-                title="Overlayed Gradient Magnitudes",
+                title=f"{runtime_config.explanation_method} Explanation",
             )
-
-        exit()

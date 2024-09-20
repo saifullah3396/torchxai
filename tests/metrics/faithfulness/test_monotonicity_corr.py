@@ -3,19 +3,18 @@ from logging import getLogger
 from typing import Any, Callable, Optional, cast
 
 import torch
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from captum.attr import Attribution
-from tests.helpers.basic import (
-    assertAllTensorsAreAlmostEqualWithNan,
-    assertTensorAlmostEqual,
-)
-from tests.metrics.base import MetricTestsBase
 from torch import Tensor
 from torch.nn import Module
+
+from tests.helpers.basic import (assertAllTensorsAreAlmostEqualWithNan,
+                                 assertTensorAlmostEqual)
+from tests.metrics.base import MetricTestsBase
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
-from torchxai.metrics.axiomatic.monotonicity_corr_and_non_sens import (
-    monotonicity_corr_and_non_sens,
-)
+from torchxai.metrics.axiomatic.monotonicity_corr_and_non_sens import \
+    monotonicity_corr_and_non_sens
 
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
@@ -198,7 +197,7 @@ class Test(MetricTestsBase):
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
         attribution_fn: Attribution,
-        feature_masks: TensorOrTupleOfTensorsGeneric = None,
+        feature_mask: TensorOrTupleOfTensorsGeneric = None,
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
@@ -224,7 +223,7 @@ class Test(MetricTestsBase):
             model=model,
             inputs=inputs,
             attributions=attributions,
-            feature_masks=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             target=target,
             perturb_func=perturb_func,
@@ -240,7 +239,7 @@ class Test(MetricTestsBase):
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
         attributions: TensorOrTupleOfTensorsGeneric,
-        feature_masks: TensorOrTupleOfTensorsGeneric = None,
+        feature_mask: TensorOrTupleOfTensorsGeneric = None,
         additional_forward_args: Optional[Any] = None,
         target: Optional[TargetType] = None,
         perturb_func: Callable = default_random_perturb_func(),
@@ -252,7 +251,7 @@ class Test(MetricTestsBase):
             forward_func=model,
             inputs=inputs,
             attributions=attributions,
-            feature_masks=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             target=target,
             perturb_func=perturb_func,

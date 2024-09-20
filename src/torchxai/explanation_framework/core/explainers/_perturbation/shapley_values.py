@@ -53,7 +53,7 @@ class ShapleyValuesExplainer(FusionExplainer):
         inputs: TensorOrTupleOfTensorsGeneric,
         target: TargetType,
         baselines: BaselineType = None,
-        feature_masks: Union[None, Tensor, Tuple[Tensor, ...]] = None,
+        feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
@@ -63,7 +63,7 @@ class ShapleyValuesExplainer(FusionExplainer):
             inputs (TensorOrTupleOfTensorsGeneric): The input tensor(s) for which attributions are computed.
             target (TargetType): The target(s) for computing attributions.
             baselines (BaselineType, optional): Baselines for computing attributions. Default is None.
-            feature_masks (Union[None, Tensor, Tuple[Tensor, ...]], optional): Masks representing feature groups. Default is None.
+            feature_mask (Union[None, Tensor, Tuple[Tensor, ...]], optional): Masks representing feature groups. Default is None.
             additional_forward_args (Any, optional): Additional arguments to forward to the model. Default is None.
 
         Returns:
@@ -74,7 +74,7 @@ class ShapleyValuesExplainer(FusionExplainer):
             inputs=inputs,
             target=target,
             baselines=baselines,
-            feature_mask=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             perturbations_per_eval=self.perturbations_per_eval,
             show_progress=True,

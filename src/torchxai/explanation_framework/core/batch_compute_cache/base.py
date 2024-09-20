@@ -75,7 +75,7 @@ class BatchComputeCache:
         start_time = time.time()
         outputs = self.compute_metric(**kwargs)
         time_taken = time.time() - start_time
-        logger.info(f"Time spent on computing {self.metric_name}: {time_taken:.4f}s")
+        logger.debug(f"Time spent on computing {self.metric_name}: {time_taken:.4f}s")
 
         # Save computed outputs
         self.save_outputs(sample_keys, outputs, time_taken)

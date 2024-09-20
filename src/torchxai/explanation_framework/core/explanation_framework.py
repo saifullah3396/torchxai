@@ -261,7 +261,7 @@ class FusionExplanationFramework(ABC):
         """
         return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    def _setup_model(self) -> ExplainedModel:
+    def _setup_model(self, runtime_config: DictConfig) -> ExplainedModel:
         """
         Setup the model for evaluation.
 
@@ -284,7 +284,7 @@ class FusionExplanationFramework(ABC):
         model.torch_model.to(self._device)
         model.torch_model.zero_grad()
 
-        return self._prepare_model_for_explanation(model.torch_model)
+        return self._prepare_model_for_explanation(model.torch_model, runtime_config)
 
     def _setup_output_file(self, runtime_config: DictConfig) -> Path:
         """
@@ -360,10 +360,13 @@ class FusionExplanationFramework(ABC):
         explanation_parameters: ExplanationParameters,
         explanations: torch.Tensor | Tuple[torch.Tensor],
         model_outputs: torch.Tensor,
+        runtime_config: DictConfig,
     ) -> None:
         pass
 
-    def _prepare_model_for_explanation(self, model: torch.nn.Module) -> ExplainedModel:
+    def _prepare_model_for_explanation(
+        self, model: torch.nn.Module, runtime_config: DictConfig
+    ) -> ExplainedModel:
         """
         Wrap the model for explanation.
 
@@ -555,20 +558,20 @@ class FusionExplanationFramework(ABC):
             ) as hf_sample_data_io:
                 metrics_dict = {
                     # axioamtic metrics
-                    "completeness": CompletenessBatchComputeCache,
-                    "monotonicity_corr_and_non_sens": MonotonicityCorrNonSensitivityBatchComputeCache,
+                    ExplanationMetrics.COMPLETENESS: CompletenessBatchComputeCache,
+                    ExplanationMetrics.MONOTONICITY_CORR_AND_NON_SENS: MonotonicityCorrNonSensitivityBatchComputeCache,
                     # complexity metrics
-                    "complexity": ComplexityBatchComputeCache,
-                    "effective_complexity": EffectiveComplexityBatchComputeCache,
-                    "sparseness": SparsenessBatchComputeCache,
+                    ExplanationMetrics.COMPLEXITY: ComplexityBatchComputeCache,
+                    ExplanationMetrics.EFFECTIVE_COMPLEXITY: EffectiveComplexityBatchComputeCache,
+                    ExplanationMetrics.SPARSENESS: SparsenessBatchComputeCache,
                     # faithfulness metrics
-                    "infidelity": InfidelityBatchComputeCache,
-                    "faithfulness_corr": FaithfulnessCorrelationBatchComputeCache,
-                    "faithfulness_estimate": FaithfulnessEstimateBatchComputeCache,
-                    "aopc": AOPCBatchComputeCache,
-                    "monotonicity": MonotonicityBatchComputeCache,
+                    ExplanationMetrics.INFIDELITY: InfidelityBatchComputeCache,
+                    ExplanationMetrics.FAITHFULNESS_CORR: FaithfulnessCorrelationBatchComputeCache,
+                    ExplanationMetrics.FAITHFULNESS_ESTIMATE: FaithfulnessEstimateBatchComputeCache,
+                    ExplanationMetrics.AOPC: AOPCBatchComputeCache,
+                    ExplanationMetrics.MONOTONICITY: MonotonicityBatchComputeCache,
                     # robustness metrics
-                    "sensitivity": SensitivityBatchComputeCache,
+                    ExplanationMetrics.SENSITIVITY: SensitivityBatchComputeCache,
                 }
 
                 metric_computer = metrics_dict[metric](
@@ -595,7 +598,7 @@ class FusionExplanationFramework(ABC):
                         explanation_parameters=explanation_parameters,
                         batch_target_labels=predicted_labels,
                     )
-                logger.debug(f"{metric} scores: {metric_scores}")
+                logger.info(f"{metric} scores: {metric_scores}")
 
     def _generate_explanations(
         self,
@@ -672,6 +675,7 @@ class FusionExplanationFramework(ABC):
                     explanation_parameters=explanation_parameters,
                     explanations=reduced_explanations,
                     model_outputs=model_outputs,
+                    runtime_config=runtime_config,
                 )
 
             # compute and save different explainability metrics
@@ -712,7 +716,7 @@ class FusionExplanationFramework(ABC):
 
         # Setup device and model
         self._device = self._setup_device()
-        self._wrapped_model = self._setup_model()
+        self._wrapped_model = self._setup_model(runtime_config)
 
         if runtime_config.test_model:
             self._evaluate_model()

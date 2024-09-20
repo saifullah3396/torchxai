@@ -2,29 +2,23 @@ from typing import Any, Callable, Tuple, Union, cast
 
 import scipy
 import torch
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_additional_forward_args,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.common import (ExpansionTypes,
+                                  _expand_additional_forward_args,
+                                  _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_baseline, _format_tensor_into_tuples,
+                                  _run_forward)
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
-from torchxai.metrics._utils.common import (
-    _construct_default_feature_masks,
-    _format_tensor_tuple_feature_dim,
-    _validate_feature_mask,
-)
+from torchxai.metrics._utils.common import (_construct_default_feature_mask,
+                                            _format_tensor_tuple_feature_dim,
+                                            _validate_feature_mask)
 from torchxai.metrics._utils.perturbation import (
-    _generate_random_perturbation_masks,
-    default_random_perturb_func,
-)
+    _generate_random_perturbation_masks, default_random_perturb_func)
 
 
 @log_usage()
@@ -33,7 +27,7 @@ def faithfulness_corr(
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
     baselines: BaselineType = None,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
@@ -456,7 +450,7 @@ def faithfulness_corr(
             additional_forward_args
         )
         attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-        feature_masks = _format_tensor_into_tuples(feature_masks)  # type: ignore
+        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
 
         # format feature dims for single feature dim cases
         inputs = _format_tensor_tuple_feature_dim(inputs)
@@ -480,15 +474,15 @@ def faithfulness_corr(
                 baselines: {}"""
             ).format(len(inputs[0]), len(baselines[0]))
 
-        if feature_masks is not None:
-            # assert that all elements in the feature_masks are unique and non-negative increasing
-            _validate_feature_mask(feature_masks)
+        if feature_mask is not None:
+            # assert that all elements in the feature_mask are unique and non-negative increasing
+            _validate_feature_mask(feature_mask)
         else:
-            feature_masks = _construct_default_feature_masks(attributions)
+            feature_mask = _construct_default_feature_mask(attributions)
 
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturb_samples,
-            feature_masks,
+            feature_mask,
             perturbation_probability=perturbation_probability,
             device=attributions[0][0].device,
         )

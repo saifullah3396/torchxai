@@ -24,7 +24,7 @@ declare -a batch_sizes=(
     # 2
 )
 declare -a methods=(
-    saliency
+    # saliency
     # deep_lift
     # input_x_gradient
     # guided_backprop
@@ -32,7 +32,7 @@ declare -a methods=(
     # integrated_gradients
     # deep_lift_shap
     # feature_ablation
-    # lime
+    lime
     # kernel_shap
 )
 
@@ -57,7 +57,7 @@ for ((i = 0; i < ${total_datasets}; i++)); do
             per_device_eval_batch_size=${batch_sizes[$j]} \
             checkpoint=${checkpoints[$i]} \
             test_model=false \
-            visualize_explanations=True"
+            visualize_explanations=true"
         )
     done
 done

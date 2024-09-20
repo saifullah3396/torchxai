@@ -9,7 +9,7 @@ from torchxai.explanation_framework.core.explainers.torch_fusion_explainer impor
     FusionExplainer,
 )
 from torchxai.explanation_framework.core.utils.general import (
-    expand_feature_masks_to_inputs,
+    expand_feature_mask_to_inputs,
 )
 
 
@@ -52,7 +52,7 @@ class FeatureAblationExplainer(FusionExplainer):
         inputs: TensorOrTupleOfTensorsGeneric,
         target: TargetType,
         baselines: BaselineType = None,
-        feature_masks: Union[None, Tensor, Tuple[Tensor, ...]] = None,
+        feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
@@ -63,19 +63,19 @@ class FeatureAblationExplainer(FusionExplainer):
             target (TargetType): The target(s) for computing attributions.
             additional_forward_args (Any): Additional arguments to forward function.
             baselines (BaselineType): Baselines for computing attributions.
-            feature_masks (Union[None, Tensor, Tuple[Tensor, ...]], optional): Masks representing feature groups.
+            feature_mask (Union[None, Tensor, Tuple[Tensor, ...]], optional): Masks representing feature groups.
 
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
         # Compute the attributions using Kernel SHAP
-        feature_masks = expand_feature_masks_to_inputs(feature_masks, inputs)
+        feature_mask = expand_feature_mask_to_inputs(feature_mask, inputs)
 
         return self.explanation_fn.attribute(
             inputs=inputs,
             target=target,
             baselines=baselines,
-            feature_mask=feature_masks,
+            feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             perturbations_per_eval=self.perturbations_per_eval,
             show_progress=True,

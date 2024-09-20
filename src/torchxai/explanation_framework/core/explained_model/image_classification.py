@@ -12,14 +12,24 @@ from torchxai.explanation_framework.core.explained_model.base import (  # noqa
     ExplainedModel,
     ExplanationParameters,
 )
-from torchxai.explanation_framework.core.utils.general import create_labelled_patch_grid
+from torchxai.explanation_framework.core.utils.general import grid_segmenter
 
 
 class ExplainedModelForImageClassification(ExplainedModel):
-    def __init__(self, model: nn.Module, feature_grid_size: int = 16) -> None:
+    def __init__(
+        self,
+        model: nn.Module,
+        segmentation_fn: str = "slic",
+        segmentation_fn_kwargs: dict = {
+            "n_segments": 100,
+            "compactness": 1,
+            "sigma": 1,
+        },
+    ) -> None:
         super().__init__(model)
-        self._feature_grid_size = feature_grid_size
         self.softmax = nn.Softmax(dim=-1)
+        self.segmentation_fn = segmentation_fn
+        self.segment_fn_kwargs = segmentation_fn_kwargs
 
     def _prepare_image(self, batch: Mapping[str, torch.Tensor]) -> torch.Tensor:
         if DataKeys.IMAGE not in batch:
@@ -35,15 +45,28 @@ class ExplainedModelForImageClassification(ExplainedModel):
         device: Optional[torch.device] = None,
     ) -> ExplanationParameters:
         batch = convert_tensor(batch, device=device)
-        image = self._prepare_image(batch=batch)
-        ref_image = self._prepare_ref_image(image=image)
-        feature_masks = create_labelled_patch_grid(
-            image, grid_size=self._feature_grid_size
-        )
+        images = self._prepare_image(batch=batch)
+        ref_images = self._prepare_ref_image(image=images)
+
+        if self.segmentation_fn == "grid":
+            feature_mask = grid_segmenter(images, **self.segment_fn_kwargs)
+        elif self.segmentation_fn in ["slic"]:
+            from lime.wrappers.scikit_image import SegmentationAlgorithm
+
+            segmenter = SegmentationAlgorithm(
+                self.segmentation_fn, **self.segment_fn_kwargs
+            )
+            feature_mask = []
+            for image in images:
+                feature_mask.append(
+                    torch.from_numpy(segmenter(image.permute(1, 2, 0).cpu().numpy()))
+                )
+            feature_mask = torch.stack(feature_mask).unsqueeze(1)
+
         return ExplanationParameters(
-            model_inputs=(image,),
-            baselines=(ref_image,),
-            feature_masks=(feature_masks,),
+            model_inputs=(images,),
+            baselines=(ref_images,),
+            feature_mask=(feature_mask,),
             additional_forward_args=(),
         )
 

@@ -27,7 +27,7 @@ class IntegratedGradientsExplainer(FusionExplainer):
         self,
         model: Union[Module, Callable],
         internal_batch_size: int = 1,
-        n_steps: int = 100,
+        n_steps: int = 200,
     ) -> None:
         """
         Initialize the IntegratedGradientsExplainer with the model, internal batch size, and steps.

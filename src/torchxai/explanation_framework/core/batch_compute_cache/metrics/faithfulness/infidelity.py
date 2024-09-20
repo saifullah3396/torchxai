@@ -54,7 +54,7 @@ class InfidelityBatchComputeCache(BatchComputeCache):
         (
             inputs,
             baselines,
-            feature_masks,
+            feature_mask,
             additional_forward_args,
         ) = unpack_explanation_parameters(explanation_parameters)
 
@@ -78,7 +78,7 @@ class InfidelityBatchComputeCache(BatchComputeCache):
             self.drop_probabilities, desc="Drop Probabilities"
         ):
             perturb_fn_drop = perturb_fn_drop_batched_single_output(
-                feature_masks=feature_masks,
+                feature_mask=feature_mask,
                 drop_probability=drop_probability,
             )
 

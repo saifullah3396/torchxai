@@ -4,29 +4,24 @@ from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_additional_forward_args,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.common import (ExpansionTypes,
+                                  _expand_additional_forward_args,
+                                  _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_baseline, _format_tensor_into_tuples,
+                                  _run_forward)
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import (
-    _divide_and_aggregate_metrics_n_perturbations_per_feature,
-)
-from torchxai.metrics._utils.common import (
-    _construct_default_feature_masks,
-    _format_tensor_feature_dim,
-    _reduce_tensor_with_indices,
-    _split_tensors_to_tuple_tensors,
-    _tuple_tensors_to_tensors,
-    _validate_feature_mask,
-)
+from torchxai.metrics._utils.batching import \
+    _divide_and_aggregate_metrics_n_perturbations_per_feature
+from torchxai.metrics._utils.common import (_construct_default_feature_mask,
+                                            _format_tensor_feature_dim,
+                                            _reduce_tensor_with_indices,
+                                            _split_tensors_to_tuple_tensors,
+                                            _tuple_tensors_to_tensors,
+                                            _validate_feature_mask)
 
 
 def perturb_input(input, baseline, feature_mask, indices, feature_idx):
@@ -118,7 +113,7 @@ def eval_aopcs_single_sample(
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
     baselines: BaselineType = None,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_example: int = None,
@@ -153,7 +148,7 @@ def eval_aopcs_single_sample(
                 perturb_input(
                     input=input,
                     baseline=baselines,
-                    feature_mask=feature_masks,
+                    feature_mask=feature_mask,
                     indices=indices,
                     feature_idx=feature_idx,
                 )
@@ -216,25 +211,25 @@ def eval_aopcs_single_sample(
         ), "Inputs and baselines must have the same shape"
 
         # flatten all feature masks in the input
-        if feature_masks is not None:
-            feature_masks, _ = _tuple_tensors_to_tensors(feature_masks)
+        if feature_mask is not None:
+            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
         else:
-            feature_masks = _construct_default_feature_masks(attributions)
-            feature_masks, _ = _tuple_tensors_to_tensors(feature_masks)
+            feature_mask = _construct_default_feature_mask(attributions)
+            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
 
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
 
         # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_masks)
+        _validate_feature_mask(feature_mask)
 
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
         reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions[0], indices=feature_masks[0].flatten()
+            attributions[0], indices=feature_mask[0].flatten()
         )
 
         # get the gathererd-attributions sorted in ascending order of their importance
@@ -294,7 +289,7 @@ def aopc(
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
     baselines: BaselineType,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_example: int = None,
@@ -513,7 +508,7 @@ def aopc(
         baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
     additional_forward_args = _format_additional_forward_args(additional_forward_args)
     attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-    feature_masks = _format_tensor_into_tuples(feature_masks)  # type: ignore
+    feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
 
     # Make sure that inputs and corresponding attributions have matching sizes.
     assert len(inputs) == len(attributions), (
@@ -529,9 +524,9 @@ def aopc(
             forward_func=forward_func,
             inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
             attributions=tuple(attr[sample_idx].unsqueeze(0) for attr in attributions),
-            feature_masks=(
-                tuple(mask[sample_idx].unsqueeze(0) for mask in feature_masks)
-                if feature_masks is not None
+            feature_mask=(
+                tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                if feature_mask is not None
                 else None
             ),
             baselines=(

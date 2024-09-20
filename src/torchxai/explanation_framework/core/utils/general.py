@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 class ExplanationParameters:
     model_inputs: Tuple[torch.Tensor, ...]
     baselines: Tuple[torch.Tensor, ...]
-    feature_masks: Tuple[torch.Tensor, ...]
+    feature_mask: Tuple[torch.Tensor, ...]
     additional_forward_args: Tuple[Any]
 
 
@@ -88,8 +88,8 @@ def convert_numeric_ner_labels_to_ner_tags(
     return true_preds, true_targets
 
 
-def expand_feature_masks_to_inputs(
-    feature_masks: Tuple[torch.Tensor], inputs: Tuple[torch.Tensor]
+def expand_feature_mask_to_inputs(
+    feature_mask: Tuple[torch.Tensor], inputs: Tuple[torch.Tensor]
 ) -> Tuple[torch.Tensor]:
     return tuple(
         (
@@ -97,7 +97,7 @@ def expand_feature_masks_to_inputs(
             if len(mask.shape) < len(input.shape)
             else mask.expand_as(input)
         )
-        for input, mask in zip(inputs, feature_masks)
+        for input, mask in zip(inputs, feature_mask)
     )
 
 
@@ -209,36 +209,34 @@ def unpack_explanation_parameters(
         )
         assert (
             explanation_parameters.model_inputs.keys()
-            == explanation_parameters.feature_masks.keys()
+            == explanation_parameters.feature_mask.keys()
         )
 
         inputs = tuple(explanation_parameters.model_inputs.values())
         baselines = tuple(explanation_parameters.baselines.values())
-        feature_masks = tuple(explanation_parameters.feature_masks.values())
+        feature_mask = tuple(explanation_parameters.feature_mask.values())
         additional_forward_args = explanation_parameters.additional_forward_args
     else:
         inputs = explanation_parameters.model_inputs
         baselines = explanation_parameters.baselines
-        feature_masks = explanation_parameters.feature_masks
+        feature_mask = explanation_parameters.feature_mask
         additional_forward_args = explanation_parameters.additional_forward_args
 
-    return inputs, baselines, feature_masks, additional_forward_args
+    return inputs, baselines, feature_mask, additional_forward_args
 
 
-def create_labelled_patch_grid(
-    images: torch.Tensor, grid_size: int = 16
-) -> torch.Tensor:
-    feature_masks = []
+def grid_segmenter(images: torch.Tensor, cell_size: int = 16) -> torch.Tensor:
+    feature_mask = []
     for image in images:
         # image dimensions are C x H x H
-        dim_x, dim_y = image.shape[1] // grid_size, image.shape[2] // grid_size
+        dim_x, dim_y = image.shape[1] // cell_size, image.shape[2] // cell_size
         mask = (
             torch.arange(dim_x * dim_y)
             .view((dim_x, dim_y))
-            .repeat_interleave(grid_size, dim=0)
-            .repeat_interleave(grid_size, dim=1)
+            .repeat_interleave(cell_size, dim=0)
+            .repeat_interleave(cell_size, dim=1)
             .long()
             .unsqueeze(0)
         )
-        feature_masks.append(mask)
-    return torch.stack(feature_masks)
+        feature_mask.append(mask)
+    return torch.stack(feature_mask)

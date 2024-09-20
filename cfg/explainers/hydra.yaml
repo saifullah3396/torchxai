@@ -59,38 +59,47 @@ use_val_set_for_test: true
 checkpoint: '???' # model checkpoint path if required
 checkpoint_state_dict_key: model
 test_model: true
+segmentation_fn: slic
+segmentation_fn_kwargs:
+  n_segments: 100
+  compactness": 1
+  sigma: 1
+# segmentation_fn: grid
+# segmentation_fn_kwargs:
+#   cell_size: 16
+
 explanation_method: deep_lift
 metrics: # metrics and their parameters
   # axiomatic
-  completeness: {}
-  monotonicity_corr_and_non_sens: {} # this gives both faithfulness monotonicity and axoimatic non sensitivity
+  # completeness: {}
+  # monotonicity_corr_and_non_sens: {} # this gives both faithfulness monotonicity and axoimatic non sensitivity
 
-  # complexity
-  complexity: {}
-  effective_complexity: {}
-  sparseness: {}
+  # # complexity
+  # complexity: {}
+  # effective_complexity: {}
+  # sparseness: {}
 
-  # faithfulness
-  infidelity:
-    drop_probabilities: [0.5, 0.25, 0.1]
-    perturb_noise_scale: 0.02
-    n_perturb_samples: 100
-    max_examples_per_batch: 10
-  aopc:
-    max_features_processed_per_example: 24
-    total_features_perturbed: 100
-  faithfulness_corr:
-    pertub_func_type: random
-    perturbation_noise_scale: 0.02
-    n_perturb_samples: 100
-    max_examples_per_batch: 10
-    perturbation_probability: 0.1
-  faithfulness_estimate:
-    max_features_processed_per_example: 10
-    show_progress: True
-  monotonicity:
-    max_features_processed_per_example: 10
-    show_progress: True
+  # # faithfulness
+  # infidelity:
+  #   drop_probabilities: [0.5, 0.25, 0.1]
+  #   perturb_noise_scale: 0.02
+  #   n_perturb_samples: 100
+  #   max_examples_per_batch: 10
+  # aopc:
+  #   max_features_processed_per_example: 24
+  #   total_features_perturbed: 100
+  # faithfulness_corr:
+  #   pertub_func_type: random
+  #   perturbation_noise_scale: 0.02
+  #   n_perturb_samples: 100
+  #   max_examples_per_batch: 10
+  #   perturbation_probability: 0.1
+  # faithfulness_estimate:
+  #   max_features_processed_per_example: 10
+  #   show_progress: True
+  # monotonicity:
+  #   max_features_processed_per_example: 10
+  #   show_progress: True
 
   # robustness
   sensitivity: {}

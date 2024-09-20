@@ -5,6 +5,7 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from ignite.utils import convert_tensor
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.core.batch_compute_cache.base import (
@@ -53,7 +54,7 @@ class ExplanationsBatchComputeCache(BatchComputeCache):
         batch_target_labels: Union[torch.Tensor, np.ndarray],
         train_baselines: Union[torch.Tensor, np.ndarray],
     ):
-        inputs, baselines, feature_masks, additional_forward_args = (
+        inputs, baselines, feature_mask, additional_forward_args = (
             unpack_explanation_parameters(explanation_parameters)
         )
 
@@ -65,8 +66,10 @@ class ExplanationsBatchComputeCache(BatchComputeCache):
         )
 
         fn_parameters = inspect.signature(explainer.explain).parameters
-        if "feature_masks" in fn_parameters:
-            kwargs["feature_masks"] = feature_masks
+        if "feature_mask" in fn_parameters:
+            kwargs["feature_mask"] = convert_tensor(
+                feature_mask, device=batch_target_labels.device
+            )
         if "baselines" in fn_parameters:
             kwargs["baselines"] = baselines
         if "train_baselines" in fn_parameters:

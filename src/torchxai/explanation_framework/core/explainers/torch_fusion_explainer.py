@@ -39,7 +39,7 @@ class FusionExplainer(ABC):
         inputs: TensorOrTupleOfTensorsGeneric,
         target: TargetType,
         baselines: BaselineType = None,
-        feature_masks: Union[None, Tensor, Tuple[Tensor, ...]] = None,
+        feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
@@ -49,7 +49,7 @@ class FusionExplainer(ABC):
             inputs (TensorOrTupleOfTensorsGeneric): The input tensors for which to compute the attribution.
             target (TargetType): The target for the attribution computation.
             baselines (BaselineType, optional): The baselines for the attribution computation. Defaults to None.
-            feature_masks (Union[None, Tensor, Tuple[Tensor, ...]], optional): The feature masks for the attribution computation. Defaults to None.
+            feature_mask (Union[None, Tensor, Tuple[Tensor, ...]], optional): The feature masks for the attribution computation. Defaults to None.
             additional_forward_args (Any, optional): Additional arguments to forward to the model. Defaults to None.
 
         Returns:

@@ -14,14 +14,17 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
 from torchxai.metrics._utils.common import (
     _construct_default_feature_masks,
     _format_tensor_tuple_feature_dim,
-    _generate_random_perturbation_masks,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_random_perturb_func
+from torchxai.metrics._utils.perturbation import (
+    _generate_random_perturbation_masks,
+    default_random_perturb_func,
+)
 
 
 @log_usage()

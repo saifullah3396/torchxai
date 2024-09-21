@@ -6,24 +6,27 @@ import numpy as np
 import scipy
 import torch
 import tqdm
-from captum._utils.common import (ExpansionTypes,
-                                  _expand_additional_forward_args,
-                                  _expand_target,
-                                  _format_additional_forward_args,
-                                  _format_baseline, _format_tensor_into_tuples,
-                                  _run_forward)
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_additional_forward_args,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_baseline,
+    _format_tensor_into_tuples,
+    _run_forward,
+)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import \
-    _divide_and_aggregate_metrics_n_features
-from torchxai.metrics._utils.common import (_construct_default_feature_mask,
-                                            _reduce_tensor_with_indices,
-                                            _split_tensors_to_tuple_tensors,
-                                            _tuple_tensors_to_tensors,
-                                            _validate_feature_mask)
+from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
+from torchxai.metrics._utils.common import (
+    _construct_default_feature_mask,
+    _reduce_tensor_with_indices,
+    _split_tensors_to_tuple_tensors,
+    _tuple_tensors_to_tensors,
+    _validate_feature_mask,
+)
 
 
 @log_usage()
@@ -242,8 +245,12 @@ def eval_faithfulness_estimate_single_sample(
             perturbation_mask = (
                 feature_mask == descending_attribution_indices[feature_idx]
             )
-            inputs_perturbed[perturbation_sample_idx][perturbation_mask[0]] = baselines[
-                perturbation_mask
+            inputs_perturbed[perturbation_sample_idx][
+                perturbation_mask[0].expand_as(
+                    inputs_perturbed[perturbation_sample_idx]
+                )
+            ] = baselines[
+                perturbation_mask.expand_as(baselines)
             ]  # input[0] here since batch size is 1
             attributions_sum_perturbed.append((attributions * perturbation_mask).sum())
 
@@ -339,9 +346,9 @@ def eval_faithfulness_estimate_single_sample(
         )[0]
 
     return (
-        faithfulness_estimate_score,
-        attributions_sum_perturbed,
-        inputs_perturbed_fwd_diffs,
+        torch.tensor(faithfulness_estimate_score),
+        torch.from_numpy(attributions_sum_perturbed),
+        torch.from_numpy(inputs_perturbed_fwd_diffs),
     )
 
 
@@ -487,14 +494,7 @@ def faithfulness_estimate(
                 this is usually the target class).
                 If the network returns a scalar value per example, no target
                 index is necessary.
-                For general 2D outputs, targets can be either:
-
-                - A single integer or a tensor containing a single
-                  integer, which is applied to all input examples
-
-                - A list of integers or a 1D tensor, with length matching
-                  the number of examples in inputs (dim 0). Each integer
-                  is applied as the target for the corresponding example.
+                For general 2D outputsattributions_sum_perturbedrget for the corresponding example.
 
                   For outputs with > 2 dimensions, targets can be either:
 

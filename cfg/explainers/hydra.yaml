@@ -71,38 +71,58 @@ segmentation_fn_kwargs:
 explanation_method: deep_lift
 metrics: # metrics and their parameters
   # axiomatic
-  # completeness: {}
-  # monotonicity_corr_and_non_sens: {} # this gives both faithfulness monotonicity and axoimatic non sensitivity
+  completeness:
+    name: completeness
+  monotonicity_corr_and_non_sens: # this gives both faithfulness monotonicity and axoimatic non sensitivity
+    name: monotonicity_corr_and_non_sens
 
-  # # complexity
-  # complexity: {}
-  # effective_complexity: {}
-  # sparseness: {}
+  # complexity
+  complexity:
+    name: complexity
+  effective_complexity:
+    name: effective_complexity
+  sparseness:
+    name: sparseness
 
-  # # faithfulness
-  # infidelity:
-  #   drop_probabilities: [0.5, 0.25, 0.1]
-  #   perturb_noise_scale: 0.02
-  #   n_perturb_samples: 100
-  #   max_examples_per_batch: 10
-  # aopc:
-  #   max_features_processed_per_example: 24
-  #   total_features_perturbed: 100
-  # faithfulness_corr:
-  #   pertub_func_type: random
-  #   perturbation_noise_scale: 0.02
-  #   n_perturb_samples: 100
-  #   max_examples_per_batch: 10
-  #   perturbation_probability: 0.1
-  # faithfulness_estimate:
-  #   max_features_processed_per_example: 10
-  #   show_progress: True
-  # monotonicity:
-  #   max_features_processed_per_example: 10
-  #   show_progress: True
+  # faithfulness
+  infidelity_0.5:
+    name: infidelity
+    perturbation_probability: 0.5
+    n_perturb_samples: 100
+    max_examples_per_batch: 10
+  infidelity_0.25:
+    name: infidelity
+    perturbation_probability: 0.25
+    n_perturb_samples: 100
+    max_examples_per_batch: 10
+  infidelity_0.1:
+    name: infidelity
+    perturbation_probability: 0.1
+    n_perturb_samples: 100
+    max_examples_per_batch: 10
+  aopc:
+    name: aopc
+    max_features_processed_per_example: 24
+    total_features_perturbed: 100
+  faithfulness_corr:
+    name: faithfulness_corr
+    pertub_func_type: random
+    perturbation_noise_scale: 0.02
+    n_perturb_samples: 100
+    max_examples_per_batch: 10
+    perturbation_probability: 0.1
+  faithfulness_estimate:
+    name: faithfulness_estimate
+    max_features_processed_per_example: 10
+    show_progress: True
+  monotonicity:
+    name: monotonicity
+    max_features_processed_per_example: 10
+    show_progress: True
 
-  # robustness
-  sensitivity: {}
+  # # # robustness
+  # # sensitivity:
+  # #   name: sensitivity
 
 start_idx: null
 end_idx: null

@@ -4,6 +4,7 @@ from typing import Tuple
 
 import torch
 from torch.distributions import Categorical
+
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 

@@ -3,14 +3,15 @@ from logging import getLogger
 from typing import Any, Optional, cast
 
 import torch
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
 from torch import Tensor
 from torch.nn import Module
 
-from tests.helpers.basic import (assertAllTensorsAreAlmostEqualWithNan,
-                                 assertTensorAlmostEqual)
+from tests.helpers.basic import (
+    assertAllTensorsAreAlmostEqualWithNan,
+    assertTensorAlmostEqual,
+)
 from tests.metrics.base import MetricTestsBase
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 from torchxai.metrics.faithfulness.monotonicity import monotonicity
@@ -209,6 +210,8 @@ class Test(MetricTestsBase):
         attributions, _ = _tuple_tensors_to_tensors(attributions)
         self.assertEqual(len(fwds), attributions.shape[0])  # match batch size
         for fwd, attribution in zip(fwds, attributions):
-            self.assertEqual(fwd.size, attribution.numel())  # match number of features
+            self.assertEqual(
+                fwd.numel(), attribution.numel()
+            )  # match number of features
         assertTensorAlmostEqual(self, mono.float(), expected.float())
         return mono, fwds

@@ -4,24 +4,29 @@ from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
-from captum._utils.common import (ExpansionTypes,
-                                  _expand_additional_forward_args,
-                                  _expand_target,
-                                  _format_additional_forward_args,
-                                  _format_baseline, _format_tensor_into_tuples,
-                                  _run_forward)
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_additional_forward_args,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_baseline,
+    _format_tensor_into_tuples,
+    _run_forward,
+)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import \
-    _divide_and_aggregate_metrics_n_perturbations_per_feature
-from torchxai.metrics._utils.common import (_construct_default_feature_mask,
-                                            _format_tensor_feature_dim,
-                                            _reduce_tensor_with_indices,
-                                            _split_tensors_to_tuple_tensors,
-                                            _tuple_tensors_to_tensors,
-                                            _validate_feature_mask)
+from torchxai.metrics._utils.batching import (
+    _divide_and_aggregate_metrics_n_perturbations_per_feature,
+)
+from torchxai.metrics._utils.common import (
+    _construct_default_feature_mask,
+    _format_tensor_feature_dim,
+    _reduce_tensor_with_indices,
+    _split_tensors_to_tuple_tensors,
+    _tuple_tensors_to_tensors,
+    _validate_feature_mask,
+)
 
 
 def perturb_input(input, baseline, feature_mask, indices, feature_idx):
@@ -553,9 +558,9 @@ def aopc(
             seed=seed,
         )
         aopc_batch.append(aopc_scores)
-    aopc_batch = torch.stack(aopc_batch)
+
     return (
-        aopc_batch[:, 0, :],
-        aopc_batch[:, 1, :],
-        aopc_batch[:, 2:, :].mean(1),
+        [x[0] for x in aopc_batch],
+        [x[1] for x in aopc_batch],
+        [x[2:].mean(0) for x in aopc_batch],
     )  # descending, ascending, random

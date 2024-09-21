@@ -28,7 +28,7 @@ from torchfusion.core.args.args import FusionArguments
 from torchfusion.core.utilities.dataclasses.dacite_wrapper import from_dict
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.image_classification.image_classification_explanation_framework import (
+from torchxai.image_classification.image_classification_explanation_framework import (
     ImageClassificationExplanationFramework,
 )  # noqa
 

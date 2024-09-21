@@ -108,7 +108,7 @@ def _generate_random_perturbation_masks(
 
 def perturb_fn_drop_batched_single_output(
     feature_mask: Tuple[torch.Tensor, ...],
-    drop_probability=0.1,
+    perturbation_probability=0.1,
 ):
     def wrapped(inputs, baselines):
         # to compute infidelity we take randomly set half the features to baseline
@@ -131,7 +131,7 @@ def perturb_fn_drop_batched_single_output(
         perturbation_masks = _generate_random_perturbation_masks(
             total_perturbations_per_feature_group=current_batch_size // total_samples,
             feature_mask=feature_mask,
-            perturbation_probability=drop_probability,
+            perturbation_probability=perturbation_probability,
             device=inputs[0].device,
         )
 

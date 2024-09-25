@@ -15,7 +15,7 @@ class AOPCBatchComputationHandler(TorchXAIMetricBatchComputationHandler):
     def __init__(
         self,
         output_file: Union[str, Path],
-        max_features_processed_per_example: int = 10,
+        max_features_processed_per_batch: int = 10,
         total_features_perturbed: int = 100,
         n_random_perms: int = 10,
         show_progress: bool = False,
@@ -28,7 +28,7 @@ class AOPCBatchComputationHandler(TorchXAIMetricBatchComputationHandler):
                 "asc",
                 "rand",
             ],
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             show_progress=show_progress,

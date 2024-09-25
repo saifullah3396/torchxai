@@ -13,13 +13,13 @@ class FaithfulnessEstimateBatchComputationHandler(
     def __init__(
         self,
         output_file: Union[str, Path],
-        max_features_processed_per_example: int = 10,
+        max_features_processed_per_batch: int = 10,
         show_progress: bool = False,
     ) -> None:
         super().__init__(
             metric_name=ExplanationMetrics.FAITHFULNESS_ESTIMATE.value,
             output_file=output_file,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
             output_keys=[
                 "faithfulness_estimate",

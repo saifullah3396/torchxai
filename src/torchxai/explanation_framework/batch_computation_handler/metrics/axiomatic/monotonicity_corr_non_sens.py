@@ -18,7 +18,7 @@ class MonotonicityCorrNonSensitivityBatchComputationHandler(
         self,
         output_file: Union[str, Path],
         n_perturbations_per_feature: int = 1,
-        max_features_processed_per_example: int = 10,
+        max_features_processed_per_batch: int = 10,
         eps: float = 0.00001,
         show_progress: bool = False,
     ) -> None:
@@ -30,7 +30,7 @@ class MonotonicityCorrNonSensitivityBatchComputationHandler(
                 "non_sensitivity",
                 "n_features",
             ],
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             n_perturbations_per_feature=n_perturbations_per_feature,
             eps=eps,
             show_progress=show_progress,

@@ -24,7 +24,7 @@ class LRPExplainer(FusionExplainer):
             Attribution: The initialized explanation function.
         """
 
-        return LRP(self.model)
+        return LRP(self._model)
 
     def explain(
         self,
@@ -43,7 +43,7 @@ class LRPExplainer(FusionExplainer):
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
-        return self.explanation_fn.attribute(
+        return self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
             additional_forward_args=additional_forward_args,

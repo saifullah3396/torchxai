@@ -1,11 +1,76 @@
+import warnings
 from typing import Any
 
+from captum._utils.common import _format_output, _format_tensor_into_tuples, _is_tuple
+from captum._utils.gradient import (
+    apply_gradient_requirements,
+    undo_gradient_requirements,
+)
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution, GuidedBackprop
+from captum.log import log_usage
+from torch.nn import Module
 
+from torchxai.explanation_framework.explainers._utils import (
+    _compute_gradients_vmap_autograd,
+    _verify_target_for_multi_target_impl,
+)
 from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
+
+
+class MultiTargetGuidedBackprop(GuidedBackprop):
+    def __init__(
+        self, model: Module, gradient_func=_compute_gradients_vmap_autograd
+    ) -> None:
+        super().__init__(model)
+        self.gradient_func = gradient_func
+
+    @log_usage()
+    def attribute(
+        self,
+        inputs: TensorOrTupleOfTensorsGeneric,
+        target: TargetType = None,
+        additional_forward_args: Any = None,
+    ) -> TensorOrTupleOfTensorsGeneric:
+        r"""
+        Computes attribution by overriding relu gradients. Based on constructor
+        flag use_relu_grad_output, performs either GuidedBackpropagation if False
+        and Deconvolution if True. This class is the parent class of both these
+        methods, more information on usage can be found in the docstrings for each
+        implementing class.
+        """
+
+        # Keeps track whether original input is a tuple or not before
+        # converting it into a tuple.
+        is_inputs_tuple = _is_tuple(inputs)
+
+        inputs = _format_tensor_into_tuples(inputs)
+        gradient_mask = apply_gradient_requirements(inputs)
+
+        # verify that the target is valid
+        _verify_target_for_multi_target_impl(inputs, target)
+
+        # set hooks for overriding ReLU gradients
+        warnings.warn(
+            "Setting backward hooks on ReLU activations."
+            "The hooks will be removed after the attribution is finished"
+        )
+        try:
+            self.model.apply(self._register_hooks)
+
+            multi_target_gradients = self.gradient_func(
+                self.forward_func, inputs, target, additional_forward_args
+            )
+        finally:
+            self._remove_hooks()
+
+        undo_gradient_requirements(inputs, gradient_mask)
+        return [
+            _format_output(is_inputs_tuple, per_target_gradients)
+            for per_target_gradients in multi_target_gradients
+        ]
 
 
 class GuidedBackpropExplainer(FusionExplainer):
@@ -23,8 +88,9 @@ class GuidedBackpropExplainer(FusionExplainer):
         Returns:
             Attribution: The initialized explanation function.
         """
-
-        return GuidedBackprop(self.model)
+        if self._is_multi_target:
+            return MultiTargetGuidedBackprop(self._model)
+        return GuidedBackprop(self._model)
 
     def explain(
         self,
@@ -43,7 +109,7 @@ class GuidedBackpropExplainer(FusionExplainer):
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
-        return self.explanation_fn.attribute(
+        return self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
             additional_forward_args=additional_forward_args,

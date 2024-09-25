@@ -26,14 +26,16 @@ from torchxai.explanation_framework.explainers._perturbation.kernel_shap import 
     KernelShapExplainer,
 )
 from torchxai.explanation_framework.explainers._perturbation.lime import LimeExplainer
-from torchxai.explanation_framework.explainers._perturbation.shapley_values import (
-    ShapleyValuesExplainer,
+from torchxai.explanation_framework.explainers._perturbation.shapley_value_sampling import (
+    ShapleyValueSamplingExplainer,
 )
+from torchxai.explanation_framework.explainers.random import RandomExplainer
 from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
 
 explainers = {
+    "random": RandomExplainer,
     "saliency": SaliencyExplainer,
     "integrated_gradients": IntegratedGradientsExplainer,
     "deep_lift": DeepLiftExplainer,
@@ -44,13 +46,13 @@ explainers = {
     "feature_ablation": FeatureAblationExplainer,
     "lime": LimeExplainer,
     "kernel_shap": KernelShapExplainer,
-    "shapeley_values": ShapleyValuesExplainer,
+    "shapley_values_sampling": ShapleyValueSamplingExplainer,
 }
 
 
 class ExplainerFactory:
     @staticmethod
-    def create(explanation_method: str, model: nn.Module) -> FusionExplainer:
+    def create(explanation_method: str, model: nn.Module, **kwargs) -> FusionExplainer:
         """
         Creates an explainer object based on the given explanation method.
         Args:
@@ -66,4 +68,4 @@ class ExplainerFactory:
             raise ValueError(
                 f"Attribution method [{explanation_method}] is not supported. Supported methods are: {explainers.keys()}."
             )
-        return explainer_class(model)
+        return explainer_class(model, **kwargs)

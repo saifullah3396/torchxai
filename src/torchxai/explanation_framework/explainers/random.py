@@ -72,9 +72,9 @@ class MultiTargetSaliency(Saliency):
         ]
 
 
-class SaliencyExplainer(FusionExplainer):
+class RandomExplainer(FusionExplainer):
     """
-    A Explainer class for handling saliency attribution using Captum library.
+    A Explainer class for generating random output attributions.
 
     Args:
         model (torch.nn.Module): The model whose output is to be explained.
@@ -89,8 +89,18 @@ class SaliencyExplainer(FusionExplainer):
         """
 
         if self._is_multi_target:
-            return MultiTargetSaliency(self._model)
-        return Saliency(self._model)
+
+            def explanation_fn(inputs, *args, **kwargs):
+                inputs = _format_tensor_into_tuples(inputs)
+                return [tuple(torch.randn_like(input) for input in inputs)]
+
+            return explanation_fn
+
+        def explanation_fn(inputs, *args, **kwargs):
+            inputs = _format_tensor_into_tuples(inputs)
+            return tuple(torch.randn_like(input) for input in inputs)
+
+        return explanation_fn
 
     def explain(
         self,
@@ -110,7 +120,7 @@ class SaliencyExplainer(FusionExplainer):
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
 
-        return self._explanation_fn.attribute(
+        return self._explanation_fn(
             inputs=inputs,
             target=target,
             additional_forward_args=additional_forward_args,

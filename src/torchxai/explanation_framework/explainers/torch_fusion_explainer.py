@@ -13,16 +13,21 @@ class FusionExplainer(ABC):
 
     Attributes:
         model (Union[torch.nn.Module, Callable]): The model used for attribution computation.
+        is_multi_target (bool): A flag indicating whether the explainer is multi-target explainer.
         internal_batch_size (int): The internal batch size used for attribution computation.
         explanation_fn (Attribution): The attribution class used by the handler.
     """
 
     def __init__(
-        self, model: Union[torch.nn.Module, Callable], internal_batch_size: int = 1
+        self,
+        model: Union[torch.nn.Module, Callable],
+        is_multi_target: bool = False,
+        internal_batch_size: int = 1,
     ) -> None:
-        self.model = model
-        self.internal_batch_size = internal_batch_size
-        self.explanation_fn = self._init_explanation_fn()
+        self._model = model
+        self._internal_batch_size = internal_batch_size
+        self._is_multi_target = is_multi_target
+        self._explanation_fn = self._init_explanation_fn()
 
     @abstractmethod
     def _init_explanation_fn(self) -> Attribution:

@@ -3,3 +3,8 @@
 scripts/data/
 scripts/output/
 test.ipynb
+test2.ipynb
+grad_test.ipynb
+tmp/test.py
+tmp/test2.py
+tmp/test3.py

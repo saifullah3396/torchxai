@@ -4,11 +4,8 @@ import hashlib
 from typing import Tuple
 
 import torch
-from torchfusion.core.utilities.logging import get_logger
 
 from torchxai.explanation_framework.utils.containers import ExplanationParameters
-
-logger = get_logger(__name__)
 
 
 def generate_unique_sample_key(
@@ -60,7 +57,12 @@ def _expand_feature_mask_to_target(
         Tuple[torch.Tensor]: A tuple of tensors where each feature mask is expanded to match the shape of the
             corresponding input tensor.
     """
+    if feature_mask is None:
+        return feature_mask
+
     return_first_element = False
+    if not isinstance(inputs, tuple):
+        inputs = (inputs,)
     if not isinstance(feature_mask, tuple):
         feature_mask = (feature_mask,)
         return_first_element = False

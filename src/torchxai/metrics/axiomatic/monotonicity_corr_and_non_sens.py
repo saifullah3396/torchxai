@@ -36,7 +36,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
@@ -158,6 +158,8 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         )
 
         # compute the monotonicity corr for each feature group
+        # here we sum the attributions over feature groups, but should we sum the absolutes?
+        # this question is not clear from the paper
         curr_feature_group_attribution_scores = tuple(
             x.sum() for x in curr_feature_attribution_scores
         )
@@ -205,7 +207,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             n_features,
             _next_monotonicity_corr_tensors,
             agg_func=_sum_monotonicity_corr_tensors,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
 
@@ -214,23 +216,12 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             perturbed_fwd_diffs_relative_vars: np.ndarray,
             feature_group_attribution_scores: np.ndarray,
         ):
-            # get the attribution scores ascending order indices
-            ascending_attribution_indices = np.argsort(feature_group_attribution_scores)
-
-            # sort the attribution scores and the model forward variances by the ascending order of the attribution scores
-            ascending_attribution_scores = feature_group_attribution_scores[
-                ascending_attribution_indices
-            ]
-            ascending_attribution_perturbed_fwd_diffs_relative_vars = (
-                perturbed_fwd_diffs_relative_vars[ascending_attribution_indices]
-            )
-
-            # find the spearman corr between the ascending order of the attribution scores and the model forward variances
+            # find the spearman corr between the attribution scores and the model forward variances
             # this corr should be close to 1 if the model forward variances are monotonically increasing with the attribution scores
             # this means that features that have a lower attribution score are directly correlated with lower effect on the model output
             return scipy.stats.spearmanr(
-                ascending_attribution_scores,
-                ascending_attribution_perturbed_fwd_diffs_relative_vars,
+                np.abs(feature_group_attribution_scores),
+                perturbed_fwd_diffs_relative_vars,
             )[0]
 
         # compute non-sensitivity metric
@@ -289,7 +280,7 @@ def monotonicity_corr_and_non_sens(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> tuple[Tensor, Tensor, Tensor]:
@@ -487,7 +478,7 @@ def monotonicity_corr_and_non_sens(
 
                 It is important to note that for performance reasons `perturb_func`
                 isn't called for each example individually but on a batch of
-                input examples that are repeated `max_features_processed_per_example / batch_size`
+                input examples that are repeated `max_features_processed_per_batch / batch_size`
                 times within the batch.
 
         n_perturbations_per_feature (int, optional): The number of times each feature is perturbed.
@@ -500,16 +491,16 @@ def monotonicity_corr_and_non_sens(
                 perturbation steps will be `C * H * W * n_perturbations_per_feature` for each example in the batch.
 
                 Default: 10
-        max_features_processed_per_example (int, optional): The number of maximum input
+        max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features in each example (`C * H * W`) exceeds
-                `max_features_processed_per_example`, they will be sliced
-                into batches of `max_features_processed_per_example` examples and processed
+                `max_features_processed_per_batch`, they will be sliced
+                into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order. However the total effective batch size will still be
-                `max_features_processed_per_example * n_perturbations_per_feature` as in each
-                perturbation step, `max_features_processed_per_example * n_perturbations_per_feature` features
-                are processed. If `max_features_processed_per_example` is None, all
-                examples are processed together. `max_features_processed_per_example` should
+                `max_features_processed_per_batch * n_perturbations_per_feature` as in each
+                perturbation step, `max_features_processed_per_batch * n_perturbations_per_feature` features
+                are processed. If `max_features_processed_per_batch` is None, all
+                examples are processed together. `max_features_processed_per_batch` should
                 at least be equal `n_perturbations_per_feature` and at most
                 `C * H * W * n_perturbations_per_feature`.
         eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
@@ -600,7 +591,7 @@ def monotonicity_corr_and_non_sens(
                     target=target[sample_idx] if target is not None else None,
                     perturb_func=perturb_func,
                     n_perturbations_per_feature=n_perturbations_per_feature,
-                    max_features_processed_per_example=max_features_processed_per_example,
+                    max_features_processed_per_batch=max_features_processed_per_batch,
                     eps=eps,
                     show_progress=show_progress,
                 )

@@ -121,7 +121,7 @@ def eval_aopcs_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
@@ -279,7 +279,7 @@ def eval_aopcs_single_sample(
                 n_features=min(total_features_perturbed, n_features),
                 metric_func=_next_aopc_tensors,
                 agg_func=_cat_aopc_tensors,
-                max_features_processed_per_example=max_features_processed_per_example,
+                max_features_processed_per_batch=max_features_processed_per_batch,
             )
         )
         aopc_scores = compute_aopc_scores_vectorized(
@@ -297,7 +297,7 @@ def aopc(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
@@ -456,16 +456,16 @@ def aopc(
                   target for the corresponding example.
 
                 Default: None
-        max_features_processed_per_example (int, optional): The number of maximum input
+        max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
-                `max_features_processed_per_example`, they will be sliced
-                into batches of `max_features_processed_per_example` examples and processed
+                `max_features_processed_per_batch`, they will be sliced
+                into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order. However the total effective batch size will still be
-                `max_features_processed_per_example * (2 + n_random_perms)` as in each
-                perturbation step, `max_features_processed_per_example * (2 + n_random_perms)` features
-                are processed. If `max_features_processed_per_example` is None, all
-                examples are processed together. `max_features_processed_per_example` should
+                `max_features_processed_per_batch * (2 + n_random_perms)` as in each
+                perturbation step, `max_features_processed_per_batch * (2 + n_random_perms)` features
+                are processed. If `max_features_processed_per_batch` is None, all
+                examples are processed together. `max_features_processed_per_batch` should
                 at least be equal `(2 + n_random_perms)` and at most
                 `total_features_perturbed * (2 + n_random_perms)`.
         eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
@@ -552,7 +552,7 @@ def aopc(
                 else None
             ),
             target=target[sample_idx] if target is not None else None,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,

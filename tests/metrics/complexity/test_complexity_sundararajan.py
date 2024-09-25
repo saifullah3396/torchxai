@@ -15,7 +15,7 @@ from torchxai.explanation_framework.explainers.factory import ExplainerFactory
 from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
-from torchxai.metrics.complexity.sparseness import sparseness
+from torchxai.metrics import complexity_sundararajan
 
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
@@ -33,10 +33,10 @@ class Test(MetricTestsBase):
                 "integrated_gradients",
             ],
             [
-                0.5501,
-                0.5308,
-                0.4295,
-            ],  # these effective complexity results match from the paper: https://arxiv.org/pdf/2007.07584
+                4,
+                4,
+                4,
+            ],  # these complexity results match from the paper: https://arxiv.org/pdf/2007.07584
         ):
             self.output_assert(
                 **kwargs,
@@ -46,12 +46,12 @@ class Test(MetricTestsBase):
 
     def test_basic_single(self) -> None:
         self.output_assert(
-            **self.basic_single_setup(), expected=torch.tensor([0.2500]), delta=1e-3
+            **self.basic_single_setup(), expected=torch.tensor([2]), delta=1e-3
         )
 
     def test_basic_batch(self) -> None:
         self.output_assert(
-            **self.basic_batch_setup(), expected=torch.tensor([0.2500] * 3), delta=1e-3
+            **self.basic_batch_setup(), expected=torch.tensor([2] * 3), delta=1e-3
         )
 
     def test_basic_additional_forward_args1(self) -> None:
@@ -63,30 +63,30 @@ class Test(MetricTestsBase):
     def test_classification_convnet_multi_targets(self) -> None:
         self.output_assert(
             **self.classification_convnet_multi_targets_setup(),
-            expected=torch.tensor([0.3840] * 20),
+            expected=torch.tensor([16] * 20),
             delta=1.0e-3,
         )
 
     def test_classification_tpl_target(self) -> None:
         self.output_assert(
             **self.classification_tpl_target_setup(),
-            expected=torch.tensor([0.2222, 0.0889, 0.0556, 0.0404]),
+            expected=torch.tensor([3, 3, 3, 3]),
             delta=1.0e-3,
         )
 
     def test_classification_tpl_target_w_baseline(self) -> None:
         self.output_assert(
             **self.classification_tpl_target_w_baseline_setup(),
-            expected=torch.tensor([0.4444, 0.1111, 0.0635, 0.0444]),
+            expected=torch.tensor([2, 3, 3, 3]),
             delta=1.0e-3,
         )
 
     def output_assert(
         self,
-        explainer: Union[FusionExplainer, Attribution],
+        expected: Tensor,
+        explainer: Union[Attribution, FusionExplainer],
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
-        expected: Tensor,
         additional_forward_args: Optional[Any] = None,
         baselines: Optional[BaselineType] = None,
         target: Optional[TargetType] = None,
@@ -101,7 +101,7 @@ class Test(MetricTestsBase):
             target,
             multiply_by_inputs,
         )
-        output = sparseness(
+        output = complexity_sundararajan(
             attributions=explanations,
         )
         if torch.isnan(output).all():

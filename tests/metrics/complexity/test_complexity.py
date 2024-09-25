@@ -1,8 +1,8 @@
 import logging
+import unittest
 from logging import getLogger
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union
 
-import numpy as np
 import torch
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
@@ -11,6 +11,10 @@ from torch.nn import Module
 
 from tests.helpers.basic import assertTensorAlmostEqual
 from tests.metrics.base import MetricTestsBase
+from torchxai.explanation_framework.explainers.factory import ExplainerFactory
+from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
+    FusionExplainer,
+)
 from torchxai.metrics.complexity.complexity import complexity
 
 logging.basicConfig(level=logging.INFO)
@@ -18,85 +22,94 @@ logger = getLogger(__name__)
 
 
 class Test(MetricTestsBase):
+    def test_park_function(self) -> None:
+        kwargs = self.park_function_setup()
+        model = kwargs["model"]
+        kwargs.pop("explainer")
+        for explainer, expected in zip(
+            [
+                "saliency",
+                "input_x_gradient",
+                "integrated_gradients",
+            ],
+            [
+                1.1656,
+                1.2182,
+                1.3492,
+            ],  # these monotonicity results match from the paper: https://arxiv.org/pdf/2007.07584
+        ):
+            self.output_assert(
+                **kwargs,
+                explainer=ExplainerFactory.create(explainer, model),
+                expected=torch.tensor([expected]),
+            )
+
     def test_basic_single(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.basic_single_setup(), expected=torch.tensor([0.5623]), delta=1e-3
         )
 
     def test_basic_batch(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.basic_batch_setup(), expected=torch.tensor([0.5623] * 3), delta=1e-3
         )
 
     def test_basic_additional_forward_args1(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.basic_additional_forward_args_setup(),
             expected=torch.tensor([1.7918]),  # attribution here is 0 so entropy is nan
         )
 
     def test_classification_convnet_multi_targets(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.classification_convnet_multi_targets_setup(),
             expected=torch.tensor([2.5080] * 20),
             delta=1.0e-3,
         )
 
     def test_classification_tpl_target(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.classification_tpl_target_setup(),
             expected=torch.tensor([1.0114, 1.0852, 1.0934, 1.0959]),
             delta=1.0e-3,
         )
 
     def test_classification_tpl_target_w_baseline(self) -> None:
-        self.basic_model_assert(
+        self.output_assert(
             **self.classification_tpl_target_w_baseline_setup(),
             expected=torch.tensor([0.6365, 1.0776, 1.0918, 1.0953]),
             delta=1.0e-3,
         )
 
-    def basic_model_assert(
+    def output_assert(
         self,
-        attribution_fn: Attribution,
+        expected: Tensor,
+        explainer: Union[Attribution, FusionExplainer],
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
-        expected: Tensor,
         additional_forward_args: Optional[Any] = None,
         baselines: Optional[BaselineType] = None,
         target: Optional[TargetType] = None,
         multiply_by_inputs: bool = False,
         delta: float = 1e-4,
     ) -> Tensor:
-        attributions = attribution_fn.attribute(
+        explanations = self.compute_explanations(
+            explainer,
             inputs,
-            baselines=baselines,
-            additional_forward_args=additional_forward_args,
-            target=target,
+            additional_forward_args,
+            baselines,
+            target,
+            multiply_by_inputs,
         )
-        if multiply_by_inputs:
-            attributions = cast(
-                TensorOrTupleOfTensorsGeneric,
-                tuple(attr / input for input, attr in zip(inputs, attributions)),
-            )
-
-        score = self.complexity_assert(
-            expected=expected,
-            attributions=attributions,
-            delta=delta,
-        )
-        return score
-
-    def complexity_assert(
-        self,
-        expected: Tensor,
-        attributions: TensorOrTupleOfTensorsGeneric,
-        delta: float = 1e-4,
-    ) -> Tensor:
         output = complexity(
-            attributions=attributions,
+            attributions=explanations,
         )
         if torch.isnan(output).all():
             assert torch.isnan(expected).all()
         else:
             assertTensorAlmostEqual(self, output, expected, delta=delta)
         return output
+
+
+if __name__ == "__main__":
+    unittest.main()

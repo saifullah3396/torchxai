@@ -37,7 +37,7 @@ def eval_monotonicity_single_sample_tupled_computation(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_monotonicity_tensors(
@@ -146,7 +146,7 @@ def eval_monotonicity_single_sample_tupled_computation(
             n_features,
             _next_monotonicity_tensors,
             agg_func=_sum_monotonicity_tensors,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
         )
 
         # compute monotonicity corr metric
@@ -171,7 +171,7 @@ def monotonicity_tupled_computation(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
 ) -> Tensor:
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -205,7 +205,7 @@ def monotonicity_tupled_computation(
                 x[sample_idx].unsqueeze(0) for x in additional_forward_args
             ),
             target=target[sample_idx],
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
         )
         monotonicity_batch.append(monotonicity)
     monotonicity_batch = torch.tensor(monotonicity_batch)
@@ -221,7 +221,7 @@ def eval_monotonicity_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_monotonicity_tensors(
@@ -322,7 +322,7 @@ def eval_monotonicity_single_sample(
             n_features,
             _next_monotonicity_tensors,
             agg_func=_sum_monotonicity_tensors,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
 
@@ -348,7 +348,7 @@ def monotonicity(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor]:
     """
@@ -508,11 +508,11 @@ def monotonicity(
                   target for the corresponding example.
 
                 Default: None
-        max_features_processed_per_example (int, optional): The number of maximum input
+        max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
-                `max_features_processed_per_example`, they will be sliced
-                into batches of `max_features_processed_per_example` examples and processed
+                `max_features_processed_per_batch`, they will be sliced
+                into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
         show_progress (bool, optional): Displays the progress of computation.
     Returns:
@@ -588,7 +588,7 @@ def monotonicity(
                     else None
                 ),
                 target=target[sample_idx] if target is not None else None,
-                max_features_processed_per_example=max_features_processed_per_example,
+                max_features_processed_per_batch=max_features_processed_per_batch,
                 show_progress=show_progress,
             )
             monotonicity_batch.append(monotonicity)

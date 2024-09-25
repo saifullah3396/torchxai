@@ -38,7 +38,7 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
 ) -> Tensor:
     def _next_faithfulness_estimate_tensors(
         current_n_perturbed_features: int,
@@ -146,7 +146,7 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
             n_features,
             _next_faithfulness_estimate_tensors,
             agg_func=_sum_faithfulness_estimate_tensors,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
         )
 
         # compute faithfulness_estimate corr metric
@@ -171,7 +171,7 @@ def faithfulness_estimate_tupled_computation(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
 ) -> Tensor:
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -207,7 +207,7 @@ def faithfulness_estimate_tupled_computation(
                     x[sample_idx].unsqueeze(0) for x in additional_forward_args
                 ),
                 target=target[sample_idx],
-                max_features_processed_per_example=max_features_processed_per_example,
+                max_features_processed_per_batch=max_features_processed_per_batch,
             )
         )
         faithfulness_estimate_batch.append(faithfulness_estimate)
@@ -224,7 +224,7 @@ def eval_faithfulness_estimate_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_faithfulness_estimate_tensors(
@@ -334,7 +334,7 @@ def eval_faithfulness_estimate_single_sample(
             n_features,
             _next_faithfulness_estimate_tensors,
             agg_func=_sum_faithfulness_estimate_tensors,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
 
@@ -361,7 +361,7 @@ def faithfulness_estimate(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_example: int = None,
+    max_features_processed_per_batch: int = None,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
@@ -507,11 +507,11 @@ def faithfulness_estimate(
                   target for the corresponding example.
 
                 Default: None
-        max_features_processed_per_example (int, optional): The number of maximum input
+        max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
-                `max_features_processed_per_example`, they will be sliced
-                into batches of `max_features_processed_per_example` examples and processed
+                `max_features_processed_per_batch`, they will be sliced
+                into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
         show_progress (bool, optional): Indicates whether to print the progress of the computation.
     Returns:
@@ -591,7 +591,7 @@ def faithfulness_estimate(
                 else None
             ),
             target=target[sample_idx] if target is not None else None,
-            max_features_processed_per_example=max_features_processed_per_example,
+            max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
         faithfulness_estimate_batch.append(faithfulness_estimate)

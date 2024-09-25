@@ -138,12 +138,12 @@ def assertTensorAlmostEqualWithNan(
 
 def assertAllTensorsAreAlmostEqualWithNan(test, outputs):
     for output in outputs[1:]:
-        if isinstance(output[0], torch.Tensor):
+        if isinstance(outputs[0], torch.Tensor):
             if torch.isnan(outputs[0]).all():
                 assert torch.isnan(output).all()
             else:
                 assertTensorAlmostEqual(test, outputs[0], output)
-        elif isinstance(output[0], list):
+        elif isinstance(outputs[0], list):
             for x, y in zip(output, outputs[0]):
                 if torch.isnan(y).all():
                     assert torch.isnan(x).all()

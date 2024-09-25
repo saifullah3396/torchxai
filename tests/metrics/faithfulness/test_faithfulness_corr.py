@@ -1,21 +1,28 @@
 import logging
+import unittest
 from logging import getLogger
-from typing import Any, Callable, Optional, cast
+from typing import Any, Callable, Optional, Union
 
 import numpy as np
 import torch
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
 from torch import Tensor
 from torch.nn import Module
 
-from tests.helpers.basic import (assertAllTensorsAreAlmostEqualWithNan,
-                                 assertTensorAlmostEqualWithNan,
-                                 set_all_random_seeds)
+from tests.helpers.basic import (
+    assertAllTensorsAreAlmostEqualWithNan,
+    assertTensorAlmostEqualWithNan,
+    set_all_random_seeds,
+)
 from tests.metrics.base import MetricTestsBase
-from torchxai.metrics._utils.perturbation import (default_random_perturb_func,
-                                                  default_zero_baseline_func)
+from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
+    FusionExplainer,
+)
+from torchxai.metrics._utils.perturbation import (
+    default_random_perturb_func,
+    default_zero_baseline_func,
+)
 from torchxai.metrics.faithfulness.faithfulness_corr import faithfulness_corr
 
 logging.basicConfig(level=logging.INFO)
@@ -35,7 +42,7 @@ class Test(MetricTestsBase):
             expected_outputs,
         ):
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.basic_single_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([expected_output]),
@@ -58,7 +65,7 @@ class Test(MetricTestsBase):
         ]:
 
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.basic_single_setup(),
                 # with zero baseline all runs with different max_examples_per_batch should result in the the same output
                 perturb_func=default_zero_baseline_func(),
@@ -88,7 +95,7 @@ class Test(MetricTestsBase):
         ]:
 
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.basic_single_setup(),
                 # with zero baseline all runs with different max_examples_per_batch should result in the the same output
                 perturb_func=default_random_perturb_func(),
@@ -121,7 +128,7 @@ class Test(MetricTestsBase):
         ):
 
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.basic_batch_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor(expected_output),
@@ -145,7 +152,7 @@ class Test(MetricTestsBase):
             expected_outputs,
         ):
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.basic_batch_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor(expected_output),
@@ -169,7 +176,7 @@ class Test(MetricTestsBase):
         ]:
 
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.basic_batch_setup(),
                 # with zero baseline all runs with different max_examples_per_batch should result in the the same output
                 perturb_func=default_zero_baseline_func(),
@@ -200,7 +207,7 @@ class Test(MetricTestsBase):
         ]:
 
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.basic_batch_setup(),
                 # with zero baseline all runs with different max_examples_per_batch should result in the the same output
                 perturb_func=default_random_perturb_func(),
@@ -241,7 +248,7 @@ class Test(MetricTestsBase):
                 for x in setup_kwargs["inputs"]
             )
 
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **setup_kwargs,
                 # with zero baseline all runs with different max_examples_per_batch should result in the the same output
                 perturb_func=default_random_perturb_func(),
@@ -266,7 +273,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.basic_additional_forward_args_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([torch.nan]),
@@ -289,7 +296,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_convnet_multi_targets_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor([0.7279] * 20),
@@ -321,7 +328,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_convnet_multi_targets_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor(
@@ -442,7 +449,7 @@ class Test(MetricTestsBase):
             expected_outputs,
         ):
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_convnet_multi_targets_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor(expected_output),
@@ -535,7 +542,7 @@ class Test(MetricTestsBase):
             expected_outputs,
         ):
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_convnet_multi_targets_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor(expected_output),
@@ -559,7 +566,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_tpl_target_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
@@ -589,7 +596,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_tpl_target_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
@@ -614,7 +621,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_tpl_target_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
@@ -633,7 +640,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_tpl_target_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
@@ -659,7 +666,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor([0.9716, 0.9988, 0.9995, 1.0000]),
@@ -691,7 +698,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            faithfulness, attribution_sums, perturbation_fwds = self.basic_model_assert(
+            faithfulness, attribution_sums, perturbation_fwds = self.output_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 perturb_func=default_zero_baseline_func(),
                 expected=torch.tensor([0.9716, 0.9988, 0.9995, 1.0000]),
@@ -718,7 +725,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([0.9998, 1.0000, 1.0000, 1.0000]),
@@ -739,7 +746,7 @@ class Test(MetricTestsBase):
             40,
         ]:
             set_all_random_seeds(1234)
-            self.basic_model_assert(
+            self.output_assert(
                 **self.classification_tpl_target_w_baseline_setup(),
                 perturb_func=default_random_perturb_func(),
                 expected=torch.tensor([0.9998, 1.0000, 1.0000, 1.0000]),
@@ -750,12 +757,12 @@ class Test(MetricTestsBase):
                 set_same_perturbation_mask_for_batch=False,
             )
 
-    def basic_model_assert(
+    def output_assert(
         self,
         expected: Tensor,
+        explainer: Union[Attribution, FusionExplainer],
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
-        attribution_fn: Attribution,
         feature_mask: TensorOrTupleOfTensorsGeneric = None,
         baselines: BaselineType = None,
         additional_forward_args: Optional[Any] = None,
@@ -775,70 +782,33 @@ class Test(MetricTestsBase):
             else:
                 baselines = torch.zeros_like(inputs).float()
 
-        attributions = attribution_fn.attribute(
+        explanations = self.compute_explanations(
+            explainer,
             inputs,
-            additional_forward_args=additional_forward_args,
-            target=target,
-            baselines=baselines,
+            additional_forward_args,
+            baselines,
+            target,
+            multiply_by_inputs,
         )
-        if multiply_by_inputs:
-            attributions = cast(
-                TensorOrTupleOfTensorsGeneric,
-                tuple(attr / input for input, attr in zip(inputs, attributions)),
-            )
-
-        score = self.faithfulness_corr_assert(
-            expected=expected,
-            model=model,
-            inputs=inputs,
-            attributions=attributions,
-            baselines=baselines,
-            feature_mask=feature_mask,
-            additional_forward_args=additional_forward_args,
-            target=target,
-            perturb_func=perturb_func,
-            n_perturb_samples=n_perturb_samples,
-            max_examples_per_batch=max_examples_per_batch,
-            perturbation_probability=perturbation_probability,
-            delta=delta,
-            set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
-        )
-        return score
-
-    def faithfulness_corr_assert(
-        self,
-        expected: Tensor,
-        model: Module,
-        inputs: TensorOrTupleOfTensorsGeneric,
-        attributions: TensorOrTupleOfTensorsGeneric,
-        baselines: Optional[BaselineType] = None,
-        feature_mask: TensorOrTupleOfTensorsGeneric = None,
-        additional_forward_args: Optional[Any] = None,
-        target: Optional[TargetType] = None,
-        perturb_func: Callable = default_random_perturb_func(),
-        n_perturb_samples: int = 10,
-        max_examples_per_batch: int = None,
-        perturbation_probability: float = 0.1,
-        delta: float = 1.0e-4,
-        set_same_perturbation_mask_for_batch: bool = False,
-    ) -> Tensor:
         if isinstance(inputs, tuple):
             bsz = inputs[0].shape[0]
         else:
             bsz = inputs.shape[0]
-        faithfulness, attribution_sums, perturbation_fwds = faithfulness_corr(
-            forward_func=model,
-            inputs=inputs,
-            attributions=attributions,
-            baselines=baselines,
-            feature_mask=feature_mask,
-            additional_forward_args=additional_forward_args,
-            target=target,
-            perturb_func=perturb_func,
-            n_perturb_samples=n_perturb_samples,
-            max_examples_per_batch=max_examples_per_batch,
-            perturbation_probability=perturbation_probability,
-            set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
+        faithfulness_corr_score, attribution_sums, perturbation_fwds = (
+            faithfulness_corr(
+                forward_func=model,
+                inputs=inputs,
+                attributions=explanations,
+                baselines=baselines,
+                feature_mask=feature_mask,
+                additional_forward_args=additional_forward_args,
+                target=target,
+                perturb_func=perturb_func,
+                n_perturb_samples=n_perturb_samples,
+                max_examples_per_batch=max_examples_per_batch,
+                perturbation_probability=perturbation_probability,
+                set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
+            )
         )
         self.assertListEqual(
             list(attribution_sums.shape), list(perturbation_fwds.shape)
@@ -847,6 +817,10 @@ class Test(MetricTestsBase):
             list(attribution_sums.shape), [bsz, n_perturb_samples]
         )  # match batch size
         assertTensorAlmostEqualWithNan(
-            self, faithfulness.float(), expected.float(), delta=delta
+            self, faithfulness_corr_score.float(), expected.float(), delta=delta
         )
-        return faithfulness, attribution_sums, perturbation_fwds
+        return faithfulness_corr_score, attribution_sums, perturbation_fwds
+
+
+if __name__ == "__main__":
+    unittest.main()

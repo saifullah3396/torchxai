@@ -17,6 +17,24 @@ the relevant type hints.
 """
 
 
+class ParkFunction(nn.Module):
+    """
+    Example model one from the paper
+
+    f(x) = 2/3 * exp(x1 + x2) - x4 * sin(x3) + x3
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, input: Tensor) -> Tensor:
+        return (
+            2 / 3 * torch.exp(input[:, 0] + input[:, 1])
+            - input[:, 3] * torch.sin(input[:, 2])
+            + input[:, 2]
+        )
+
+
 class BasicLinearReLULinear(nn.Module):
     # pyre-fixme[2]: Parameter must be annotated.
     def __init__(self, in_features, out_features: int = 5, bias: bool = False) -> None:

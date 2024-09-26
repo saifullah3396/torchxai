@@ -29,6 +29,15 @@ class FusionExplainer(ABC):
         self._is_multi_target = is_multi_target
         self._explanation_fn = self._init_explanation_fn()
 
+    @property
+    def model(self) -> Union[torch.nn.Module, Callable]:
+        return self._model
+
+    @model.setter
+    def model(self, model: Union[torch.nn.Module, Callable]) -> None:
+        self._model = model
+        self._explanation_fn = self._init_explanation_fn()
+
     @abstractmethod
     def _init_explanation_fn(self) -> Attribution:
         """

@@ -129,7 +129,10 @@ def input_invariance(
     **kwargs: Any,
 ) -> Tensor:
     """
-    Implementation of Input Invariance test by Kindermans et al., 2017.
+    Implementation of Input Invariance test by Kindermans et al., 2017. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library.
 
     To test for input invariance, we add a constant shift to the input data and a mean shift to the model bias,
     so that the output of the original model on the original data is equal to the output of the changed model

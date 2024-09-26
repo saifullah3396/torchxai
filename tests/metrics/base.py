@@ -12,12 +12,15 @@ from tests.helpers.basic_models import (
     BasicModel4_MultiArgs,
     BasicModel_ConvNet_One_Conv,
     BasicModel_MultiLayer,
+    MNISTCNNModel,
+    MNISTLinearModel,
     ParkFunction,
 )
 from torchxai.explanation_framework.explainers._grad.deeplift import DeepLiftExplainer
 from torchxai.explanation_framework.explainers._grad.integrated_gradients import (
     IntegratedGradientsExplainer,
 )
+from torchxai.explanation_framework.explainers.factory import ExplainerFactory
 from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
     FusionExplainer,
 )
@@ -139,3 +142,49 @@ class MetricTestsBase(BaseTest):
                 tuple(attr / input for input, attr in zip(inputs, explanations)),
             )
         return explanations
+
+    def mnist_test_base(self, model="linear", explainer: str = "saliency") -> None:
+        import torch
+        from torch.utils.data import DataLoader
+        from torchvision import transforms
+        from torchvision.datasets import MNIST
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        train_dataset = MNIST(
+            root="./data",
+            train=True,
+            download=True,
+            transform=transforms.Compose([transforms.ToTensor()]),
+            target_transform=transforms.Compose([lambda x: torch.tensor(x)]),
+        )
+        test_dataset = MNIST(
+            root="./data",
+            train=False,
+            download=True,
+            transform=transforms.Compose([transforms.ToTensor()]),
+            target_transform=transforms.Compose([lambda x: torch.tensor(x)]),
+        )
+        train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True)
+        test_dataloader = DataLoader(train_dataset, batch_size=4, shuffle=False)
+
+        if model == "linear":
+            model = MNISTLinearModel()
+        elif model == "cnn":
+            model = MNISTCNNModel()
+        else:
+            raise ValueError("Invalid model")
+
+        model.eval()
+        model.to(device)
+
+        batch = next(iter(test_dataloader))
+        inputs = batch[0]
+        target = batch[1]
+
+        explanation_func = ExplainerFactory.create(explainer, model)
+        return {
+            "model": model,
+            "inputs": inputs,
+            "target": target,
+            "explainer": explanation_func,
+        }

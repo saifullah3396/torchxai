@@ -1,4 +1,5 @@
 import logging
+import unittest
 from logging import getLogger
 
 from tests.metrics.base import MetricTestsBase
@@ -10,6 +11,7 @@ logger = getLogger(__name__)
 class Test(MetricTestsBase):
     def test_axiomatic_imports(self) -> None:
         from torchxai.metrics import completeness  # noqa
+        from torchxai.metrics import input_invariance  # noqa
         from torchxai.metrics import monotonicity_corr_and_non_sens  # noqa
 
     def test_complexity_imports(self) -> None:
@@ -26,3 +28,7 @@ class Test(MetricTestsBase):
 
     def test_robustness_imports(self) -> None:
         from torchxai.metrics import sensitivity_max  # noqa
+
+
+if __name__ == "__main__":
+    unittest.main()

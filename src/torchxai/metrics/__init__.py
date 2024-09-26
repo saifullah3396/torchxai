@@ -1,5 +1,6 @@
 # axiomatic
 from torchxai.metrics.axiomatic.completeness import completeness  # noqa
+from torchxai.metrics.axiomatic.input_invariance import input_invariance  # noqa
 from torchxai.metrics.axiomatic.monotonicity_corr_and_non_sens import (
     monotonicity_corr_and_non_sens,
 )  # noqa

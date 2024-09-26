@@ -302,7 +302,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([0.7279] * 20),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 set_same_perturbation_mask_for_batch=True,
                 delta=1e-3,
             )
@@ -357,7 +356,6 @@ class Test(MetricTestsBase):
                 ),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 set_same_perturbation_mask_for_batch=False,
                 delta=1e-3,
             )
@@ -455,7 +453,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor(expected_output),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 set_same_perturbation_mask_for_batch=True,
                 delta=1e-3,
             )
@@ -548,7 +545,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor(expected_output),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 set_same_perturbation_mask_for_batch=False,
                 delta=1e-3,
             )
@@ -572,7 +568,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=True,
             )
@@ -602,7 +597,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=False,
             )
@@ -627,7 +621,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=True,
             )
@@ -646,7 +639,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([1.000, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=False,
             )
@@ -672,7 +664,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([0.9716, 0.9988, 0.9995, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=True,
             )
@@ -704,7 +695,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([0.9716, 0.9988, 0.9995, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=False,
             )
@@ -731,7 +721,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([0.9998, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=True,
             )
@@ -752,7 +741,6 @@ class Test(MetricTestsBase):
                 expected=torch.tensor([0.9998, 1.0000, 1.0000, 1.0000]),
                 max_examples_per_batch=max_examples_per_batch,
                 perturbation_probability=0.5,
-                n_perturb_samples=10,
                 delta=1e-3,
                 set_same_perturbation_mask_for_batch=False,
             )

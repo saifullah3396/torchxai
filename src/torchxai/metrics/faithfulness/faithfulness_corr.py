@@ -2,23 +2,29 @@ from typing import Any, Callable, Tuple, Union, cast
 
 import scipy
 import torch
-from captum._utils.common import (ExpansionTypes,
-                                  _expand_additional_forward_args,
-                                  _expand_target,
-                                  _format_additional_forward_args,
-                                  _format_baseline, _format_tensor_into_tuples,
-                                  _run_forward)
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_additional_forward_args,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_baseline,
+    _format_tensor_into_tuples,
+    _run_forward,
+)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
-from torchxai.metrics._utils.common import (_construct_default_feature_mask,
-                                            _format_tensor_tuple_feature_dim,
-                                            _validate_feature_mask)
+from torchxai.metrics._utils.common import (
+    _construct_default_feature_mask,
+    _format_tensor_tuple_feature_dim,
+    _validate_feature_mask,
+)
 from torchxai.metrics._utils.perturbation import (
-    _generate_random_perturbation_masks, default_random_perturb_func)
+    _generate_random_perturbation_masks,
+    default_random_perturb_func,
+)
 
 
 @log_usage()
@@ -420,15 +426,16 @@ def faithfulness_corr(
 
         attributions_expanded_perturbed_sum = sum(
             tuple(
-                (attribution * perturbation_mask).sum(
-                    dim=list(range(1, 1 + len(attribution.shape[1:])))
-                )
+                (attribution * perturbation_mask)
+                .view(attributions_expanded[0].shape[0], -1)
+                .sum(dim=1)
                 for attribution, perturbation_mask in zip(
                     attributions_expanded, perturbation_masks
                 )
             )
         )
 
+        # reshape to batch size dim and number of perturbations per example
         perturbed_fwd_diffs = perturbed_fwd_diffs.view(bsz, -1)
         attributions_expanded_perturbed_sum = attributions_expanded_perturbed_sum.view(
             bsz, -1

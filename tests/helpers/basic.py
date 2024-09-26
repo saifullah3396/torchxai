@@ -93,9 +93,8 @@ def assertTensorEqual(
     assert (
         actual.shape == expected.shape
     ), f"Expected tensor with shape: {expected.shape}. Actual shape {actual.shape}."
-    actual = actual.cpu()
-    expected = expected.cpu()
-    print(actual - expected)
+    actual = actual.cpu().tolist()
+    expected = expected.cpu().tolist()
     test.assertListEqual(actual, expected)
 
 

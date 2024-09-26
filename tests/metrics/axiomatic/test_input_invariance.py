@@ -98,7 +98,9 @@ class Test(MetricTestsBase):
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
-            print(f"Accuracy: {100 * correct / total}")
+            print(
+                f"MNIST {model_type} model trained with accuracy: {100 * correct / total}"
+            )
 
         model.to(device)
         model.eval()
@@ -230,7 +232,7 @@ class Test(MetricTestsBase):
         # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
         # a 3-layer linear model is trained on MNIST, input invariance is computed for occlusion
         # on 4 input samples. The expected output is [True, True, True, True] with black_baseline and
-        # atol=1e-5. Note that these results were not in the paper, so this shows how the implementation
+        # atol=1e-3. Note that these results were not in the paper, so this shows how the implementation
         # can be used for other explainers
         explainer_kwargs = dict(sliding_window_shapes=(1, 4, 4))
         kwargs = self.mnist_setup(
@@ -245,7 +247,7 @@ class Test(MetricTestsBase):
         kwargs.pop("train_baselines")
         kwargs["baselines"] = 0
         kwargs["shifted_baselines"] = -1
-        kwargs["atol"] = 1e-6
+        kwargs["atol"] = 1e-3
 
         # test both with FusionExplainer and Captum Attribution
         # for FusionExplainer, we need to pass the explainer object

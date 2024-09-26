@@ -26,6 +26,9 @@ from torchxai.explanation_framework.explainers._perturbation.kernel_shap import 
     KernelShapExplainer,
 )
 from torchxai.explanation_framework.explainers._perturbation.lime import LimeExplainer
+from torchxai.explanation_framework.explainers._perturbation.occlusion import (
+    OcclusionExplainer,
+)
 from torchxai.explanation_framework.explainers._perturbation.shapley_value_sampling import (
     ShapleyValueSamplingExplainer,
 )
@@ -44,6 +47,7 @@ explainers = {
     "input_x_gradient": InputXGradientExplainer,
     "guided_backprop": GuidedBackpropExplainer,
     "feature_ablation": FeatureAblationExplainer,
+    "occlusion": OcclusionExplainer,
     "lime": LimeExplainer,
     "kernel_shap": KernelShapExplainer,
     "shapley_values_sampling": ShapleyValueSamplingExplainer,

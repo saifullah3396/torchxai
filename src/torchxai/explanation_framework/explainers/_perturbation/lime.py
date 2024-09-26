@@ -280,7 +280,7 @@ class LimeExplainer(FusionExplainer):
         is_multi_target: bool = False,
         internal_batch_size: int = 1,
         n_samples: int = 100,
-        alpha: float = 0.001,
+        alpha: float = 0.01,
     ) -> None:
         """
         Initialize the LimeExplainer with the model, number of samples, and perturbations per evaluation.

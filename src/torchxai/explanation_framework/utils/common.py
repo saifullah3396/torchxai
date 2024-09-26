@@ -86,7 +86,7 @@ def grid_segmenter(images: torch.Tensor, cell_size: int = 16) -> torch.Tensor:
         # image dimensions are C x H x H
         dim_x, dim_y = image.shape[1] // cell_size, image.shape[2] // cell_size
         mask = (
-            torch.arange(dim_x * dim_y)
+            torch.arange(dim_x * dim_y, device=images.device)
             .view((dim_x, dim_y))
             .repeat_interleave(cell_size, dim=0)
             .repeat_interleave(cell_size, dim=1)

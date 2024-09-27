@@ -8,17 +8,13 @@ from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 from torch.nn import Module
 
-from tests.helpers.basic import BaseTest, assertTensorAlmostEqual, set_all_random_seeds
-from tests.helpers.basic_models import (
-    BasicModel2,
-    BasicModel4_MultiArgs,
-    BasicModel_ConvNet_One_Conv,
-    BasicModel_MultiLayer,
-)
+from tests.helpers.basic import (BaseTest, assertTensorAlmostEqual,
+                                 set_all_random_seeds)
+from tests.helpers.basic_models import (BasicModel2, BasicModel4MultiArgs,
+                                        BasicModel_ConvNet_One_Conv,
+                                        BasicModel_MultiLayer)
 from tests.helpers.classification_models import SigmoidModel, SoftmaxModel
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
@@ -47,7 +43,7 @@ class ExplainersTestBase(BaseTest):
         return dict(model=model, inputs=inputs)
 
     def basic_additional_forward_args_setup(self):
-        model = BasicModel4_MultiArgs()
+        model = BasicModel4MultiArgs()
         input1 = torch.tensor([[1.5, 2.0, 3.3]])
         input2 = torch.tensor([[3.0, 3.5, 2.2]])
         inputs = (input1, input2)
@@ -113,7 +109,7 @@ class ExplainersTestBase(BaseTest):
 
     def basic_single_test_setup(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanation: Tuple[torch.Tensor, ...],
         delta: float = 1e-5,
     ) -> None:
@@ -157,7 +153,7 @@ class ExplainersTestBase(BaseTest):
 
     def basic_single_batched_test_setup(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanation: Tuple[torch.Tensor, ...],
         delta: float = 1e-5,
     ) -> None:
@@ -192,7 +188,7 @@ class ExplainersTestBase(BaseTest):
 
     def basic_batched_test_setup(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanation: Tuple[torch.Tensor, ...],
         delta: float = 1e-5,
     ) -> None:
@@ -216,7 +212,7 @@ class ExplainersTestBase(BaseTest):
 
     def basic_additional_forward_args_test_setup(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanation: Tuple[torch.Tensor, ...],
         baseline_type: Optional[str] = None,
         delta: float = 1e-5,
@@ -241,7 +237,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_convnet_multi_target_test_setup(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanation: Tuple[torch.Tensor, ...],
         delta: float = 1e-5,
     ) -> None:
@@ -266,7 +262,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_tpl_target_test_setup_with_single_and_multiple_target_tests(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanations: Tuple[torch.Tensor, ...],
         delta: float = 1e-5,
     ) -> None:
@@ -283,7 +279,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_sigmoid_model_test_setup_with_single_and_multiple_target_tests(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanations: Tuple[torch.Tensor, ...],
     ) -> None:
         self.single_multi_target_test_setup(
@@ -296,7 +292,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_softmax_model_test_setup_with_single_and_multiple_target_tests(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         expected_explanations: Tuple[torch.Tensor, ...],
     ) -> None:
         self.single_multi_target_test_setup(
@@ -309,7 +305,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_alexnet_model_test_setup_with_single_and_multiple_targets_1(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         internal_batch_size=16,
     ) -> None:
         self.single_multi_target_test_no_expected_output_setup(
@@ -321,7 +317,7 @@ class ExplainersTestBase(BaseTest):
 
     def classification_alexnet_model_test_setup_with_single_and_multiple_targets_2(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         internal_batch_size=16,
     ) -> None:
         self.single_multi_target_test_no_expected_output_setup(
@@ -458,7 +454,7 @@ class ExplainersTestBase(BaseTest):
 
     def basic_model_assert(
         self,
-        explainer_class: Type[FusionExplainer],
+        explainer_class: Type[Explainer],
         model: Module,
         inputs: TensorOrTupleOfTensorsGeneric,
         baselines: Optional[TensorOrTupleOfTensorsGeneric] = None,

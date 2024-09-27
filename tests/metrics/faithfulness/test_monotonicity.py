@@ -1,217 +1,148 @@
-import logging
-import unittest
-from logging import getLogger
-from typing import Any, Optional, Union
+import dataclasses
+import itertools
 
+import pytest  # noqa
 import torch
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.attr import Attribution
-from torch import Tensor
-from torch.nn import Module
 
-from tests.helpers.basic import (
-    assertAllTensorsAreAlmostEqualWithNan,
-    assertTensorAlmostEqual,
+from tests.utils.common import (
+    assert_all_tensors_almost_equal,
+    assert_tensor_almost_equal,
+    set_all_random_seeds,
 )
-from tests.metrics.base import MetricTestsBase
-from torchxai.explanation_framework.explainers.factory import ExplainerFactory
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from tests.utils.containers import TestRuntimeConfig
+from torchxai.metrics import monotonicity
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
-from torchxai.metrics.faithfulness.monotonicity import monotonicity
-
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
 
 
-class Test(MetricTestsBase):
-    def test_park_function(self) -> None:
-        kwargs = self.park_function_setup()
-        model = kwargs["model"]
-        kwargs.pop("explainer")
-        for explainer, expected in zip(
-            [
-                "random",
-                "saliency",
-                "input_x_gradient",
-                "integrated_gradients",
-            ],
-            [False, True, True, True],
-        ):
-            self.output_assert(
-                **kwargs,
-                explainer=ExplainerFactory.create(explainer, model),
-                expected=torch.tensor([expected]),
-            )
+def _format_to_list(value):
+    if not isinstance(value, list):
+        return [value]
+    return value
 
-    def test_basic_single(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.basic_single_setup(),
-                expected=torch.tensor([True]),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
 
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
+@dataclasses.dataclass
+class MetricTestRuntimeConfig_(TestRuntimeConfig):
+    max_features_processed_per_batch: int = None
 
-    def test_basic_batch(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.basic_batch_setup(),
-                expected=torch.tensor([True] * 3),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
 
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
+test_configurations = [
+    # the park function is taken from the paper: https://arxiv.org/pdf/2007.07584
+    MetricTestRuntimeConfig_(
+        test_name="park_function_configuration_random",
+        target_fixture="park_function_configuration",
+        explainer="random",
+        expected=torch.tensor([False]),
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="park_function_configuration_saliency",
+        target_fixture="park_function_configuration",
+        explainer="saliency",
+        expected=torch.tensor([True]),
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="park_function_configuration_input_x_gradient",
+        target_fixture="park_function_configuration",
+        explainer="input_x_gradient",
+        expected=torch.tensor([True]),
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="park_function_configuration_integrated_gradients",
+        target_fixture="park_function_configuration",
+        explainer="integrated_gradients",
+        expected=torch.tensor([True]),
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="basic_model_single_input_config_integrated_gradients",
+        target_fixture="basic_model_single_input_config",
+        expected=torch.tensor([True]),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="basic_model_batch_input_config_integrated_gradients",
+        target_fixture="basic_model_batch_input_config",
+        expected=torch.tensor([True] * 3),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="basic_model_batch_input_with_additional_forward_args_config_integrated_gradients",
+        target_fixture="basic_model_batch_input_with_additional_forward_args_config",
+        expected=torch.tensor([False]),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="classification_convnet_model_with_multiple_targets_config_integrated_gradients",
+        target_fixture="classification_convnet_model_with_multiple_targets_config",
+        expected=torch.tensor([True] * 20),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="classification_multilayer_model_with_tuple_targets_config_integrated_gradients",
+        target_fixture="classification_multilayer_model_with_tuple_targets_config",
+        expected=torch.tensor([True] * 4),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+    MetricTestRuntimeConfig_(
+        test_name="classification_multilayer_model_with_baseline_and_tuple_targets_config_integrated_gradients",
+        target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
+        expected=torch.tensor([True] * 4),
+        max_features_processed_per_batch=[None, 1, 40],
+    ),
+]
 
-    def test_basic_additional_forward_args1(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.basic_additional_forward_args_setup(),
-                expected=torch.tensor([False]),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
 
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
+@pytest.mark.metrics
+@pytest.mark.parametrize(
+    "metrics_runtime_test_configuration",
+    test_configurations,
+    ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
+    indirect=True,
+)
+def test_monotonicity(metrics_runtime_test_configuration):
+    base_config, runtime_config, explanations = metrics_runtime_test_configuration
 
-    def test_classification_convnet_multi_targets(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.classification_convnet_multi_targets_setup(),
-                expected=torch.tensor(
-                    [True] * 20,
-                    dtype=torch.float64,
-                ),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
+    runtime_config.max_features_processed_per_batch = _format_to_list(
+        runtime_config.max_features_processed_per_batch
+    )
+    runtime_config.expected = _format_to_list(runtime_config.expected)
 
-    def test_classification_tpl_target(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.classification_tpl_target_setup(),
-                expected=torch.tensor([True] * 4),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
+    assert (
+        len(runtime_config.max_features_processed_per_batch)
+        == len(runtime_config.expected)
+        or len(runtime_config.expected) == 1
+    )
 
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
-
-    def test_classification_tpl_target_w_baseline_perturb(self) -> None:
-        monotonicity_per_run = []
-        fwds_per_run = []
-        for max_features_processed_per_batch in [
-            1,
-            None,
-            40,
-        ]:
-            mono, fwds = self.output_assert(
-                **self.classification_tpl_target_w_baseline_setup(),
-                expected=torch.tensor([True] * 4),
-                max_features_processed_per_batch=max_features_processed_per_batch,
-            )
-            monotonicity_per_run.append(mono)
-            fwds_per_run.append(fwds)
-        assertAllTensorsAreAlmostEqualWithNan(
-            self, [x.float() for x in monotonicity_per_run]
-        )
-        assertAllTensorsAreAlmostEqualWithNan(self, fwds_per_run)
-
-    def output_assert(
-        self,
-        expected: Tensor,
-        explainer: Union[Attribution, FusionExplainer],
-        model: Module,
-        inputs: TensorOrTupleOfTensorsGeneric,
-        feature_mask: TensorOrTupleOfTensorsGeneric = None,
-        baselines: BaselineType = None,
-        additional_forward_args: Optional[Any] = None,
-        target: Optional[TargetType] = None,
-        max_features_processed_per_batch: int = None,
-        multiply_by_inputs: bool = False,
-    ) -> Tensor:
-        explanations = self.compute_explanations(
-            explainer,
-            inputs,
-            additional_forward_args,
-            baselines,
-            target,
-            multiply_by_inputs,
-        )
-        monotonicity_result, fwds = monotonicity(
-            forward_func=model,
-            inputs=inputs,
+    fwds_per_run = []
+    for max_features, curr_expected in zip(
+        runtime_config.max_features_processed_per_batch,
+        itertools.cycle(runtime_config.expected),
+    ):
+        set_all_random_seeds(1234)
+        (
+            monotonicity_result,
+            fwds,
+        ) = monotonicity(
+            forward_func=base_config.model,
+            inputs=base_config.inputs,
             attributions=explanations,
-            baselines=baselines,
-            feature_mask=feature_mask,
-            additional_forward_args=additional_forward_args,
-            target=target,
-            max_features_processed_per_batch=max_features_processed_per_batch,
+            baselines=base_config.baselines,
+            feature_mask=base_config.feature_mask,
+            additional_forward_args=base_config.additional_forward_args,
+            target=base_config.target,
+            max_features_processed_per_batch=max_features,
         )
-        explanations, _ = _tuple_tensors_to_tensors(explanations)
-        self.assertEqual(len(fwds), explanations.shape[0])  # match batch size
-        for fwd, attribution in zip(fwds, explanations):
-            self.assertEqual(
-                fwd.numel(), attribution.numel()
-            )  # match number of features
-        assertTensorAlmostEqual(self, monotonicity_result.float(), expected.float())
-        return monotonicity_result, fwds
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert_tensor_almost_equal(
+            monotonicity_result.float(),
+            curr_expected.float(),
+            delta=runtime_config.delta,
+        )
+        explanations_flattened, _ = _tuple_tensors_to_tensors(explanations)
+        assert len(fwds) == explanations_flattened.shape[0], (
+            "The number of samples in the fwds must match the number of output explanations"
+            "which is the same as the input batch size."
+        )
+        for fwd, explanation in zip(fwds, explanations_flattened):
+            assert (
+                fwd.numel() == explanation.numel()
+            ), "The number of features should match the number of features in the explanations."  # match number of features
+        fwds_per_run.append(torch.cat(fwds))
+    assert_all_tensors_almost_equal(fwds_per_run)

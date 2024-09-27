@@ -1,340 +1,195 @@
-import logging
-import unittest
-from logging import getLogger
-from pathlib import Path
-from typing import List, Union
+import dataclasses
 
+import pytest
 import torch
-import tqdm
-from captum._utils.typing import TensorOrTupleOfTensorsGeneric
-from captum.attr import Attribution
-from torch import Tensor, nn
 
-from tests.helpers.basic import assertTensorAlmostEqual, set_all_random_seeds
-from tests.helpers.basic_models import MNISTCNNModel, MNISTLinearModel
-from tests.metrics.base import MetricTestsBase
-from torchxai.explanation_framework.explainers.factory import ExplainerFactory
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.common import grid_segmenter
-from torchxai.metrics import input_invariance
+from tests.utils.common import assert_tensor_almost_equal, grid_segmenter
+from tests.utils.containers import TestBaseConfig, TestRuntimeConfig
+from torchxai.explainers.factory import ExplainerFactory
 from torchxai.metrics._utils.visualization import visualize_attribution
-
-logging.basicConfig(level=logging.INFO)
-logger = getLogger(__name__)
+from torchxai.metrics.axiomatic.input_invariance import input_invariance
 
 
-class Test(MetricTestsBase):
-    def mnist_setup(
-        self,
-        model_type: str = "linear",
-        explainer: str = "saliency",
-        explainer_kwargs: dict = {},
-        train_and_eval_model: bool = True,
-    ) -> None:
-        import torch
-        from torch.utils.data import DataLoader
-        from torchvision import transforms
-        from torchvision.datasets import MNIST
+@dataclasses.dataclass
+class MetricTestRuntimeConfig_(TestRuntimeConfig):
+    model_type: str = "linear"
+    train_and_eval_model: bool = False
+    constant_shifts: torch.Tensor = None
+    shifted_baselines: torch.Tensor = None
+    set_baselines_to_type: str = None
+    generate_feature_mask: bool = False
+    visualize: bool = False
 
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        train_dataset = MNIST(
-            root="/tmp/mnist/",
-            train=True,
-            download=True,
-            transform=transforms.Compose([transforms.ToTensor()]),
-            target_transform=transforms.Compose([lambda x: torch.tensor(x)]),
-        )
-        test_dataset = MNIST(
-            root="/tmp/mnist/",
-            train=False,
-            download=True,
-            transform=transforms.Compose([transforms.ToTensor()]),
-            target_transform=transforms.Compose([lambda x: torch.tensor(x)]),
-        )
-        train_dataloader = DataLoader(train_dataset, batch_size=100, shuffle=True)
-        test_dataloader = DataLoader(test_dataset, batch_size=4, shuffle=False)
-        train_baselines = next(iter(train_dataloader))[0].to(device)
+    def __post_init__(self):
+        super().__post_init__()
+        assert self.constant_shifts is not None, "constant_shifts must be provided"
+        if self.set_baselines_to_type is not None:
+            assert self.set_baselines_to_type in ["zero", "black"]
 
-        if model_type == "linear":
-            model = MNISTLinearModel()
-            input_layer_names = ["fc1"]
-        elif model_type == "cnn":
-            model = MNISTCNNModel()
-            input_layer_names = ["conv1"]
-        else:
-            raise ValueError("Invalid model")
+    def __repr__(self):
+        return super().__repr__()
 
-        def train_model(model, dataloader):
-            criterion = nn.CrossEntropyLoss()
-            optimizer = torch.optim.SGD(model.parameters(), lr=0.01)
 
-            model.train()
-            for epoch in tqdm.tqdm(range(10)):
-                for i, (images, labels) in enumerate(dataloader):
-                    optimizer.zero_grad()
-                    images = images.to(device)
-                    labels = labels.to(device)
-                    outputs = model(images)
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
-                if epoch % 1 == 0:
-                    print(f"Epoch {epoch}, Step {i}, Loss {loss.item()}")
+@pytest.fixture
+def metrics_runtime_test_configuration(request):
+    runtime_config: TestRuntimeConfig = request.param
+    base_config: TestBaseConfig = request.getfixturevalue(
+        runtime_config.target_fixture
+    )(runtime_config.model_type, runtime_config.train_and_eval_model)
+    explainer = ExplainerFactory.create(
+        runtime_config.explainer, base_config.model, **runtime_config.explainer_kwargs
+    )
+    if runtime_config.use_captum_explainer:
+        explainer = explainer._explanation_fn
 
-        # evaluate
-        def evaluate_model(model, dataloader, input_shift: float = 0):
-            device = "cuda:0"
-            model.eval()
-            model.to(device)
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for images, labels in dataloader:
-                    images = images.to(device) + input_shift
-                    labels = labels.to(device)
-                    outputs = model(images)
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-            print(
-                f"MNIST {model_type} model trained with accuracy: {100 * correct / total}"
-            )
+    if runtime_config.generate_feature_mask:
+        base_config.feature_mask = grid_segmenter(base_config.inputs, 4)
+    if runtime_config.set_baselines_to_type == "zero":
+        base_config.baselines = 0
+        runtime_config.shifted_baselines = 0
+    elif runtime_config.set_baselines_to_type == "black":
+        base_config.baselines = 0
+        runtime_config.shifted_baselines = -1
+    else:
+        base_config.baselines = None
+        runtime_config.shifted_baselines = None
 
-        model.to(device)
-        model.eval()
+    yield base_config, runtime_config, explainer
 
-        if train_and_eval_model:
-            model_path = f"/tmp/mnist/{model_type}_model.pth"
-            if Path(model_path).exists():
-                model.load_state_dict(torch.load(model_path))
-            else:
-                train_model(model, train_dataloader)
-                torch.save(model.state_dict(), model_path)
-            evaluate_model(model, test_dataloader)
 
-        batch = next(iter(test_dataloader))
-        inputs = batch[0].to(device)
-        target = batch[1].to(device)
-
-        explanation_func = ExplainerFactory.create(explainer, model, **explainer_kwargs)
-        kwargs = {
-            "inputs": inputs,
-            "target": target,
-            "explainer": explanation_func,
-            "train_baselines": train_baselines,
-            "input_layer_names": input_layer_names,
-        }
-        return kwargs
-
-    def test_input_invariance_mnist_linear_saliency(self) -> None:
-        # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for saliency maps
-        # on 4 input samples. The expected output is [True, True, True, True]
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="saliency",
-            train_and_eval_model=True,
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs.pop("train_baselines")
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        self.output_assert(expected=torch.tensor([True] * 4), **kwargs)
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(expected=torch.tensor([True] * 4), **kwargs)
-
-    def test_input_invariance_mnist_linear_input_x_gradient(self) -> None:
-        # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for input_x_gradient
-        # on 4 input samples. The expected output is [False, False, False, False]
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="input_x_gradient",
-            train_and_eval_model=True,
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs.pop("train_baselines")
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        self.output_assert(expected=torch.tensor([False] * 4), **kwargs)
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(expected=torch.tensor([False] * 4), **kwargs)
-
-    def test_input_invariance_mnist_linear_integrated_gradients_baselines_zero(
-        self,
-    ) -> None:
-        # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
-        # on 4 input samples. The expected output is [False, False, False, False] with zero_baseline
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="integrated_gradients",
-            train_and_eval_model=True,
-            explainer_kwargs={"n_steps": 200},
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs["baselines"] = 0
-        kwargs["shifted_baselines"] = 0
-        kwargs.pop("train_baselines")
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        self.output_assert(expected=torch.tensor([False] * 4), **kwargs)
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(expected=torch.tensor([False] * 4), **kwargs)
-
-    def test_input_invariance_mnist_linear_integrated_gradients_baselines_black(
-        self,
-    ) -> None:
-        # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
-        # on 4 input samples. The expected output is [True, True, True, True] with black_baseline
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="integrated_gradients",
-            train_and_eval_model=True,
-            explainer_kwargs={"n_steps": 200},
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs.pop("train_baselines")
-        kwargs["baselines"] = 0
-        kwargs["shifted_baselines"] = -1
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        self.output_assert(expected=torch.tensor([True] * 4), **kwargs)
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(expected=torch.tensor([True] * 4), **kwargs)
-
-    def test_input_invariance_mnist_linear_occlusion_baselines_black(
-        self,
-    ) -> None:
-        # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for occlusion
-        # on 4 input samples. The expected output is [True, True, True, True] with black_baseline and
-        # atol=1e-3. Note that these results were not in the paper, so this shows how the implementation
-        # can be used for other explainers
-        explainer_kwargs = dict(sliding_window_shapes=(1, 4, 4))
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="occlusion",
-            train_and_eval_model=True,
-            explainer_kwargs=explainer_kwargs,
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs.pop("train_baselines")
-        kwargs["baselines"] = 0
-        kwargs["shifted_baselines"] = -1
-        kwargs["atol"] = 1e-3
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        self.output_assert(expected=torch.tensor([True] * 4), **kwargs)
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(
-            expected=torch.tensor([True] * 4), **kwargs, **explainer_kwargs
-        )
-
-    def test_input_invariance_mnist_linear_lime_baselines_black(
-        self,
-    ) -> None:
-        # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
-        # a 3-layer linear model is trained on MNIST, input invariance is computed for lime
-        # on 4 input samples. The expected output is [True, True, True, True] with black_baseline and
-        # atol=1e-1. Note that these results were not in the paper, so this shows how the implementation
-        # can be used for other explainers
-        explainer_kwargs = {"n_samples": 200}
-        kwargs = self.mnist_setup(
-            model_type="linear",
-            explainer="lime",
-            train_and_eval_model=True,
-            explainer_kwargs=explainer_kwargs,
-        )
-        kwargs["constant_shifts"] = torch.ones(
-            1, 28, 28, device=kwargs["inputs"].device
-        )
-        kwargs.pop("train_baselines")
-        kwargs["baselines"] = 0
-        kwargs["shifted_baselines"] = -1
-        kwargs["atol"] = 1e-1
-        kwargs["feature_mask"] = grid_segmenter(kwargs["inputs"], 4)
-
-        # test both with FusionExplainer and Captum Attribution
-        # for FusionExplainer, we need to pass the explainer object
-        # in FusionExplainer, we also weight the attributions on output but here we turn it off to keep the
-        # results same as captum implementation
-        # note that while this fails the test on some cases, visually the results are very similar which can be
-        # seen by setting visualize=True
-        self.output_assert(
-            expected=torch.tensor([True, True, True, False]),
-            weight_attributions=False,
-            **kwargs,
-        )
-
-        # for Captum Attribution, we need to pass the underling captumn explainer object
-        # note that while this fails the test on some cases, visually the results are very similar which can be
-        # seen by setting visualize=True
-        kwargs["explainer"] = kwargs["explainer"]._explanation_fn
-        self.output_assert(
-            expected=torch.tensor([True, True, True, False]),
-            **kwargs,
-            **explainer_kwargs,
-        )
-
-    def output_assert(
-        self,
-        expected: Tensor,
-        explainer: Union[Attribution, FusionExplainer],
-        inputs: TensorOrTupleOfTensorsGeneric,
-        constant_shifts: TensorOrTupleOfTensorsGeneric,
-        input_layer_names: List[str],
-        visualize: bool = False,
-        **kwargs,
-    ) -> Tensor:
-        set_all_random_seeds(1234)
-        invariance, expl_inputs, expl_shifted_inputs = input_invariance(
+def setup_test_config_for_explainer(explainer, **kwargs):
+    return [
+        MetricTestRuntimeConfig_(
+            test_name=f"{explainer}",
+            target_fixture="mnist_train_configuration",
             explainer=explainer,
-            inputs=inputs,
-            constant_shifts=constant_shifts,
-            input_layer_names=input_layer_names,
+            train_and_eval_model=True,
+            constant_shifts=torch.ones(1, 28, 28),
+            use_captum_explainer=False,
             **kwargs,
+        ),
+        MetricTestRuntimeConfig_(
+            test_name=f"captum_{explainer}",
+            target_fixture="mnist_train_configuration",
+            explainer=explainer,
+            train_and_eval_model=True,
+            constant_shifts=torch.ones(1, 28, 28),
+            use_captum_explainer=True,
+            **kwargs,
+        ),
+    ]
+
+
+test_configurations = [
+    # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
+    # a 3-layer linear model is trained on MNIST, input invariance is computed for saliency maps
+    # on 4 input samples. The expected output is [True, True, True, True]
+    *setup_test_config_for_explainer(
+        explainer="saliency",
+        expected=torch.tensor([0.0, 0.0, 0.0, 0.0]),
+    ),
+    *setup_test_config_for_explainer(
+        explainer="input_x_gradient",
+        expected=torch.tensor([0.0886, 0.0753, 0.0749, 0.0829]),
+    ),
+    # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
+    # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
+    # on 4 input samples. The expected output is [False, False, False, False] with zero_baseline
+    *setup_test_config_for_explainer(
+        explainer="integrated_gradients",
+        expected=torch.tensor([0.1054, 0.0862, 0.0843, 0.0868]),
+        set_baselines_to_type="zero",
+        explainer_kwargs={"n_steps": 200},
+    ),
+    # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
+    # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
+    # on 4 input samples. The expected output is [True, True, True, True] with black_baseline
+    *setup_test_config_for_explainer(
+        explainer="integrated_gradients",
+        expected=torch.tensor([0.0, 0.0, 0.0, 0.0]),
+        set_baselines_to_type="black",
+        explainer_kwargs={"n_steps": 200},
+    ),
+    # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
+    # a 3-layer linear model is trained on MNIST, input invariance is computed for occlusion
+    # on 4 input samples. The expected output is [True, True, True, True] with black_baseline and
+    # delta=1e-3. Note that these results were not in the paper, so this shows how the implementation
+    # can be used for other explainers
+    *setup_test_config_for_explainer(
+        explainer="occlusion",
+        expected=torch.tensor([0.0, 0.0, 0.0, 0.0]),
+        set_baselines_to_type="black",
+        explainer_kwargs={"sliding_window_shapes": (1, 4, 4)},
+    ),
+    # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
+    # a 3-layer linear model is trained on MNIST, input invariance is computed for lime
+    # on 4 input samples. The expected output is [True, True, True, True] with black_baseline and
+    # delta=1e-1. Note that these results were not in the paper, so this shows how the implementation
+    # can be used for other explainers
+    *setup_test_config_for_explainer(
+        explainer="lime",
+        expected=torch.tensor([0.0151, 0.0157, 0.0138, 0.0280]),
+        set_baselines_to_type="black",
+        explainer_kwargs={"n_samples": 200, "weight_attributions": False},
+        generate_feature_mask=True,
+    ),
+]
+
+
+@pytest.mark.metrics
+@pytest.mark.parametrize(
+    "metrics_runtime_test_configuration",
+    test_configurations,
+    ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
+    indirect=True,
+)
+def test_completeness(metrics_runtime_test_configuration):
+    base_config, runtime_config, explainer = metrics_runtime_test_configuration
+
+    device = base_config.inputs.device
+    kwargs = dict(target=base_config.target)
+    runtime_config.constant_shifts = runtime_config.constant_shifts.to(device)
+    if base_config.feature_mask is not None:
+        kwargs["feature_mask"] = base_config.feature_mask.to(device)
+    if base_config.baselines is not None:
+        kwargs["baselines"] = (
+            base_config.baselines.to(device)
+            if isinstance(base_config.baselines, torch.Tensor)
+            else base_config.baselines
         )
-        assertTensorAlmostEqual(self, invariance.float(), expected.float())
+    if runtime_config.shifted_baselines is not None:
+        kwargs["shifted_baselines"] = (
+            runtime_config.shifted_baselines.to(device)
+            if isinstance(runtime_config.shifted_baselines, torch.Tensor)
+            else runtime_config.shifted_baselines
+        )
+    if runtime_config.use_captum_explainer:
+        runtime_config.explainer_kwargs.pop(
+            "weight_attributions", None
+        )  # this is only available in our implementation
 
-        if visualize:
-            # here explanations can be visualized for debugging purposes
-            for input, expl_input, expl_shifted_input in zip(
-                inputs, expl_inputs, expl_shifted_inputs
-            ):
-                visualize_attribution(input, expl_input, "Original")
-                visualize_attribution(input, expl_shifted_input, "Shifted")
+    output_invariance, expl_inputs, expl_shifted_inputs = input_invariance(
+        explainer=explainer,
+        inputs=base_config.inputs,
+        constant_shifts=runtime_config.constant_shifts,
+        input_layer_names=base_config.input_layer_names,
+        **kwargs,
+        **(
+            runtime_config.explainer_kwargs
+            if runtime_config.use_captum_explainer
+            else {}
+        ),
+    )
 
-        return invariance
-
-
-if __name__ == "__main__":
-    unittest.main()
+    if runtime_config.visualize:
+        # here explanations can be visualized for debugging purposes
+        for input, expl_input, expl_shifted_input in zip(
+            base_config.inputs, expl_inputs, expl_shifted_inputs
+        ):
+            visualize_attribution(input, expl_input, "Original")
+            visualize_attribution(input, expl_shifted_input, "Shifted")
+    assert_tensor_almost_equal(
+        output_invariance.float(),
+        runtime_config.expected.float(),
+        delta=runtime_config.delta,
+    )

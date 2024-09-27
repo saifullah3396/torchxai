@@ -73,7 +73,7 @@ def eval_effective_complexity_single_sample(
         inputs_expanded = tuple(
             input.repeat(
                 n_perturbations_per_feature * current_n_perturbed_features,
-                *tuple([1] * len(input.shape[1:]))
+                *tuple([1] * len(input.shape[1:])),
             )
             for input in inputs
         )
@@ -269,7 +269,7 @@ def effective_complexity(
     eps: float = 1e-5,
     use_absolute_attributions: bool = True,
     show_progress: bool = False,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Effective complexity metric by Nguyen at el., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.

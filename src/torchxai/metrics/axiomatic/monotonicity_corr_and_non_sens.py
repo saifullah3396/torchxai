@@ -69,7 +69,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         inputs_expanded = tuple(
             input.repeat(
                 n_perturbations_per_feature * current_n_perturbed_features,
-                *tuple([1] * len(input.shape[1:]))
+                *tuple([1] * len(input.shape[1:])),
             )
             for input in inputs
         )
@@ -283,7 +283,7 @@ def monotonicity_corr_and_non_sens(
     max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     show_progress: bool = False,
-) -> tuple[Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Monotonicity Correlation and NonSensitivity by Nguyen at el., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.

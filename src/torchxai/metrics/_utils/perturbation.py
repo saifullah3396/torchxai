@@ -71,7 +71,7 @@ def _generate_random_perturbation_masks(
     feature_mask: Tuple[torch.Tensor, ...],
     perturbation_probability: float = 0.1,
     device: torch.device = torch.device("cpu"),
-) -> tuple[torch.Tensor, ...]:
+) -> Tuple[torch.Tensor, ...]:
     if not isinstance(feature_mask, tuple):
         feature_mask = (feature_mask,)
 

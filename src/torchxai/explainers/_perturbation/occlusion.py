@@ -22,7 +22,7 @@ class OcclusionExplainer(Explainer):
 
     def __init__(
         self,
-        model: Module | Callable[..., Any],
+        model: Union[Module, Callable],
         is_multi_target: bool = False,
         internal_batch_size: int = 1,
         sliding_window_shapes: Union[

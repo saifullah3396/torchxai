@@ -35,3 +35,4 @@ docile-benchmark==0.3.1
 seaborn
 captum
 h5py
+pytest

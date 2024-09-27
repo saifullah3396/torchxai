@@ -5,46 +5,44 @@ from typing import Type
 
 from sympy import Union
 
-from torchxai.explanation_framework.batch_computation_handler.explanations.explanations import (
+from torchxai.explainers.batch_computation_handler.explanations.explanations import (
     ExplanationsBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.axiomatic.completeness import (
+from torchxai.explainers.batch_computation_handler.metrics.axiomatic.completeness import (
     CompletenessBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.axiomatic.monotonicity_corr_non_sens import (
+from torchxai.explainers.batch_computation_handler.metrics.axiomatic.monotonicity_corr_non_sens import (
     MonotonicityCorrNonSensitivityBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.complexity.complexity import (
+from torchxai.explainers.batch_computation_handler.metrics.complexity.complexity import (
     ComplexityBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.complexity.effective_complexity import (
+from torchxai.explainers.batch_computation_handler.metrics.complexity.effective_complexity import (
     EffectiveComplexityBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.complexity.sparseness import (
+from torchxai.explainers.batch_computation_handler.metrics.complexity.sparseness import (
     SparsenessBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.faithfulness.aopc import (
+from torchxai.explainers.batch_computation_handler.metrics.faithfulness.aopc import (
     AOPCBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.faithfulness.faithfulness_corr import (
+from torchxai.explainers.batch_computation_handler.metrics.faithfulness.faithfulness_corr import (
     FaithfulnessCorrelationBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.faithfulness.faithfulness_estimate import (
+from torchxai.explainers.batch_computation_handler.metrics.faithfulness.faithfulness_estimate import (
     FaithfulnessEstimateBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.faithfulness.infidelity import (
+from torchxai.explainers.batch_computation_handler.metrics.faithfulness.infidelity import (
     InfidelityBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.faithfulness.monotonicity import (
+from torchxai.explainers.batch_computation_handler.metrics.faithfulness.monotonicity import (
     MonotonicityBatchComputationHandler,
 )
-from torchxai.explanation_framework.batch_computation_handler.metrics.robustness.sensitivity import (
+from torchxai.explainers.batch_computation_handler.metrics.robustness.sensitivity import (
     SensitivityBatchComputationHandler,
 )
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
+from torchxai.explainers.explainer import Explainer
+from torchxai.explainers.utils.constants import ExplanationMetrics
 
 AVAILABLE_METRIC_HANDLERS = {
     # axioamtic metrics
@@ -75,7 +73,7 @@ class BatchComputationHandlerFactory:
     @staticmethod
     def create_handler_for_metric(
         metric_name: str, output_file: Union[str, Path], **kwargs
-    ) -> FusionExplainer:
+    ) -> Explainer:
         handler_class = AVAILABLE_METRIC_HANDLERS.get(metric_name, None)
         if handler_class is None:
             raise ValueError(

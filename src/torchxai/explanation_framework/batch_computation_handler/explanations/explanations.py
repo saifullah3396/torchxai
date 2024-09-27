@@ -9,14 +9,10 @@ import torch
 from ignite.utils import convert_tensor
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.batch_computation_handler.base import (
-    BatchComputationHandler,
-)
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.common import unpack_explanation_parameters
-from torchxai.explanation_framework.utils.containers import ExplanationParameters
+from torchxai.explainers.batch_computation_handler.base import BatchComputationHandler
+from torchxai.explainers.explainer import Explainer
+from torchxai.explainers.utils.common import unpack_explanation_parameters
+from torchxai.explainers.utils.containers import ExplanationParameters
 
 logger = get_logger()
 
@@ -61,7 +57,7 @@ class ExplanationsBatchComputationHandler(BatchComputationHandler):
 
     def _prepare_explainer_input(
         self,
-        explainer: FusionExplainer,
+        explainer: Explainer,
         explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
         train_baselines: Union[torch.Tensor, np.ndarray],
@@ -103,7 +99,7 @@ class ExplanationsBatchComputationHandler(BatchComputationHandler):
 
     def _compute_metric(
         self,
-        explainer: FusionExplainer,
+        explainer: Explainer,
         explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
         train_baselines: Union[torch.Tensor, np.ndarray],

@@ -3,10 +3,10 @@ from typing import Any, Mapping, Union
 
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.batch_computation_handler.metrics.torchxai_metrics import (
+from torchxai.explainers.batch_computation_handler.metrics.torchxai_metrics import (
     TorchXAIMetricBatchComputationHandler,
 )
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
+from torchxai.explainers.utils.constants import ExplanationMetrics
 
 logger = get_logger()
 

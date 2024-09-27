@@ -1,10 +1,10 @@
 from pathlib import Path
 from typing import Union
 
-from torchxai.explanation_framework.batch_computation_handler.metrics.torchxai_metrics import (
+from torchxai.explainers.batch_computation_handler.metrics.torchxai_metrics import (
     TorchXAIMetricBatchComputationHandler,
 )
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
+from torchxai.explainers.utils.constants import ExplanationMetrics
 
 
 class CompletenessBatchComputationHandler(TorchXAIMetricBatchComputationHandler):

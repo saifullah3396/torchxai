@@ -17,7 +17,7 @@ from captum._utils.gradient import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution, DeepLift
-from captum.attr._core.deep_lift import SUPPORTED_NON_LINEAR
+from captum.attr._core.deep_lift import SUPPORTED_NON_LINEAR, nonlinear
 from captum.attr._utils.common import (
     _call_custom_attribution_func,
     _compute_conv_delta_and_format_attrs,
@@ -25,16 +25,19 @@ from captum.attr._utils.common import (
     _validate_input,
 )
 from captum.log import log_usage
-from torch import Tensor
+from torch import Tensor, nn
 from torch.nn import Module
 
-from torchxai.explanation_framework.explainers._utils import (
+from torchxai.explainers._utils import (
     _compute_gradients_sequential_autograd,
     _verify_target_for_multi_target_impl,
 )
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
+
+# replace the softmax with nonlinear as the normalization in the softmax function is not invariant to the batch size!
+# the softmax implementation results in differnt deltas for higher or lower batch sizes. Seems incorrect!
+# also see https://github.com/pytorch/captum/issues/519
+SUPPORTED_NON_LINEAR[nn.Softmax] = nonlinear
 
 
 class MultiTargetDeepLift(DeepLift):
@@ -242,7 +245,7 @@ class MultiTargetDeepLift(DeepLift):
         return multipliers
 
 
-class DeepLiftExplainer(FusionExplainer):
+class DeepLiftExplainer(Explainer):
     """
     A Explainer class for handling DeepLIFT attribution using the Captum library.
 

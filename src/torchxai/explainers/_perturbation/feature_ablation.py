@@ -16,11 +16,11 @@ from captum.attr import Attribution, FeatureAblation
 from captum.attr._utils.common import _format_input_baseline
 from torch import Tensor, dtype
 
-from torchxai.explanation_framework.explainers._utils import _run_forward_multi_target
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
+from torchxai.explainers._utils import (
+    _expand_feature_mask_to_target,
+    _run_forward_multi_target,
 )
-from torchxai.explanation_framework.utils.common import _expand_feature_mask_to_target
+from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetFeatureAblation(FeatureAblation):
@@ -392,7 +392,7 @@ class MultiTargetFeatureAblation(FeatureAblation):
             num_features_processed += current_num_ablated_features
 
 
-class FeatureAblationExplainer(FusionExplainer):
+class FeatureAblationExplainer(Explainer):
     """
     A Explainer class for Feature Ablation using Captum library.
 

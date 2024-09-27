@@ -4,12 +4,10 @@ from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensor
 from captum.attr import Attribution, Occlusion
 from torch.nn.modules import Module
 
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 
-class OcclusionExplainer(FusionExplainer):
+class OcclusionExplainer(Explainer):
     """
     A Explainer class for Feature Ablation using Captum library.
 

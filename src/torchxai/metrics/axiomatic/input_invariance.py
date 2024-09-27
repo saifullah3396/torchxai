@@ -12,9 +12,7 @@ from captum._utils.typing import TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
 from torch import Tensor, nn
 
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 
 def _prepare_kwargs_for_base_and_shifted_inputs(kwargs: Any) -> Any:
@@ -121,11 +119,10 @@ def create_shifted_expainer(explainer, input_layer_names, constant_shifts, **kwa
 
 
 def input_invariance(
-    explainer: Union[FusionExplainer, Attribution],
+    explainer: Union[Explainer, Attribution],
     inputs: TensorOrTupleOfTensorsGeneric,
     constant_shifts: TensorOrTupleOfTensorsGeneric,
     input_layer_names: Tuple[str],
-    atol: float = 1e-8,
     **kwargs: Any,
 ) -> Tensor:
     """
@@ -173,7 +170,7 @@ def input_invariance(
         input_layer_names (List[str]): The names of the input layers of the model that should be shifted. Each layer
                 should be unique for each input constant shift tensor.
 
-        atol (float, optional): The absolute tolerance parameter for the allclose function which checks whether
+        delta (float, optional): The absolute tolerance parameter for the allclose function which checks whether
             the explanations generated for original inputs and shifted model and inptus are equal.
             Default is 1e-8.
 
@@ -205,7 +202,7 @@ def input_invariance(
         >>> saliency = Saliency(net)
         >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
         >>> # Computes sensitivity score for saliency maps of class 3
-        >>> input_invarance_result, inputs_expl, shifted_inputs_expl = input_invarance(saliency, input, target = 3)
+        >>> input_invarance_score, inputs_expl, shifted_inputs_expl = input_invarance(saliency, input, target = 3)
 
     """
 
@@ -253,7 +250,7 @@ def input_invariance(
     )
 
     with torch.no_grad():
-        if isinstance(explainer, FusionExplainer):
+        if isinstance(explainer, Explainer):
             inputs_expl = explainer.explain(inputs, **kwargs_copy)
             shifted_inputs_expl = shifted_explainer.explain(
                 shifted_inputs, **shifted_kwargs_copy
@@ -269,30 +266,29 @@ def input_invariance(
             )
 
         # calculate the difference between the two explanations
-        input_invariance = sum(
+        input_invarance_score = sum(
             tuple(
                 torch.tensor(
                     [
-                        torch.allclose(
-                            per_sample_input_expl,
-                            per_sample_shifted_input_expl,
-                            atol=atol,
-                        )
+                        torch.mean(
+                            torch.abs(
+                                per_sample_input_expl - per_sample_shifted_input_expl
+                            )
+                        ).item()
                         for per_sample_input_expl, per_sample_shifted_input_expl in zip(
                             input_expl, shifted_input_expl
                         )
                     ],
-                    dtype=torch.bool,
                     device=inputs[0].device,
                 )
                 for input_expl, shifted_input_expl in zip(
                     inputs_expl, shifted_inputs_expl
                 )
             )
-        ).bool()
+        )
 
         return (
-            input_invariance,
+            input_invarance_score,
             _format_output(is_inputs_tuple, inputs_expl),
             _format_output(is_inputs_tuple, shifted_inputs_expl),
         )

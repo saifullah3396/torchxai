@@ -6,6 +6,7 @@ from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
     _expand_target,
+    _format_additional_forward_args,
     _format_output,
     _format_tensor_into_tuples,
     _is_tuple,
@@ -21,13 +22,9 @@ from captum.attr._utils.common import _format_callable_baseline
 from torch import Tensor
 from torch.nn import Module
 
-from torchxai.explanation_framework.explainers._grad.deeplift import MultiTargetDeepLift
-from torchxai.explanation_framework.explainers._utils import (
-    _verify_target_for_multi_target_impl,
-)
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers._grad.deeplift import MultiTargetDeepLift
+from torchxai.explainers._utils import _verify_target_for_multi_target_impl
+from torchxai.explainers.explainer import Explainer
 
 
 class DeepLiftShapBatched(DeepLift):
@@ -92,6 +89,9 @@ class DeepLiftShapBatched(DeepLift):
         is_inputs_tuple = _is_tuple(inputs)
 
         inputs = _format_tensor_into_tuples(inputs)
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
 
         # batch sizes
         inp_bsz = inputs[0].shape[0]
@@ -110,13 +110,6 @@ class DeepLiftShapBatched(DeepLift):
             num_examples = exp_inp[0].shape[0]
             agg_attributions = None
             delta = None
-            print(
-                "num_examples",
-                num_examples,
-                internal_batch_size,
-                exp_tgt,
-                exp_tgt,
-            )
             for batch_idx in range(0, num_examples, internal_batch_size):
                 batch_attributions = super().attribute.__wrapped__(  # type: ignore
                     self,
@@ -128,7 +121,11 @@ class DeepLiftShapBatched(DeepLift):
                     ),
                     target=(
                         exp_tgt[batch_idx : batch_idx + internal_batch_size]
-                        if isinstance(exp_tgt, (torch.Tensor, list))
+                        if (
+                            isinstance(exp_tgt, torch.Tensor)
+                            and exp_tgt.shape[0] == num_examples
+                        )
+                        or isinstance(exp_tgt, list)
                         else exp_tgt
                     ),
                     additional_forward_args=(
@@ -286,6 +283,9 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
         is_inputs_tuple = _is_tuple(inputs)
 
         inputs = _format_tensor_into_tuples(inputs)
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
 
         # verify that the target is valid
         _verify_target_for_multi_target_impl(inputs, target)
@@ -308,7 +308,6 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
             multi_target_attributions = None
             multi_target_delta = None
             for batch_idx in range(0, num_examples, internal_batch_size):
-                print(num_examples, internal_batch_size, exp_tgt)
                 multi_target_batch_attributions = super().attribute.__wrapped__(  # type: ignore
                     self,
                     tuple(
@@ -321,11 +320,17 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
                         [
                             (
                                 tgt[batch_idx : batch_idx + internal_batch_size]
-                                if isinstance(tgt, (torch.Tensor, list))
+                                if (
+                                    isinstance(tgt, torch.Tensor)
+                                    and tgt.shape[0] == num_examples
+                                )
+                                or isinstance(tgt, list)
                                 else tgt
                             )
                             for tgt in exp_tgt
                         ]
+                        if isinstance(exp_tgt, list)
+                        else exp_tgt
                     ),
                     additional_forward_args=(
                         tuple(
@@ -337,7 +342,7 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
                             for x in exp_addit_args
                         )
                         if additional_forward_args is not None
-                        else None
+                        else additional_forward_args
                     ),
                     return_convergence_delta=cast(
                         Literal[True, False], return_convergence_delta
@@ -406,7 +411,6 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
             process_per_target_attributions(per_target_attributions)
             for per_target_attributions in multi_target_attributions
         ]
-
         if return_convergence_delta:
             return [
                 _format_output(is_inputs_tuple, per_target_attributions)
@@ -480,7 +484,7 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
         return torch.mean(attribution.view(attr_shape), dim=1, keepdim=False)
 
 
-class DeepLiftShapExplainer(FusionExplainer):
+class DeepLiftShapExplainer(Explainer):
     """
     A Explainer class for handling DeepLIFTSHAP attribution using the Captum library.
 

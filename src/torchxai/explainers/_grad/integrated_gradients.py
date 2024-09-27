@@ -20,14 +20,12 @@ from torch import Tensor
 from torch.nn import Module
 from torch.nn.modules import Module
 
-from torchxai.explanation_framework.explainers._utils import (
+from torchxai.explainers._utils import (
     _batch_attribution_multi_target,
     _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetIntegratedGradients(IntegratedGradients):
@@ -219,7 +217,7 @@ class MultiTargetIntegratedGradients(IntegratedGradients):
         return multi_target_gradients
 
 
-class IntegratedGradientsExplainer(FusionExplainer):
+class IntegratedGradientsExplainer(Explainer):
     """
     A Explainer class for handling integrated gradients attribution using Captum library.
 

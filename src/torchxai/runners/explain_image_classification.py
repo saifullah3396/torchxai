@@ -28,7 +28,7 @@ from torchfusion.core.args.args import FusionArguments
 from torchfusion.core.utilities.dataclasses.dacite_wrapper import from_dict
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.image_classification.image_classification_explanation_framework import (
+from torchxai.image_classification.image_classification_explainers. import (
     ImageClassificationExplanationFramework,
 )  # noqa
 
@@ -64,10 +64,10 @@ def main(
 
     # run the document classification explainer
     try:
-        explanation_framework = ImageClassificationExplanationFramework(
+        explainers. = ImageClassificationExplanationFramework(
             args, hydra_config
         )
-        return explanation_framework.run(runtime_config)
+        return explainers..run(runtime_config)
     except Exception as e:
         logging.exception(e)
 

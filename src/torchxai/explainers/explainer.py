@@ -7,9 +7,9 @@ from captum.attr import Attribution
 from torch import Tensor
 
 
-class FusionExplainer(ABC):
+class Explainer(ABC):
     """
-    Abstract base class for TorchFusion explainers.
+    Abstract base class for TorchXAI explainers.
 
     Attributes:
         model (Union[torch.nn.Module, Callable]): The model used for attribution computation.
@@ -22,7 +22,7 @@ class FusionExplainer(ABC):
         self,
         model: Union[torch.nn.Module, Callable],
         is_multi_target: bool = False,
-        internal_batch_size: int = 1,
+        internal_batch_size: int = 64,
     ) -> None:
         self._model = model
         self._internal_batch_size = internal_batch_size

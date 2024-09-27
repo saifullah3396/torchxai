@@ -28,27 +28,23 @@ from torchfusion.core.training.utilities.general import (
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai import *  # noqa
-from torchxai.explanation_framework.batch_computation_handler.base import (
-    BatchComputationHandler,
-)
-from torchxai.explanation_framework.batch_computation_handler.explanations.explanations import (
+from torchxai.explainers.batch_computation_handler.base import BatchComputationHandler
+from torchxai.explainers.batch_computation_handler.explanations.explanations import (
     EXPLANATIONS_KEY,
 )
-from torchxai.explanation_framework.batch_computation_handler.factory import (
+from torchxai.explainers.batch_computation_handler.factory import (
     BatchComputationHandlerFactory,
 )
-from torchxai.explanation_framework.explained_model.base import ExplainedModel
-from torchxai.explanation_framework.explainers.factory import ExplainerFactory
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.common import generate_unique_sample_key
-from torchxai.explanation_framework.utils.constants import (
+from torchxai.explainers.explained_model.base import ExplainedModel
+from torchxai.explainers.explainer import Explainer
+from torchxai.explainers.factory import ExplainerFactory
+from torchxai.explainers.utils.common import generate_unique_sample_key
+from torchxai.explainers.utils.constants import (
     RAW_EXPLANATION_DEPENDENT_METRICS,
     ExplanationMetrics,
 )
-from torchxai.explanation_framework.utils.containers import ExplanationParameters
-from torchxai.explanation_framework.utils.h5io import HFIOSingleOutput
+from torchxai.explainers.utils.containers import ExplanationParameters
+from torchxai.explainers.utils.h5io import HFIOSingleOutput
 
 logger = get_logger()
 
@@ -431,7 +427,7 @@ class FusionExplanationFramework(ABC):
     def _compute_and_save_explanations(
         self,
         sample_keys: List[str],
-        explainer: FusionExplainer,
+        explainer: Explainer,
         explanation_parameters: ExplanationParameters,
         model_outputs: Any,
         runtime_config: DictConfig,
@@ -482,7 +478,7 @@ class FusionExplanationFramework(ABC):
     def _compute_and_save_metrics(
         self,
         sample_keys: List[str],
-        explainer: FusionExplainer,
+        explainer: Explainer,
         explanations: Union[torch.Tensor, Tuple[torch.Tensor, ...]],
         reduced_explanations: Union[torch.Tensor, Tuple[torch.Tensor, ...]],
         explanation_parameters: ExplanationParameters,

@@ -12,12 +12,12 @@ from torch import Tensor
 from torch.distributions.categorical import Categorical
 from torch.nn import Module
 
-from torchxai.explanation_framework.explainers._perturbation.lime import MultiTargetLime
-from torchxai.explanation_framework.explainers._utils import _generate_mask_weights
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
+from torchxai.explainers._perturbation.lime import MultiTargetLime
+from torchxai.explainers._utils import (
+    _expand_feature_mask_to_target,
+    _generate_mask_weights,
 )
-from torchxai.explanation_framework.utils.common import _expand_feature_mask_to_target
+from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetKernelShap(MultiTargetLime):
@@ -133,7 +133,7 @@ class MultiTargetKernelShap(MultiTargetLime):
             yield (rand_vals > threshold).to(device=device).long()
 
 
-class KernelShapExplainer(FusionExplainer):
+class KernelShapExplainer(Explainer):
     """
     A Explainer class for handling Kernel SHAP (SHapley Additive exPlanations) using the Captum library.
 

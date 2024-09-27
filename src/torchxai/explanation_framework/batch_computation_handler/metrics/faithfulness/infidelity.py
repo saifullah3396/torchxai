@@ -7,15 +7,15 @@ import numpy as np
 import torch
 from ignite.utils import convert_tensor
 
-from torchxai.explanation_framework.batch_computation_handler.metrics.torchxai_metrics import (
+from torchxai.explainers.batch_computation_handler.metrics.torchxai_metrics import (
     TorchXAIMetricBatchComputationHandler,
 )
-from torchxai.explanation_framework.utils.common import (
+from torchxai.explainers.utils.common import (
     _expand_feature_mask_to_target,
     unpack_explanation_parameters,
 )
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
-from torchxai.explanation_framework.utils.containers import ExplanationParameters
+from torchxai.explainers.utils.constants import ExplanationMetrics
+from torchxai.explainers.utils.containers import ExplanationParameters
 from torchxai.metrics._utils.perturbation import perturb_fn_drop_batched_single_output
 
 

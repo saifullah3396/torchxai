@@ -11,15 +11,15 @@ from torchfusion.core.models.utilities.data_collators import BatchToTensorDataCo
 from torchfusion.core.utilities.logging import get_logger
 
 from torchxai import *  # noqa
-from torchxai.explanation_framework.explained_model.base import ExplainedModel
-from torchxai.explanation_framework.explained_model.image_classification import (
+from torchxai.explainers.explained_model.base import ExplainedModel
+from torchxai.explainers.explained_model.image_classification import (
     ExplainedModelForImageClassification,
 )
-from torchxai.explanation_framework.explanation_framework import (
+from torchxai.explainers. import (
     FusionExplanationFramework,
 )
-from torchxai.explanation_framework.utils.common import ExplanationParameters
-from torchxai.explanation_framework.utils.h5io import HFDataset
+from torchxai.explainers.utils.common import ExplanationParameters
+from torchxai.explainers.utils.h5io import HFDataset
 from torchxai.image_classification.utils.evaluation import pretty_classification_report
 from torchxai.image_classification.utils.visualization import (
     visualize_image_with_explanation,

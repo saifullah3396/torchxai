@@ -18,7 +18,7 @@ from captum.log import log_usage
 from torch import Tensor
 from torch.utils.data import DataLoader, TensorDataset
 
-from torchxai.explanation_framework.explainers._utils import _run_forward_multi_target
+from torchxai.explainers._utils import _run_forward_multi_target
 
 
 class MultiTargetLimeBase(LimeBase):

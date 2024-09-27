@@ -21,17 +21,13 @@ from captum.log import log_usage
 from torch import Tensor
 from torch.nn import Module
 
-from torchxai.explanation_framework.explainers._perturbation.lime_base import (
-    MultiTargetLimeBase,
-)
-from torchxai.explanation_framework.explainers._utils import (
+from torchxai.explainers._perturbation.lime_base import MultiTargetLimeBase
+from torchxai.explainers._utils import (
+    _expand_feature_mask_to_target,
     _generate_mask_weights,
     _run_forward_multi_target,
 )
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.common import _expand_feature_mask_to_target
+from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetLime(MultiTargetLimeBase):
@@ -260,7 +256,7 @@ class MultiTargetLime(MultiTargetLimeBase):
         return _format_output(is_inputs_tuple, tuple(attr))
 
 
-class LimeExplainer(FusionExplainer):
+class LimeExplainer(Explainer):
     """
     A Explainer class for handling LIME (Local Interpretable Model-agnostic Explanations) using the Captum library.
 
@@ -281,12 +277,14 @@ class LimeExplainer(FusionExplainer):
         internal_batch_size: int = 1,
         n_samples: int = 100,
         alpha: float = 0.01,
+        weight_attributions: bool = True,
     ) -> None:
         """
         Initialize the LimeExplainer with the model, number of samples, and perturbations per evaluation.
         """
-        self.n_samples = n_samples
-        self.alpha = alpha
+        self._n_samples = n_samples
+        self._alpha = alpha
+        self._weight_attributions = weight_attributions
 
         super().__init__(model, is_multi_target, internal_batch_size)
 
@@ -299,9 +297,9 @@ class LimeExplainer(FusionExplainer):
         """
         if self._is_multi_target:
             return MultiTargetLime(
-                self._model, interpretable_model=SkLearnLasso(alpha=self.alpha)
+                self._model, interpretable_model=SkLearnLasso(alpha=self._alpha)
             )
-        return Lime(self._model, interpretable_model=SkLearnLasso(alpha=self.alpha))
+        return Lime(self._model, interpretable_model=SkLearnLasso(alpha=self._alpha))
 
     def explain(
         self,
@@ -310,7 +308,6 @@ class LimeExplainer(FusionExplainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
-        weight_attributions: bool = True,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the LIME attributions for the given inputs.
@@ -321,7 +318,6 @@ class LimeExplainer(FusionExplainer):
             baselines (BaselineType, optional): Baselines for computing attributions. Default is None.
             feature_masks (Union[None, Tensor, Tuple[Tensor, ...]], optional): Masks representing feature groups. Default is None.
             additional_forward_args (Any, optional): Additional arguments to forward to the model. Default is None.
-            weight_attributions (bool, optional): Whether to weight the attributions by the feature masks. Default is True.
 
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
@@ -336,13 +332,13 @@ class LimeExplainer(FusionExplainer):
             baselines=baselines,
             feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
-            n_samples=self.n_samples,
+            n_samples=self._n_samples,
             perturbations_per_eval=self._internal_batch_size,
             show_progress=False,
         )
 
         # Optionally weight attributions by the feature mask
-        if weight_attributions and feature_mask is not None:
+        if self._weight_attributions and feature_mask is not None:
             feature_mask_weights = tuple(
                 _generate_mask_weights(x) for x in feature_mask
             )

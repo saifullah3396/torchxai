@@ -1,47 +1,39 @@
-import warnings
-from typing import Any
+from typing import Any, Callable, Tuple
 
+import torch
 from captum._utils.common import _format_output, _format_tensor_into_tuples, _is_tuple
 from captum._utils.gradient import (
     apply_gradient_requirements,
     undo_gradient_requirements,
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
-from captum.attr import Attribution, GuidedBackprop
+from captum.attr import Attribution, Saliency
 from captum.log import log_usage
-from torch.nn import Module
 
-from torchxai.explanation_framework.explainers._utils import (
+from torchxai.explainers._utils import (
     _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 
-class MultiTargetGuidedBackprop(GuidedBackprop):
+class MultiTargetSaliency(Saliency):
     def __init__(
-        self, model: Module, gradient_func=_compute_gradients_vmap_autograd
+        self,
+        forward_func: Callable,
+        gradient_func=_compute_gradients_vmap_autograd,
     ) -> None:
-        super().__init__(model)
+        super().__init__(forward_func)
         self.gradient_func = gradient_func
 
     @log_usage()
     def attribute(
         self,
         inputs: TensorOrTupleOfTensorsGeneric,
-        target: TargetType = None,
+        target: Tuple[TargetType, ...] = None,
+        abs: bool = True,
         additional_forward_args: Any = None,
     ) -> TensorOrTupleOfTensorsGeneric:
-        r"""
-        Computes attribution by overriding relu gradients. Based on constructor
-        flag use_relu_grad_output, performs either GuidedBackpropagation if False
-        and Deconvolution if True. This class is the parent class of both these
-        methods, more information on usage can be found in the docstrings for each
-        implementing class.
-        """
-
         # Keeps track whether original input is a tuple or not before
         # converting it into a tuple.
         is_inputs_tuple = _is_tuple(inputs)
@@ -50,32 +42,37 @@ class MultiTargetGuidedBackprop(GuidedBackprop):
         gradient_mask = apply_gradient_requirements(inputs)
 
         # verify that the target is valid
+        print("inputs", inputs, target)
         _verify_target_for_multi_target_impl(inputs, target)
 
-        # set hooks for overriding ReLU gradients
-        warnings.warn(
-            "Setting backward hooks on ReLU activations."
-            "The hooks will be removed after the attribution is finished"
+        # No need to format additional_forward_args here.
+        # They are being formated in the `_run_forward` function in `common.py`
+        multi_target_gradients = self.gradient_func(
+            self.forward_func, inputs, target, additional_forward_args
         )
-        try:
-            self.model.apply(self._register_hooks)
 
-            multi_target_gradients = self.gradient_func(
-                self.forward_func, inputs, target, additional_forward_args
-            )
-        finally:
-            self._remove_hooks()
+        def gradients_to_attributions(gradients):
+            if abs:
+                attributions = tuple(torch.abs(gradient) for gradient in gradients)
+            else:
+                attributions = gradients
+            return attributions
+
+        multi_target_attributions = [
+            gradients_to_attributions(per_target_grad)
+            for per_target_grad in multi_target_gradients
+        ]
 
         undo_gradient_requirements(inputs, gradient_mask)
         return [
-            _format_output(is_inputs_tuple, per_target_gradients)
-            for per_target_gradients in multi_target_gradients
+            _format_output(is_inputs_tuple, attributions)
+            for attributions in multi_target_attributions
         ]
 
 
-class GuidedBackpropExplainer(FusionExplainer):
+class RandomExplainer(Explainer):
     """
-    A Explainer class for handling Guided Backpropagation attribution using the Captum library.
+    A Explainer class for generating random output attributions.
 
     Args:
         model (torch.nn.Module): The model whose output is to be explained.
@@ -83,14 +80,25 @@ class GuidedBackpropExplainer(FusionExplainer):
 
     def _init_explanation_fn(self) -> Attribution:
         """
-        Initializes the explanation function.
+        Initializes the attribution function.
 
         Returns:
-            Attribution: The initialized explanation function.
+            Attribution: The initialized attribution function.
         """
+
         if self._is_multi_target:
-            return MultiTargetGuidedBackprop(self._model)
-        return GuidedBackprop(self._model)
+
+            def explanation_fn(inputs, *args, **kwargs):
+                inputs = _format_tensor_into_tuples(inputs)
+                return [tuple(torch.randn_like(input) for input in inputs)]
+
+            return explanation_fn
+
+        def explanation_fn(inputs, *args, **kwargs):
+            inputs = _format_tensor_into_tuples(inputs)
+            return tuple(torch.randn_like(input) for input in inputs)
+
+        return explanation_fn
 
     def explain(
         self,
@@ -99,7 +107,7 @@ class GuidedBackpropExplainer(FusionExplainer):
         additional_forward_args: Any = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
-        Compute the Guided Backpropagation attributions for the given inputs.
+        Compute the attributions for the given inputs.
 
         Args:
             inputs (TensorOrTupleOfTensorsGeneric): The input tensor(s) for which attributions are computed.
@@ -109,8 +117,10 @@ class GuidedBackpropExplainer(FusionExplainer):
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
-        return self._explanation_fn.attribute(
+
+        return self._explanation_fn(
             inputs=inputs,
             target=target,
             additional_forward_args=additional_forward_args,
+            abs=False,
         )

@@ -5,7 +5,7 @@ from typing import Tuple
 
 import torch
 
-from torchxai.explanation_framework.utils.containers import ExplanationParameters
+from torchxai.explainers.utils.containers import ExplanationParameters
 
 
 def generate_unique_sample_key(
@@ -43,41 +43,6 @@ def unpack_explanation_parameters(
         additional_forward_args = explanation_parameters.additional_forward_args
 
     return inputs, baselines, feature_mask, additional_forward_args
-
-
-def _expand_feature_mask_to_target(
-    feature_mask: Tuple[torch.Tensor], inputs: Tuple[torch.Tensor]
-) -> Tuple[torch.Tensor]:
-    """
-    Expands each feature mask tensor to match the shape of the corresponding input tensor.
-    Args:
-        feature_mask (Tuple[torch.Tensor]): A tuple of tensors representing the feature masks.
-        inputs (Tuple[torch.Tensor]): A tuple of tensors representing the inputs.
-    Returns:
-        Tuple[torch.Tensor]: A tuple of tensors where each feature mask is expanded to match the shape of the
-            corresponding input tensor.
-    """
-    if feature_mask is None:
-        return feature_mask
-
-    return_first_element = False
-    if not isinstance(inputs, tuple):
-        inputs = (inputs,)
-    if not isinstance(feature_mask, tuple):
-        feature_mask = (feature_mask,)
-        return_first_element = False
-
-    feature_mask = tuple(
-        (
-            mask.unsqueeze(-1).expand_as(input)
-            if len(mask.shape) < len(input.shape)
-            else mask.expand_as(input)
-        )
-        for input, mask in zip(inputs, feature_mask)
-    )
-    if return_first_element:
-        return feature_mask[0]
-    return feature_mask
 
 
 def grid_segmenter(images: torch.Tensor, cell_size: int = 16) -> torch.Tensor:

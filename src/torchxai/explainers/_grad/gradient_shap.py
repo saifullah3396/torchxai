@@ -20,15 +20,9 @@ from captum.attr._utils.common import (
 from captum.log import log_usage
 from torch.nn.modules import Module
 
-from torchxai.explanation_framework.explainers._grad.noise_tunnel import (
-    MultiTargetNoiseTunnel,
-)
-from torchxai.explanation_framework.explainers._utils import (
-    _compute_gradients_vmap_autograd,
-)
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers._grad.noise_tunnel import MultiTargetNoiseTunnel
+from torchxai.explainers._utils import _compute_gradients_vmap_autograd
+from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetInputBaselineXGradient(InputBaselineXGradient):
@@ -237,7 +231,7 @@ class MultiTargetGradientShap(GradientShap):
         return attributions
 
 
-class GradientShapExplainer(FusionExplainer):
+class GradientShapExplainer(Explainer):
     """
     A Explainer class for GradientShap using a custom GradientShap implementation with noise tunnel.
 

@@ -9,7 +9,7 @@ import numpy as np
 import torch
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.utils.h5io import HFIOSingleOutput
+from torchxai.explainers.utils.h5io import HFIOSingleOutput
 
 logger = get_logger()
 

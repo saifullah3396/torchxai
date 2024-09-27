@@ -6,9 +6,7 @@ from typing import Mapping, Optional, Tuple
 import torch
 from torch import Tensor, nn
 
-from torchxai.explanation_framework.utils.containers import (
-    ExplanationParameters,
-)  # noqa
+from torchxai.explainers.utils.containers import ExplanationParameters  # noqa
 
 
 class ExplainedModel(nn.Module):

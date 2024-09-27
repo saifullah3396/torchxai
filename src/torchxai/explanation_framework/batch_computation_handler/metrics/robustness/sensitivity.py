@@ -9,17 +9,13 @@ import torch
 from ignite.utils import convert_tensor
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.batch_computation_handler.base import (
-    BatchComputationHandler,
-)
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
-from torchxai.explanation_framework.utils.common import (
+from torchxai.explainers.batch_computation_handler.base import BatchComputationHandler
+from torchxai.explainers.explainer import Explainer
+from torchxai.explainers.utils.common import (
     ExplanationParameters,
     unpack_explanation_parameters,
 )
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
+from torchxai.explainers.utils.constants import ExplanationMetrics
 from torchxai.metrics import sensitivity_max
 
 logger = get_logger()
@@ -43,7 +39,7 @@ class SensitivityBatchComputationHandler(BatchComputationHandler):
 
     def _compute_metric(
         self,
-        explainer: FusionExplainer,
+        explainer: Explainer,
         explanation_parameters: ExplanationParameters,
         batch_target_labels: Union[torch.Tensor, np.ndarray],
     ) -> Tuple[List[Union[torch.Tensor, np.ndarray]], Union[torch.Tensor, np.ndarray]]:

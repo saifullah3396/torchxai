@@ -3,12 +3,10 @@ from typing import Any
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import LRP, Attribution
 
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 
-class LRPExplainer(FusionExplainer):
+class LRPExplainer(Explainer):
     """
     A Explainer class for Layer-wise Relevance Propagation (LRP) using Captum library.
 

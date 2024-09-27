@@ -77,4 +77,4 @@ def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
                 for attribution in attributions
             ],
             device=attributions.device,
-        )
+        ).float()

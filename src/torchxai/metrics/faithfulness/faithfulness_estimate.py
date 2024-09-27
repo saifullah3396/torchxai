@@ -357,7 +357,7 @@ def faithfulness_estimate(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
-    baselines: BaselineType,
+    baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,

@@ -8,11 +8,11 @@ from ignite.utils import convert_tensor
 from torch import Tensor, nn
 from torchfusion.core.constants import DataKeys
 
-from torchxai.explanation_framework.explained_model.base import (  # noqa
-    ExplainedModel,
+from torchxai.explainers.explained_model.base import (
+    ExplainedModel,  # noqa
     ExplanationParameters,
 )
-from torchxai.explanation_framework.utils.common import grid_segmenter
+from torchxai.explainers.utils.common import grid_segmenter
 
 
 class ExplainedModelForImageClassification(ExplainedModel):

@@ -4,10 +4,10 @@ from typing import Callable, Tuple, Union
 import numpy as np
 import torch
 
-from torchxai.explanation_framework.batch_computation_handler.metrics.torchxai_metrics import (
+from torchxai.explainers.batch_computation_handler.metrics.torchxai_metrics import (
     TorchXAIMetricBatchComputationHandler,
 )
-from torchxai.explanation_framework.utils.constants import ExplanationMetrics
+from torchxai.explainers.utils.constants import ExplanationMetrics
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
 
 

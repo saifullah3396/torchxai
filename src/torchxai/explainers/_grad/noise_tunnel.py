@@ -16,9 +16,7 @@ from captum.attr._utils.common import _validate_noise_tunnel_type
 from captum.log import log_usage
 from torch import Tensor
 
-from torchxai.explanation_framework.explainers._utils import (
-    _expand_and_update_target_multi_target,
-)
+from torchxai.explainers._utils import _expand_and_update_target_multi_target
 
 
 class NoiseTunnelType(Enum):

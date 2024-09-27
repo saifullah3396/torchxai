@@ -10,10 +10,8 @@ import torch
 from ignite.utils import convert_tensor
 from torchfusion.core.utilities.logging import get_logger
 
-from torchxai.explanation_framework.batch_computation_handler.base import (
-    BatchComputationHandler,
-)
-from torchxai.explanation_framework.utils.common import (
+from torchxai.explainers.batch_computation_handler.base import BatchComputationHandler
+from torchxai.explainers.utils.common import (
     ExplanationParameters,
     _expand_feature_mask_to_target,
     unpack_explanation_parameters,

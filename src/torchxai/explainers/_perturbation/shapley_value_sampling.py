@@ -5,9 +5,7 @@ from captum.attr import Attribution, ShapleyValueSampling
 from torch import Tensor
 from torch.nn import Module
 
-from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
-    FusionExplainer,
-)
+from torchxai.explainers.explainer import Explainer
 
 # class MultiTargetShapleyValueSampling(ShapleyValueSampling):
 #     @log_usage()
@@ -183,7 +181,7 @@ from torchxai.explanation_framework.explainers.torch_fusion_explainer import (
 #         return formatted_attr
 
 
-class ShapleyValueSamplingExplainer(FusionExplainer):
+class ShapleyValueSamplingExplainer(Explainer):
     """
     A Explainer class for handling Shapley Values using the Captum library.
 

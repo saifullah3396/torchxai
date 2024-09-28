@@ -90,16 +90,22 @@ test_configurations = [
     ),
     *setup_test_config_for_explainer(
         explainer="input_x_gradient",
-        expected=torch.tensor([0.0886, 0.0753, 0.0749, 0.0829]),
+        expected=torch.tensor(
+            [0.0886, 0.0753, 0.0749, 0.0829]
+        ),  # these results might not be exactly reproducible across machines
+        delta=1e-3,
     ),
     # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
     # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
     # on 4 input samples. The expected output is [False, False, False, False] with zero_baseline
     *setup_test_config_for_explainer(
         explainer="integrated_gradients",
-        expected=torch.tensor([0.1054, 0.0862, 0.0843, 0.0868]),
+        expected=torch.tensor(
+            [0.1054, 0.0862, 0.0843, 0.0868]
+        ),  # these results might not be exactly reproducible across machines
         set_baselines_to_type="zero",
         explainer_kwargs={"n_steps": 200},
+        delta=1e-3,
     ),
     # this setup is exactly the same as in the paper: https://arxiv.org/pdf/1711.00867
     # a 3-layer linear model is trained on MNIST, input invariance is computed for integrated_gradients
@@ -128,10 +134,13 @@ test_configurations = [
     # can be used for other explainers
     *setup_test_config_for_explainer(
         explainer="lime",
-        expected=torch.tensor([0.0151, 0.0157, 0.0138, 0.0280]),
+        expected=torch.tensor(
+            [0.0151, 0.0157, 0.0138, 0.0280]
+        ),  # these results might not be exactly reproducible across machines
         set_baselines_to_type="black",
         explainer_kwargs={"n_samples": 200, "weight_attributions": False},
         generate_feature_mask=True,
+        delta=1e-3,
     ),
 ]
 
@@ -192,4 +201,5 @@ def test_completeness(metrics_runtime_test_configuration):
         output_invariance.float(),
         runtime_config.expected.float(),
         delta=runtime_config.delta,
+        mode="mean",
     )

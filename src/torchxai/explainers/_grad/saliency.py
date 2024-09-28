@@ -11,6 +11,7 @@ from captum.attr import Attribution, Saliency
 from captum.log import log_usage
 
 from torchxai.explainers._utils import (
+    _compute_gradients_sequential_autograd,
     _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
@@ -21,7 +22,11 @@ class MultiTargetSaliency(Saliency):
     def __init__(
         self,
         forward_func: Callable,
-        gradient_func=_compute_gradients_vmap_autograd,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
     ) -> None:
         super().__init__(forward_func)
         self.gradient_func = gradient_func

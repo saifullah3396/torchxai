@@ -1,6 +1,7 @@
 import warnings
 from typing import Any
 
+import torch
 from captum._utils.common import _format_output, _format_tensor_into_tuples, _is_tuple
 from captum._utils.gradient import (
     apply_gradient_requirements,
@@ -12,6 +13,7 @@ from captum.log import log_usage
 from torch.nn import Module
 
 from torchxai.explainers._utils import (
+    _compute_gradients_sequential_autograd,
     _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
@@ -20,7 +22,13 @@ from torchxai.explainers.explainer import Explainer
 
 class MultiTargetGuidedBackprop(GuidedBackprop):
     def __init__(
-        self, model: Module, gradient_func=_compute_gradients_vmap_autograd
+        self,
+        model: Module,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
     ) -> None:
         super().__init__(model)
         self.gradient_func = gradient_func

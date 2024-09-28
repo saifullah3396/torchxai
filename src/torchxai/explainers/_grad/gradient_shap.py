@@ -21,7 +21,10 @@ from captum.log import log_usage
 from torch.nn.modules import Module
 
 from torchxai.explainers._grad.noise_tunnel import MultiTargetNoiseTunnel
-from torchxai.explainers._utils import _compute_gradients_vmap_autograd
+from torchxai.explainers._utils import (
+    _compute_gradients_sequential_autograd,
+    _compute_gradients_vmap_autograd,
+)
 from torchxai.explainers.explainer import Explainer
 
 
@@ -178,7 +181,11 @@ class MultiTargetGradientShap(GradientShap):
         self,
         forward_func: Callable,
         multiply_by_inputs: bool = True,
-        gradient_func=_compute_gradients_vmap_autograd,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
     ) -> None:
         super().__init__(forward_func, multiply_by_inputs)
         self.gradient_func = gradient_func

@@ -2,6 +2,7 @@ import warnings
 from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
+import torch.version
 from captum._utils.common import (
     _expand_target,
     _format_additional_forward_args,
@@ -30,6 +31,7 @@ from torch.nn import Module
 
 from torchxai.explainers._utils import (
     _compute_gradients_sequential_autograd,
+    _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
 from torchxai.explainers.explainer import Explainer
@@ -46,7 +48,11 @@ class MultiTargetDeepLift(DeepLift):
         model: Module,
         multiply_by_inputs: bool = True,
         eps: float = 1e-10,
-        gradient_func=_compute_gradients_sequential_autograd,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
     ) -> None:
         super().__init__(model, multiply_by_inputs, eps)
 

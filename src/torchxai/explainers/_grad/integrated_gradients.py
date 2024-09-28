@@ -22,6 +22,7 @@ from torch.nn.modules import Module
 
 from torchxai.explainers._utils import (
     _batch_attribution_multi_target,
+    _compute_gradients_sequential_autograd,
     _compute_gradients_vmap_autograd,
     _verify_target_for_multi_target_impl,
 )
@@ -33,7 +34,11 @@ class MultiTargetIntegratedGradients(IntegratedGradients):
         self,
         forward_func: Callable,
         multiply_by_inputs: bool = True,
-        gradient_func=_compute_gradients_vmap_autograd,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
     ) -> None:
         super().__init__(forward_func, multiply_by_inputs)
         self.gradient_func = gradient_func

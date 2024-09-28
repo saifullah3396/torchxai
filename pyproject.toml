@@ -103,3 +103,6 @@ markers = [
     "metrics: Tests related to metrics.",
     "explainers: Tests related to explainers."
 ]
+
+[tool.distutils.egg_info]
+egg_base = "./build"

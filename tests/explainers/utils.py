@@ -20,23 +20,32 @@ class ExplainersTestRuntimeConfig(TestRuntimeConfig):
 def make_config_for_explainer(
     target_fixture,
     explainer,
-    expected,
-    override_target=None,
-    throws_exception=False,
-    explainer_kwargs=None,
-    delta=1e-4,
     test_name_suffix="",
+    config_class=ExplainersTestRuntimeConfig,
+    **kwargs,
 ):
-    return ExplainersTestRuntimeConfig(
+    return config_class(
         test_name=f"{target_fixture}_{explainer}{test_name_suffix}",
         target_fixture=target_fixture,
         explainer=explainer,
-        override_target=override_target,
-        expected=expected,
-        throws_exception=throws_exception,
-        explainer_kwargs=explainer_kwargs,
-        delta=delta,
+        **kwargs,
     )
+
+
+def make_config_for_explainers_with_internal_batch_size(
+    *args,
+    **kwargs,
+):
+    internal_batch_sizes = kwargs.pop("internal_batch_sizes", [None])
+    return [
+        make_config_for_explainer(
+            *args,
+            **kwargs,
+            explainer_kwargs={"internal_batch_size": internal_batch_size},
+            test_name_suffix=f"_internal_batch_size_{internal_batch_size}",
+        )
+        for internal_batch_size in internal_batch_sizes
+    ]
 
 
 def run_explainer_test_with_config(base_config, runtime_config):

@@ -4,15 +4,12 @@ from inspect import signature
 from typing import Any, Callable, Tuple, Union
 
 import torch
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_inputs,
-    _select_targets,
-)
+from captum._utils.common import (ExpansionTypes, _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_inputs, _is_tuple, _select_targets)
 from captum._utils.typing import TargetType
 from captum.attr._utils.approximation_methods import approximation_parameters
+from captum.attr._utils.common import _format_tensor_into_tuples
 from torch import Tensor
 
 
@@ -30,7 +27,7 @@ def _generate_mask_weights(feature_mask_batch: torch.Tensor) -> torch.Tensor:
     """
 
     feature_mask_weighted_batch = torch.zeros_like(
-        feature_mask_batch, dtype=torch.float
+        feature_mask_batch, dtype=torch.float32
     )
     for feature_mask, feature_mask_weighted in zip(
         feature_mask_batch, feature_mask_weighted_batch
@@ -39,6 +36,24 @@ def _generate_mask_weights(feature_mask_batch: torch.Tensor) -> torch.Tensor:
         for idx in range(labels.shape[0]):
             feature_mask_weighted[feature_mask == labels[idx]] = 1.0 / counts[idx]
     return feature_mask_weighted_batch
+
+
+def _weight_attributions(attributions, feature_mask):
+    is_inputs_tuple = _is_tuple(attributions)
+    attributions = _format_tensor_into_tuples(attributions)
+    feature_mask = _format_tensor_into_tuples(feature_mask)
+    feature_mask_weights = tuple(_generate_mask_weights(x) for x in feature_mask)
+    assert (
+        attributions[0].shape == feature_mask_weights[0].shape
+    ), "Attributions and feature mask weights must have the same shape"
+    weighted_attributions = tuple(
+        attribution * feature_mask_weight
+        for attribution, feature_mask_weight in zip(attributions, feature_mask_weights)
+    )
+    if is_inputs_tuple:
+        return weighted_attributions
+    else:
+        return weighted_attributions[0]
 
 
 def _run_forward_multi_target(

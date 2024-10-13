@@ -14,6 +14,7 @@ from captum._utils.progress import progress
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution, FeatureAblation
 from captum.attr._utils.common import _format_input_baseline
+from captum.log import log_usage
 from torch import Tensor, dtype
 
 from torchxai.explainers._utils import (
@@ -24,6 +25,7 @@ from torchxai.explainers.explainer import Explainer
 
 
 class MultiTargetFeatureAblation(FeatureAblation):
+    @log_usage()
     def attribute(
         self,
         inputs: TensorOrTupleOfTensorsGeneric,
@@ -213,10 +215,10 @@ class MultiTargetFeatureAblation(FeatureAblation):
             if show_progress:
                 attr_progress.close()
 
-            # Divide total attributions by counts and return formatted attributions
             if self.use_weights:
                 attrib = tuple(
-                    single_attrib.float() / weight
+                    single_attrib.float()
+                    / weight.repeat((output_shape[1],) + (weights[0].dim() - 1) * (1,))
                     for single_attrib, weight in zip(total_attrib, weights)
                 )
             else:
@@ -296,8 +298,9 @@ class MultiTargetFeatureAblation(FeatureAblation):
             inputs[i], input_mask, **extra_args
         )
         num_examples = inputs[0].shape[0]
-        if input_mask.shape[0] != num_examples:
+        if input_mask is not None and input_mask.shape[0] != num_examples:
             input_mask = input_mask.expand(num_examples, *input_mask.shape[1:])
+
         perturbations_per_eval = min(perturbations_per_eval, num_features)
         baseline = baselines[i] if isinstance(baselines, tuple) else baselines
         if isinstance(baseline, torch.Tensor):
@@ -446,6 +449,6 @@ class FeatureAblationExplainer(Explainer):
             baselines=baselines,
             feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
-            perturbations_per_eval=2,
+            perturbations_per_eval=self._internal_batch_size,
             show_progress=False,
         )

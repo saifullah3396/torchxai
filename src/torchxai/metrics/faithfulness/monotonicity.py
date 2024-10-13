@@ -275,7 +275,7 @@ def eval_monotonicity_single_sample(
 
     with torch.no_grad():
 
-        def _sum_monotonicity_tensors(agg_tensors, tensors):
+        def _agg_monotonicity_tensors(agg_tensors, tensors):
             return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
 
         bsz = inputs[0].size(0)
@@ -321,7 +321,7 @@ def eval_monotonicity_single_sample(
         agg_tensors = _divide_and_aggregate_metrics_n_features(
             n_features,
             _next_monotonicity_tensors,
-            agg_func=_sum_monotonicity_tensors,
+            agg_func=_agg_monotonicity_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )

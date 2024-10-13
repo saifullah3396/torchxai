@@ -442,7 +442,7 @@ def faithfulness_corr(
         )
         return perturbed_fwd_diffs, attributions_expanded_perturbed_sum
 
-    def _sum_faithfulness_corr_tensors(agg_tensors, tensors):
+    def _agg_faithfulness_corr_tensors(agg_tensors, tensors):
         return tuple(
             torch.cat([agg_t, t], dim=-1) for agg_t, t in zip(agg_tensors, tensors)
         )
@@ -511,7 +511,7 @@ def faithfulness_corr(
             cast(Tuple[Tensor, ...], inputs),
             n_perturb_samples,
             _next_faithfulness_corr_tensors,
-            agg_func=_sum_faithfulness_corr_tensors,
+            agg_func=_agg_faithfulness_corr_tensors,
             max_examples_per_batch=max_examples_per_batch,
             show_progress=show_progress,
         )

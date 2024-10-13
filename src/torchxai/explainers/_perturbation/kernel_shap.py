@@ -2,6 +2,7 @@
 from typing import Any, Callable, Generator, Tuple, Union
 
 import torch
+from captum._utils.common import _format_additional_forward_args
 from captum._utils.models.linear_model import SkLearnLinearRegression
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution, KernelShap
@@ -150,15 +151,31 @@ class KernelShapExplainer(Explainer):
     def __init__(
         self,
         model: Module,
+        is_multi_target: bool = False,
+        internal_batch_size: int = 1,
         n_samples: int = 100,
-        perturbations_per_eval: int = 1,
+        alpha: float = 0.01,
+        weight_attributions: bool = True,
     ) -> None:
         """
         Initialize the KernelShapExplainer with the model, number of samples, and perturbations per evaluation.
         """
-        super().__init__(model)
-        self.n_samples = n_samples
-        self.perturbations_per_eval = perturbations_per_eval
+        self._n_samples = n_samples
+        self._alpha = alpha
+        self._weight_attributions = weight_attributions
+
+        super().__init__(model, is_multi_target, internal_batch_size)
+
+    def _init_explanation_fn(self) -> Attribution:
+        """
+        Initializes the explanation function.
+
+        Returns:
+            Attribution: The initialized explanation function.
+        """
+        if self._is_multi_target:
+            return MultiTargetKernelShap(self._model)
+        return KernelShap(self._model)
 
     def _init_explanation_fn(self) -> Attribution:
         """
@@ -178,7 +195,6 @@ class KernelShapExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
-        weight_attributions: bool = True,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the Kernel SHAP attributions for the given inputs.
@@ -196,6 +212,9 @@ class KernelShapExplainer(Explainer):
         """
         # Compute the attributions using Kernel SHAP
         feature_mask = _expand_feature_mask_to_target(feature_mask, inputs)
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
 
         attributions = self._explanation_fn.attribute(
             inputs=inputs,
@@ -203,13 +222,13 @@ class KernelShapExplainer(Explainer):
             baselines=baselines,
             feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
-            n_samples=self.n_samples,
-            perturbations_per_eval=self.perturbations_per_eval,
+            n_samples=self._n_samples,
+            perturbations_per_eval=self._internal_batch_size,
             show_progress=False,
         )
 
         # Optionally weight attributions by the feature mask
-        if weight_attributions and feature_mask is not None:
+        if self._weight_attributions and feature_mask is not None:
             feature_mask_weights = tuple(
                 _generate_mask_weights(x) for x in feature_mask
             )

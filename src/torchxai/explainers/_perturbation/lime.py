@@ -4,12 +4,17 @@ import warnings
 from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
-from captum._utils.common import _format_output, _is_tuple, _reduce_list
+from captum._utils.common import (
+    _format_additional_forward_args,
+    _format_output,
+    _is_tuple,
+)
 from captum._utils.models.linear_model import SkLearnLasso
 from captum._utils.models.model import Model
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution, Lime, LimeBase
 from captum.attr._core.lime import (
+    _reduce_list,
     construct_feature_mask,
     default_from_interp_rep_transform,
     default_perturb_func,
@@ -111,14 +116,44 @@ class MultiTargetLime(MultiTargetLimeBase):
                 "mask which groups input features to reduce the number of interpretable"
                 "features. "
             )
-        print("target", target)
+
         multi_target_coefs: Tensor
         if bsz > 1:
             test_output = _run_forward_multi_target(
                 self.forward_func, inputs, target, additional_forward_args
             )
-            if isinstance(test_output, Tensor) and torch.numel(test_output) > 1:
-                if torch.numel(test_output) == bsz:
+
+            n_targets = len(target) if isinstance(target, list) else 1
+            # if the target is sent as a list of torch tensors then we need to
+            if isinstance(target, list) and isinstance(target[0], Tensor):
+                if target[0].shape[0] > 1:
+                    assert target[0].shape[0] == bsz
+
+                    # convert the list of tensors to multiple ids for each example
+                    target = list(zip(*target))
+
+                    target = list(item[0] for item in target)
+            elif (
+                isinstance(target, list)
+                and isinstance(target[0], list)
+                and isinstance(target[0][0], int)
+            ):
+                assert len(target[0]) == bsz
+
+                # convert the list of tensors to multiple ids for each example
+                target = list(zip(*target))
+            elif (
+                isinstance(target, list)
+                and isinstance(target[0], list)
+                and isinstance(target[0][0], tuple)
+            ):
+                assert len(target[0]) == bsz
+
+                # convert the list of tensors to multiple ids for each example
+                target = list(zip(*target))
+
+            if isinstance(test_output, Tensor) and torch.numel(test_output) > n_targets:
+                if test_output.shape[0] == bsz:
                     warnings.warn(
                         "You are providing multiple inputs for Lime / Kernel SHAP "
                         "attributions. This trains a separate interpretable model "
@@ -140,6 +175,10 @@ class MultiTargetLime(MultiTargetLimeBase):
                         baselines,
                         feature_mask,
                     ):
+                        if isinstance(curr_target, list) and isinstance(
+                            curr_target[0], tuple
+                        ):
+                            curr_target = [[item] for item in curr_target[0]]
                         multi_target_coefs = super().attribute.__wrapped__(
                             self,
                             inputs=curr_inps if is_inputs_tuple else curr_inps[0],
@@ -159,7 +198,6 @@ class MultiTargetLime(MultiTargetLimeBase):
                             show_progress=show_progress,
                             **kwargs,
                         )
-                        print(multi_target_coefs)
                         if return_input_shape:
                             output_list.append(
                                 [
@@ -175,7 +213,11 @@ class MultiTargetLime(MultiTargetLimeBase):
                             )
                         else:
                             output_list.append([coefs.reshape(1, -1) for coefs in multi_target_coefs])  # type: ignore
-                    print([_reduce_list(output) for output in output_list])
+
+                    # switch from per sample target output to per target output
+                    # each element of this output now contains the batch attributions for a single target
+                    output_list = list(zip(*output_list))
+
                     return [_reduce_list(output) for output in output_list]
                 else:
                     raise AssertionError(
@@ -324,7 +366,9 @@ class LimeExplainer(Explainer):
         """
         # Compute the attributions using Kernel SHAP
         feature_mask = _expand_feature_mask_to_target(feature_mask, inputs)
-
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
         # Compute the attributions using LIME
         attributions = self._explanation_fn.attribute(
             inputs=inputs,

@@ -122,10 +122,10 @@ def _divide_and_aggregate_metrics(
     metrics_sum = metric_func(max_inps_per_batch, current_n_steps)
 
     pbar = None
-    if show_progress:
-        pbar = tqdm(total=n_perturb_samples, desc="Computing metrics", leave=False)
-
     while current_n_steps < n_perturb_samples:
+        if show_progress and pbar is None:
+            pbar = tqdm(total=n_perturb_samples, desc="Computing metrics", leave=False)
+
         current_n_steps += max_inps_per_batch
         if pbar is not None:
             pbar.update(max_inps_per_batch)
@@ -177,8 +177,7 @@ def _divide_and_aggregate_metrics_n_perturbations_per_feature(
     """
     if max_features_processed_per_batch is not None and (
         max_features_processed_per_batch // n_perturbations_per_feature < 1
-        or max_features_processed_per_batch // n_perturbations_per_feature
-        > n_features
+        or max_features_processed_per_batch // n_perturbations_per_feature > n_features
     ):
         warnings.warn(
             (
@@ -204,13 +203,15 @@ def _divide_and_aggregate_metrics_n_perturbations_per_feature(
 
     current_n_steps = max_inps_per_batch
 
-    pbar = None
-    if show_progress:
-        pbar = tqdm(
-            total=n_features, desc="Processing features for metric", leave=False
-        )
     metrics_sum = metric_func(max_inps_per_batch, current_n_steps)
+
+    pbar = None
     while current_n_steps < n_features:
+        if show_progress and pbar is None:
+            pbar = tqdm(
+                total=n_features, desc="Processing features for metric", leave=False
+            )
+
         current_n_steps += max_inps_per_batch
         if pbar is not None:
             pbar.update(max_inps_per_batch)
@@ -268,13 +269,13 @@ def _divide_and_aggregate_metrics_n_features(
     current_n_steps = max_inps_per_batch
 
     pbar = None
-    if show_progress:
-        pbar = tqdm(
-            total=n_features, desc="Processing features for metric", leave=False
-        )
 
     metrics_sum = metric_func(max_inps_per_batch, current_n_steps)
     while current_n_steps < n_features:
+        if show_progress and pbar is None:
+            pbar = tqdm(
+                total=n_features, desc="Processing features for metric", leave=False
+            )
         current_n_steps += max_inps_per_batch
         if pbar is not None:
             pbar.update(max_inps_per_batch)

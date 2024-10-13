@@ -1,4 +1,0 @@
-default:
-  name: step_lr
-  params:
-    step_size: 1 # this refers to epoch

@@ -1,7 +1,0 @@
-# @package args.train_realtime_augs
-
-- name: Cifar10Aug
-  kwargs:
-    train: true
-    key:
-      - image

@@ -1,8 +1,0 @@
-# @package args.data_args
-
-defaults:
-- default
-
-dataset_name: Cifar10TorchDataset
-dataset_dir: ${oc.env:DATA_ROOT_DIR}/images/cifar10/
-dataset_cache_dir: ${args.data_args.dataset_dir}/huggingface/

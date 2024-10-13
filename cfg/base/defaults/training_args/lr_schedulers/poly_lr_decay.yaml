@@ -1,4 +1,0 @@
-default:
-  name: poly_decay_lr
-  params:
-    max_decay_steps: -1

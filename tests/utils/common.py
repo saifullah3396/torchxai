@@ -149,11 +149,31 @@ def compare_explanation_per_target(
     output_explanation_per_target: Tuple[Tensor, ...],
     expected_explanation_per_target: Tuple[Tensor, ...],
     delta: float = 1e-5,
+    visualize: bool = False,
 ) -> None:
     if not isinstance(output_explanation_per_target, tuple):
         output_explanation_per_target = (output_explanation_per_target,)
     if not isinstance(expected_explanation_per_target, tuple):
         expected_explanation_per_target = (expected_explanation_per_target,)
+
+    if visualize:
+        import matplotlib.pyplot as plt
+        from captum.attr._utils.visualization import _normalize_attr
+
+        for output_explanation, expected_explanation in zip(
+            output_explanation_per_target, expected_explanation_per_target
+        ):
+            for output, expected in zip(output_explanation, expected_explanation):
+                output = _normalize_attr(
+                    output.cpu().numpy(), "absolute_value", reduction_axis=0
+                )
+                expected = _normalize_attr(
+                    expected.cpu().numpy(), "absolute_value", reduction_axis=0
+                )
+                fig, ax = plt.subplots(1, 2)
+                ax[0].imshow(output)
+                ax[1].imshow(expected)
+                plt.show()
 
     for output_explanation_per_input, expected_explanation_per_input in zip(
         output_explanation_per_target, expected_explanation_per_target

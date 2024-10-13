@@ -87,12 +87,14 @@ def run_explainer_test_with_config(base_config, runtime_config):
         )
         if multi_target_explanations_1 is not None:
             for m1, m2 in zip(multi_target_explanations_1, multi_target_explanations_2):
-                compare_explanation_per_target(m1, m2)
+                compare_explanation_per_target(m1, m2, delta=runtime_config.delta)
 
         if multi_target_explanations_2 is None:
             assert explanations is None
         else:
-            compare_explanation_per_target(multi_target_explanations_2[0], explanations)
+            compare_explanation_per_target(
+                multi_target_explanations_2[0], explanations, delta=runtime_config.delta
+            )
 
         single_target_explanations.append(explanations)
 
@@ -108,6 +110,7 @@ def run_explainer_test_with_config(base_config, runtime_config):
             compare_explanation_per_target(
                 multi_target_explanation,
                 single_target_explanation,
+                delta=runtime_config.delta,
             )
 
 

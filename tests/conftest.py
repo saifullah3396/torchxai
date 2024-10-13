@@ -10,7 +10,11 @@ from tests.helpers.basic_models import (
     BasicModel_MultiLayer,
     ParkFunction,
 )
-from tests.helpers.classification_models import SigmoidModel, SoftmaxModel
+from tests.helpers.classification_models import (
+    SigmoidModel,
+    SoftmaxModel,
+    SoftmaxModelTupleInput,
+)
 from tests.utils.common import compute_explanations, mnist_trainer, set_all_random_seeds
 from tests.utils.containers import TestBaseConfig, TestRuntimeConfig
 from torchxai.explainers.factory import ExplainerFactory
@@ -133,10 +137,28 @@ def classification_softmax_model_single_input_single_target_config():
 
 
 @pytest.fixture()
+def classification_softmax_model_multi_input_single_target_config():
+    yield TestBaseConfig(
+        model=SoftmaxModel(10, 20, 10),
+        inputs=torch.tensor([[1.0] * 10] * 3),
+        target=torch.tensor([1]),
+    )
+
+
+@pytest.fixture()
+def classification_softmax_model_multi_tuple_input_single_target_config():
+    yield TestBaseConfig(
+        model=SoftmaxModelTupleInput(10, 20, 10),
+        inputs=(torch.tensor([[10.5] * 10] * 3), torch.tensor([[-10.0] * 10] * 3)),
+        target=torch.tensor([1]),
+    )
+
+
+@pytest.fixture()
 def classification_alexnet_model_config():
     from torchvision.models import alexnet
 
-    model = alexnet(pretrained=False)
+    model = alexnet(pretrained=True)
     model.eval()
     model.zero_grad()
     yield TestBaseConfig(

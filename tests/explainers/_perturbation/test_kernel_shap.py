@@ -23,7 +23,7 @@ def _make_config_for_explainer(
     return make_config_for_explainers_with_internal_batch_size(
         *args,
         **kwargs,
-        explainer="lime",
+        explainer="kernel_shap",
         config_class=ExplainersTestRuntimeConfig_,
         internal_batch_sizes=[1, 20, 100],  # perturbation_batch_size
     )
@@ -32,34 +32,34 @@ def _make_config_for_explainer(
 test_configurations = [
     *_make_config_for_explainer(
         target_fixture="basic_model_single_input_config",
-        expected=(torch.tensor([1.3842]), torch.tensor([-0.5370])),
+        expected=(torch.tensor([1.4898]), torch.tensor([-0.4898])),
     ),
     *_make_config_for_explainer(
         target_fixture="basic_model_single_input_config",
         expected=(
-            torch.tensor([1.3842]),
-            torch.tensor([-0.5370]),
+            torch.tensor([1.4898]),
+            torch.tensor([-0.4898]),
         ),
         override_target=0,
         throws_exception=True,
     ),
     *_make_config_for_explainer(
         target_fixture="basic_model_single_batched_input_config",
-        expected=(torch.tensor([[1.3842]]), torch.tensor([[-0.5370]])),
+        expected=(torch.tensor([[1.4898]]), torch.tensor([[-0.4898]])),
         override_target=0,
     ),
     *_make_config_for_explainer(
         target_fixture="basic_model_batch_input_config",
         expected=(
-            torch.tensor([1.3842, 1.4314, 1.4280]),
-            torch.tensor([-0.5370, -0.4566, -0.5858]),
+            torch.tensor([1.4898, 1.5510, 1.3980]),
+            torch.tensor([-0.4898, -0.5510, -0.3980]),
         ),
     ),
     *_make_config_for_explainer(
         target_fixture="basic_model_batch_input_with_additional_forward_args_config",
         expected=(
-            torch.tensor([[0.2236, 0.0000, 0.0000]]),
-            torch.tensor([[-0.1866, 0, 0]]),
+            torch.tensor([[0.2364, 0.0028, -0.0453]]),
+            torch.tensor([[-0.2154, -0.0592, 0.0807]]),
         ),
     ),
     *_make_config_for_explainer(
@@ -71,18 +71,18 @@ test_configurations = [
         expected=[
             torch.tensor(
                 [
-                    [26.9094, 54.5994, 79.0141],
-                    [127.9639, 159.9558, 191.9592],
-                    [223.9636, 255.9571, 287.9532],
-                    [319.9602, 351.9643, 383.9579],
+                    [27.5679, 54.6671, 77.7651],
+                    [127.9998, 160.0000, 192.0000],
+                    [223.9999, 256.0000, 288.0000],
+                    [320.0004, 352.0001, 384.0001],
                 ]
             ),
             torch.tensor(
                 [
-                    [3.3217, 6.7899, 9.8324],
-                    [127.9626, 159.9561, 191.9605],
-                    [223.9644, 255.9591, 287.9551],
-                    [319.9585, 351.9663, 383.9557],
+                    [3.4460, 6.8334, 9.7206],
+                    [127.9998, 160.0000, 192.0000],
+                    [223.9999, 256.0000, 288.0000],
+                    [320.0004, 352.0001, 384.0001],
                 ]
             ),
         ],
@@ -92,6 +92,7 @@ test_configurations = [
         ],
         delta=1e-2,
     ),
+    # *_make_config_for
     *_make_config_for_explainer(
         target_fixture="classification_sigmoid_model_single_input_single_target_config",
         expected=[
@@ -121,7 +122,21 @@ test_configurations = [
         target_fixture="classification_softmax_model_multi_tuple_input_single_target_config",
         expected=[
             torch.tensor(
-                [[0] * 10] * 3,
+                [
+                    [
+                        -0.0058,
+                        -0.0089,
+                        -0.0091,
+                        -0.0026,
+                        0.0094,
+                        0.0108,
+                        -0.0012,
+                        -0.0056,
+                        -0.0197,
+                        -0.0035,
+                    ]
+                ]
+                * 3,
             ),
             torch.tensor([[0] * 10] * 3),
         ],
@@ -153,7 +168,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_lime(explainer_runtime_test_configuration):
+def test_kernel_shap(explainer_runtime_test_configuration):
     base_config, runtime_config = explainer_runtime_test_configuration
 
     if runtime_config.set_image_feature_mask:

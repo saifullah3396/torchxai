@@ -4,9 +4,14 @@ from inspect import signature
 from typing import Any, Callable, Tuple, Union
 
 import torch
-from captum._utils.common import (ExpansionTypes, _expand_target,
-                                  _format_additional_forward_args,
-                                  _format_inputs, _is_tuple, _select_targets)
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_inputs,
+    _is_tuple,
+    _select_targets,
+)
 from captum._utils.typing import TargetType
 from captum.attr._utils.approximation_methods import approximation_parameters
 from captum.attr._utils.common import _format_tensor_into_tuples
@@ -257,9 +262,10 @@ def _verify_target_for_multi_target_impl(inputs, target):
     if target is not None and isinstance(target, (list, tuple)):
         for t in target:
             if isinstance(t, (list, tuple)):
-                assert (
-                    len(t) == bsz
-                ), "Each target in the list must be a tensor of size batch size"
+                assert len(t) == bsz, (
+                    f"Each target in the list must be a tensor of same size as input batch-size={bsz}, got {len(t)}. "
+                    f"For multi-target, you must pass a list of targets or a list of tensors of size {bsz}."
+                )
 
 
 def _expand_and_update_target_multi_target(n_samples: int, kwargs: dict):

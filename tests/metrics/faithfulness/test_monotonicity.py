@@ -23,6 +23,7 @@ def _format_to_list(value):
 @dataclasses.dataclass
 class MetricTestRuntimeConfig_(TestRuntimeConfig):
     max_features_processed_per_batch: int = None
+    device: str = "cpu"
 
 
 test_configurations = [

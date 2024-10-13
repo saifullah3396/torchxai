@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List, Tuple, Union
 
 import torch
+from ignite.utils import convert_tensor
 
 
 @dataclass
@@ -17,7 +18,6 @@ class TestBaseConfig:
     multiply_by_inputs: bool = False
     n_features: int = None
     input_layer_names: List[str] = None
-    device: str = None
 
     def __post_init__(self):
         assert self.model is not None, "Model must be provided"
@@ -29,8 +29,42 @@ class TestBaseConfig:
         else:
             self.inputs.requires_grad = True
 
-        if self.device is None:
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+    def put_to_device(self, device: str):
+        self.inputs = convert_tensor(self.inputs, device=device)
+        if self.target is not None:
+            self.target = (
+                convert_tensor(self.target, device=device)
+                if isinstance(self.target, torch.Tensor)
+                or (
+                    isinstance(self.target, list)
+                    and isinstance(self.target[0], torch.Tensor)
+                )
+                else self.target
+            )
+        if self.additional_forward_args is not None:
+            if isinstance(self.additional_forward_args, tuple):
+                self.additional_forward_args = tuple(
+                    (
+                        convert_tensor(arg, device=device)
+                        if isinstance(arg, torch.Tensor)
+                        else arg
+                    )
+                    for arg in self.additional_forward_args
+                )
+            else:
+                self.additional_forward_args = (
+                    convert_tensor(self.additional_forward_args, device=device)
+                    if isinstance(self.additional_forward_args, torch.Tensor)
+                    else self.additional_forward_args
+                )
+        if self.baselines is not None:
+            self.baselines = convert_tensor(self.baselines, device=device)
+        if self.feature_mask is not None:
+            self.feature_mask = convert_tensor(self.feature_mask, device=device)
+        if self.train_baselines is not None:
+            self.train_baselines = convert_tensor(self.train_baselines, device=device)
+        self.model = self.model.eval()
+        self.model.to(device)
 
 
 @dataclasses.dataclass
@@ -44,11 +78,14 @@ class TestRuntimeConfig:
     delta: float = 1e-4
     override_target: Union[torch.Tensor, List[Tuple[int, ...]]] = None
     throws_exception: bool = False
+    device: str = None
 
     def __post_init__(self):
         assert self.target_fixture is not None, "Target fixture must be provided"
         if self.explainer_kwargs is None:
             self.explainer_kwargs = {}
+        if self.device is None:
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
     def __repr__(self):
         kws = [

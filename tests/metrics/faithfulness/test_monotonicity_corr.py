@@ -22,6 +22,7 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     perturb_func: Callable = default_random_perturb_func()
     n_perturbations_per_feature: int = 100
     max_features_processed_per_batch: int = None
+    device: str = "cpu"
 
 
 test_configurations = [
@@ -173,7 +174,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_non_sensitivity(metrics_runtime_test_configuration):
+def test_monotonicity_corr(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
     runtime_config.n_perturbations_per_feature = _format_to_list(
         runtime_config.n_perturbations_per_feature

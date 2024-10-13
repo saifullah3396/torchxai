@@ -5,13 +5,17 @@ from typing import Callable
 import pytest  # noqa
 import torch
 
-from tests.utils.common import (assert_all_tensors_almost_equal,
-                                assert_tensor_almost_equal,
-                                set_all_random_seeds)
+from tests.utils.common import (
+    assert_all_tensors_almost_equal,
+    assert_tensor_almost_equal,
+    set_all_random_seeds,
+)
 from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics import faithfulness_corr
-from torchxai.metrics._utils.perturbation import (default_random_perturb_func,
-                                                  default_zero_baseline_func)
+from torchxai.metrics._utils.perturbation import (
+    default_random_perturb_func,
+    default_zero_baseline_func,
+)
 
 
 def _format_to_list(value):
@@ -29,6 +33,7 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     set_same_perturbation_mask_for_batch: bool = False
     assert_across_runs: bool = True
     set_fixed_baseline_of_type: bool = False
+    device: str = "cpu"
 
 
 test_configurations = [
@@ -887,6 +892,7 @@ test_configurations = [
     ),
 ]
 
+
 @pytest.mark.metrics
 @pytest.mark.parametrize(
     "metrics_runtime_test_configuration",
@@ -894,7 +900,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_non_sensitivity(metrics_runtime_test_configuration):
+def test_faithfulness_corr(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
     runtime_config.n_perturb_samples = _format_to_list(runtime_config.n_perturb_samples)
     runtime_config.max_examples_per_batch = _format_to_list(

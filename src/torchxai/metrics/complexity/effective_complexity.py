@@ -168,7 +168,7 @@ def eval_effective_complexity_single_sample(
         )
         return list(curr_perturbed_fwd_diffs_relative_vars)
 
-    def _sum_effective_complexity_tensors(agg_tensors, tensors):
+    def _agg_effective_complexity_tensors(agg_tensors, tensors):
         return agg_tensors + tensors
 
     with torch.no_grad():
@@ -230,7 +230,7 @@ def eval_effective_complexity_single_sample(
             n_perturbations_per_feature,
             n_features,
             _next_effective_complexity_tensors,
-            agg_func=_sum_effective_complexity_tensors,
+            agg_func=_agg_effective_complexity_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
@@ -576,7 +576,11 @@ def effective_complexity(
                         if additional_forward_args is not None
                         else None
                     ),
-                    target=target[sample_idx] if target is not None else None,
+                    target=(
+                        target[sample_idx]
+                        if isinstance(target, (list, torch.Tensor))
+                        else target
+                    ),
                     perturb_func=perturb_func,
                     n_perturbations_per_feature=n_perturbations_per_feature,
                     max_features_processed_per_batch=max_features_processed_per_batch,

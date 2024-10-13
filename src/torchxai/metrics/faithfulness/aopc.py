@@ -551,7 +551,11 @@ def aopc(
                 if additional_forward_args is not None
                 else None
             ),
-            target=target[sample_idx] if target is not None else None,
+            target=(
+                target[sample_idx]
+                if isinstance(target, (list, torch.Tensor))
+                else target
+            ),
             max_features_processed_per_batch=max_features_processed_per_batch,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,

@@ -125,7 +125,7 @@ test_configurations = [
         explainer="occlusion",
         expected=torch.tensor([0.0, 0.0, 0.0, 0.0]),
         set_baselines_to_type="black",
-        explainer_kwargs={"sliding_window_shapes": (1, 4, 4)},
+        explainer_kwargs={"sliding_window_shapes": (1, 4, 4), "strides": None},
     ),
     # here apply the same logic as in the paper: https://arxiv.org/pdf/1711.00867
     # a 3-layer linear model is trained on MNIST, input invariance is computed for lime
@@ -152,7 +152,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_completeness(metrics_runtime_test_configuration):
+def test_input_invariance(metrics_runtime_test_configuration):
     base_config, runtime_config, explainer = metrics_runtime_test_configuration
 
     device = base_config.inputs.device

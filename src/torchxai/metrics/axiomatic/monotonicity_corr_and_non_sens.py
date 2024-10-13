@@ -175,7 +175,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             curr_feature_group_attribution_scores
         )
 
-    def _sum_monotonicity_corr_tensors(agg_tensors, tensors):
+    def _agg_monotonicity_corr_tensors(agg_tensors, tensors):
         return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
 
     with torch.no_grad():
@@ -206,7 +206,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             n_perturbations_per_feature,
             n_features,
             _next_monotonicity_corr_tensors,
-            agg_func=_sum_monotonicity_corr_tensors,
+            agg_func=_agg_monotonicity_corr_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
@@ -588,7 +588,11 @@ def monotonicity_corr_and_non_sens(
                         if additional_forward_args is not None
                         else None
                     ),
-                    target=target[sample_idx] if target is not None else None,
+                    target=(
+                        target[sample_idx]
+                        if isinstance(target, (list, torch.Tensor))
+                        else target
+                    ),
                     perturb_func=perturb_func,
                     n_perturbations_per_feature=n_perturbations_per_feature,
                     max_features_processed_per_batch=max_features_processed_per_batch,

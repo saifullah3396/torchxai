@@ -99,7 +99,7 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
         # the last element will be when all features are added to the baseline
         return (list(baselines_perturbed_fwd),)
 
-    def _sum_faithfulness_estimate_tensors(agg_tensors, tensors):
+    def _agg_faithfulness_estimate_tensors(agg_tensors, tensors):
         return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
 
     bsz = inputs[0].size(0)
@@ -145,7 +145,7 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
         agg_tensors = _divide_and_aggregate_metrics_n_features(
             n_features,
             _next_faithfulness_estimate_tensors,
-            agg_func=_sum_faithfulness_estimate_tensors,
+            agg_func=_agg_faithfulness_estimate_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
         )
 
@@ -283,7 +283,7 @@ def eval_faithfulness_estimate_single_sample(
             list(attributions_sum_perturbed.detach().cpu().numpy()),
         )
 
-    def _sum_faithfulness_estimate_tensors(agg_tensors, tensors):
+    def _agg_faithfulness_estimate_tensors(agg_tensors, tensors):
         return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
 
     bsz = inputs[0].size(0)
@@ -333,7 +333,7 @@ def eval_faithfulness_estimate_single_sample(
         agg_tensors = _divide_and_aggregate_metrics_n_features(
             n_features,
             _next_faithfulness_estimate_tensors,
-            agg_func=_sum_faithfulness_estimate_tensors,
+            agg_func=_agg_faithfulness_estimate_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
@@ -590,7 +590,11 @@ def faithfulness_estimate(
                 if additional_forward_args is not None
                 else None
             ),
-            target=target[sample_idx] if target is not None else None,
+            target=(
+                target[sample_idx]
+                if isinstance(target, (list, torch.Tensor))
+                else target
+            ),
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )

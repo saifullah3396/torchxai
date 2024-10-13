@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import itertools
 from typing import Any, Callable, Generator, Tuple, Union
 
 import torch
@@ -16,7 +17,7 @@ from torch.nn import Module
 from torchxai.explainers._perturbation.lime import MultiTargetLime
 from torchxai.explainers._utils import (
     _expand_feature_mask_to_target,
-    _generate_mask_weights,
+    _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
 
@@ -154,14 +155,12 @@ class KernelShapExplainer(Explainer):
         is_multi_target: bool = False,
         internal_batch_size: int = 1,
         n_samples: int = 100,
-        alpha: float = 0.01,
         weight_attributions: bool = True,
     ) -> None:
         """
         Initialize the KernelShapExplainer with the model, number of samples, and perturbations per evaluation.
         """
         self._n_samples = n_samples
-        self._alpha = alpha
         self._weight_attributions = weight_attributions
 
         super().__init__(model, is_multi_target, internal_batch_size)
@@ -215,7 +214,6 @@ class KernelShapExplainer(Explainer):
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
-
         attributions = self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
@@ -227,15 +225,14 @@ class KernelShapExplainer(Explainer):
             show_progress=False,
         )
 
-        # Optionally weight attributions by the feature mask
         if self._weight_attributions and feature_mask is not None:
-            feature_mask_weights = tuple(
-                _generate_mask_weights(x) for x in feature_mask
-            )
-            attributions = tuple(
-                attribution * feature_mask_weight
-                for attribution, feature_mask_weight in zip(
-                    attributions, feature_mask_weights
-                )
-            )
+            if self._is_multi_target:
+                attributions = [
+                    _weight_attributions(attribution, feature_mask)
+                    for attribution, feature_mask in zip(
+                        attributions, itertools.cycle(feature_mask)
+                    )
+                ]
+            else:
+                attributions = _weight_attributions(attributions, feature_mask)
         return attributions

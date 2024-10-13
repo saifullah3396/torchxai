@@ -15,6 +15,8 @@ from torchxai.explainers.factory import ExplainerFactory
 @dataclasses.dataclass
 class ExplainersTestRuntimeConfig(TestRuntimeConfig):
     is_multi_target: bool = False
+    visualize: bool = False
+    check_multi_target_list_against_single_target: bool = True
 
 
 def make_config_for_explainer(
@@ -70,31 +72,42 @@ def run_explainer_test_with_config(base_config, runtime_config):
         # get explanation using single-target explainer
         explanations = run_single_test(curr_base_config, curr_runtime_config)
 
-        curr_runtime_config.expected = [curr_expected]
-        multi_target_explanations_1 = None
-        if curr_target is None or isinstance(curr_target, int):
-            # if expected is integer target then we can run this for both as batch and single input so test for both
-            multi_target_explanations_1 = run_single_test(
+        if runtime_config.check_multi_target_list_against_single_target:
+            curr_runtime_config.expected = [curr_expected]
+            multi_target_explanations_1 = None
+            if curr_target is None or isinstance(curr_target, int):
+                # if expected is integer target then we can run this for both as batch and single input so test for both
+                multi_target_explanations_1 = run_single_test(
+                    curr_base_config, curr_runtime_config, is_multi_target=True
+                )
+
+            # get explanation using multi-target explainer but as list input and verify the output is same as single target
+            if curr_base_config.target is not None:
+                curr_base_config.target = [curr_base_config.target]
+
+            multi_target_explanations_2 = run_single_test(
                 curr_base_config, curr_runtime_config, is_multi_target=True
             )
+            if multi_target_explanations_1 is not None:
+                for m1, m2 in zip(
+                    multi_target_explanations_1, multi_target_explanations_2
+                ):
+                    compare_explanation_per_target(
+                        m1,
+                        m2,
+                        delta=runtime_config.delta,
+                        visualize=runtime_config.visualize,
+                    )
 
-        # get explanation using multi-target explainer but as list input and verify the output is same as single target
-        if curr_base_config.target is not None:
-            curr_base_config.target = [curr_base_config.target]
-
-        multi_target_explanations_2 = run_single_test(
-            curr_base_config, curr_runtime_config, is_multi_target=True
-        )
-        if multi_target_explanations_1 is not None:
-            for m1, m2 in zip(multi_target_explanations_1, multi_target_explanations_2):
-                compare_explanation_per_target(m1, m2, delta=runtime_config.delta)
-
-        if multi_target_explanations_2 is None:
-            assert explanations is None
-        else:
-            compare_explanation_per_target(
-                multi_target_explanations_2[0], explanations, delta=runtime_config.delta
-            )
+            if multi_target_explanations_2 is None:
+                assert explanations is None
+            else:
+                compare_explanation_per_target(
+                    multi_target_explanations_2[0],
+                    explanations,
+                    delta=runtime_config.delta,
+                    visualize=runtime_config.visualize,
+                )
 
         single_target_explanations.append(explanations)
 
@@ -111,6 +124,7 @@ def run_explainer_test_with_config(base_config, runtime_config):
                 multi_target_explanation,
                 single_target_explanation,
                 delta=runtime_config.delta,
+                visualize=runtime_config.visualize,
             )
 
 

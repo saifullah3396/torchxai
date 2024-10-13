@@ -149,8 +149,20 @@ def classification_softmax_model_multi_input_single_target_config():
 def classification_softmax_model_multi_tuple_input_single_target_config():
     yield TestBaseConfig(
         model=SoftmaxModelTupleInput(10, 20, 10),
-        inputs=(torch.tensor([[10.5] * 10] * 3), torch.tensor([[-10.0] * 10] * 3)),
+        inputs=(torch.tensor([[1.0] * 10] * 3), torch.tensor([[-1.0] * 10] * 3)),
         target=torch.tensor([1]),
+    )
+
+
+@pytest.fixture()
+def classification_alexnet_model_config_single_sample():
+    from torchvision.models import alexnet
+
+    model = alexnet(pretrained=True)
+    model.eval()
+    model.zero_grad()
+    yield TestBaseConfig(
+        model=model, inputs=torch.randn(1, 3, 224, 224), target=torch.tensor([1])
     )
 
 
@@ -164,6 +176,101 @@ def classification_alexnet_model_config():
     yield TestBaseConfig(
         model=model, inputs=torch.randn(10, 3, 224, 224), target=torch.tensor([1])
     )
+
+
+@pytest.fixture()
+def classification_alexnet_model_real_images_single_sample_config():
+    from io import BytesIO
+
+    import requests
+    import torch
+    import torchvision.transforms as transforms
+    from PIL import Image
+    from torchvision.models import alexnet
+
+    image_urls = [
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01440764_tench.JPEG?raw=true",
+    ]
+    labels = [0]
+
+    images = []
+    for url in image_urls:
+        response = requests.get(url)
+        image = Image.open(BytesIO(response.content))
+        transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),  # Resize the image if needed
+                transforms.ToTensor(),  # Convert to a tensor (normalizes pixel values to [0, 1])
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),  # Normalize pixel values to ImageNet values
+            ]
+        )
+        image_tensor = transform(image)
+        image_tensor = image_tensor.unsqueeze(
+            0
+        )  # Shape: [1, 3, 256, 256] for a batch of 1 image
+        if images == []:
+            images = image_tensor
+        else:
+            images = torch.cat((images, image_tensor), dim=0)
+    labels = torch.tensor(labels)
+    model = alexnet(pretrained=True)
+    model.eval()
+    model.zero_grad()
+    yield TestBaseConfig(model=model, inputs=images, target=labels)
+
+
+@pytest.fixture()
+def classification_alexnet_model_real_images_config():
+    from io import BytesIO
+
+    import requests
+    import torch
+    import torchvision.transforms as transforms
+    from PIL import Image
+    from torchvision.models import alexnet
+
+    image_urls = [
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01440764_tench.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01537544_indigo_bunting.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01641577_bullfrog.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01693334_green_lizard.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01819313_sulphur-crested_cockatoo.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01883070_wombat.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n01990800_isopod.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n02091467_Norwegian_elkhound.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n02099429_curly-coated_retriever.JPEG?raw=true",
+        "https://github.com/EliSchwartz/imagenet-sample-images/blob/master/n02113624_toy_poodle.JPEG?raw=true",
+    ]
+    labels = [0, 14, 30, 46, 89, 106, 126, 174, 206, 265]
+
+    images = []
+    for url in image_urls:
+        response = requests.get(url)
+        image = Image.open(BytesIO(response.content))
+        transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),  # Resize the image if needed
+                transforms.ToTensor(),  # Convert to a tensor (normalizes pixel values to [0, 1])
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
+                ),  # Normalize pixel values to ImageNet values
+            ]
+        )
+        image_tensor = transform(image)
+        image_tensor = image_tensor.unsqueeze(
+            0
+        )  # Shape: [1, 3, 256, 256] for a batch of 1 image
+        if images == []:
+            images = image_tensor
+        else:
+            images = torch.cat((images, image_tensor), dim=0)
+    labels = torch.tensor(labels)
+    model = alexnet(pretrained=True)
+    model.eval()
+    model.zero_grad()
+    yield TestBaseConfig(model=model, inputs=images, target=labels)
 
 
 @pytest.fixture()

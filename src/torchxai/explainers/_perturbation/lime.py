@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import itertools
 import typing
 import warnings
 from typing import Any, Callable, Optional, Tuple, Union
@@ -29,8 +30,8 @@ from torch.nn import Module
 from torchxai.explainers._perturbation.lime_base import MultiTargetLimeBase
 from torchxai.explainers._utils import (
     _expand_feature_mask_to_target,
-    _generate_mask_weights,
     _run_forward_multi_target,
+    _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
 
@@ -179,6 +180,7 @@ class MultiTargetLime(MultiTargetLimeBase):
                             curr_target[0], tuple
                         ):
                             curr_target = [[item] for item in curr_target[0]]
+
                         multi_target_coefs = super().attribute.__wrapped__(
                             self,
                             inputs=curr_inps if is_inputs_tuple else curr_inps[0],
@@ -369,6 +371,7 @@ class LimeExplainer(Explainer):
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
+
         # Compute the attributions using LIME
         attributions = self._explanation_fn.attribute(
             inputs=inputs,
@@ -380,17 +383,14 @@ class LimeExplainer(Explainer):
             perturbations_per_eval=self._internal_batch_size,
             show_progress=False,
         )
-
-        # Optionally weight attributions by the feature mask
         if self._weight_attributions and feature_mask is not None:
-            feature_mask_weights = tuple(
-                _generate_mask_weights(x) for x in feature_mask
-            )
-            attributions = tuple(
-                attribution * feature_mask_weight
-                for attribution, feature_mask_weight in zip(
-                    attributions, feature_mask_weights
-                )
-            )
-
+            if self._is_multi_target:
+                attributions = [
+                    _weight_attributions(attribution, feature_mask)
+                    for attribution, feature_mask in zip(
+                        attributions, itertools.cycle(feature_mask)
+                    )
+                ]
+            else:
+                attributions = _weight_attributions(attributions, feature_mask)
         return attributions

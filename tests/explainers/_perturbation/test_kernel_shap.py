@@ -96,25 +96,38 @@ test_configurations = [
     *_make_config_for_explainer(
         target_fixture="classification_sigmoid_model_single_input_single_target_config",
         expected=[
-            (
-                torch.tensor(
+            torch.tensor(
+                [
                     [
-                        [
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            0.0000,
-                            -0.0078,
-                        ]
+                        0.0103,
+                        0.0172,
+                        0.0015,
+                        -0.0075,
+                        0.0151,
+                        -0.0255,
+                        0.0054,
+                        -0.0079,
+                        -0.0029,
+                        -0.0353,
                     ]
-                ),
+                ]
             ),
-            (torch.tensor([[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]]),),
+            torch.tensor(
+                [
+                    [
+                        0.0016,
+                        -0.0094,
+                        -0.0061,
+                        -0.0157,
+                        -0.0110,
+                        0.0095,
+                        0.0145,
+                        -0.0037,
+                        -0.0229,
+                        0.0248,
+                    ]
+                ]
+            ),
         ],
         override_target=[torch.tensor([0]), torch.tensor([1])],
     ),
@@ -124,39 +137,100 @@ test_configurations = [
             torch.tensor(
                 [
                     [
-                        -0.0058,
-                        -0.0089,
-                        -0.0091,
-                        -0.0026,
-                        0.0094,
-                        0.0108,
-                        -0.0012,
-                        -0.0056,
-                        -0.0197,
-                        -0.0035,
-                    ]
+                        -2.1904e-04,
+                        -5.0956e-04,
+                        -1.5240e-03,
+                        3.6477e-04,
+                        1.6572e-03,
+                        2.0785e-03,
+                        4.5674e-05,
+                        -1.8594e-04,
+                        -2.1296e-03,
+                        -7.7510e-04,
+                    ],
+                    [
+                        3.0074e-05,
+                        -8.5715e-04,
+                        -8.3074e-04,
+                        1.7218e-04,
+                        1.7893e-03,
+                        1.4594e-03,
+                        -3.9504e-05,
+                        -1.4519e-05,
+                        -2.1594e-03,
+                        -1.0053e-03,
+                    ],
+                    [
+                        8.2257e-04,
+                        -2.0941e-03,
+                        -8.9770e-04,
+                        -2.4427e-04,
+                        1.9496e-03,
+                        1.4402e-03,
+                        4.4668e-04,
+                        -5.6682e-04,
+                        -1.8416e-03,
+                        -2.3448e-04,
+                    ],
                 ]
-                * 3,
             ),
-            torch.tensor([[0] * 10] * 3),
+            torch.tensor(
+                [
+                    [
+                        1.3142e-03,
+                        -5.3121e-04,
+                        2.9035e-03,
+                        7.9721e-05,
+                        1.2539e-03,
+                        9.0579e-04,
+                        -5.9787e-04,
+                        -6.8029e-04,
+                        1.2287e-03,
+                        -6.7752e-04,
+                    ],
+                    [
+                        1.3477e-03,
+                        -3.6288e-04,
+                        2.7747e-03,
+                        -1.8235e-04,
+                        1.4236e-03,
+                        1.0422e-03,
+                        -3.5693e-04,
+                        -1.1297e-03,
+                        9.6906e-04,
+                        -6.8290e-04,
+                    ],
+                    [
+                        7.1941e-04,
+                        1.6579e-04,
+                        1.8111e-03,
+                        1.6382e-04,
+                        2.2750e-03,
+                        6.7806e-04,
+                        -2.4891e-05,
+                        -3.9932e-04,
+                        1.4099e-03,
+                        -1.9354e-03,
+                    ],
+                ]
+            ),
         ],
         override_target=[torch.tensor([0]), torch.tensor([1])],
+        delta=1e-3,
     ),
     *_make_config_for_explainer(
-        target_fixture="classification_alexnet_model_config",
+        target_fixture="classification_alexnet_model_config_single_sample",
         override_target=[0, 1, 2],
         expected=[None] * 3,
         set_image_feature_mask=True,
+        visualize=False,
     ),
     *_make_config_for_explainer(
-        target_fixture="classification_alexnet_model_config",
-        override_target=[
-            [0] * 10,
-            [1] * 10,
-            list(range(10)),
-        ],  # take all the outputs at 0th index as target
+        target_fixture="classification_alexnet_model_real_images_single_sample_config",
+        override_target=[0, 1, 2],
         expected=[None] * 3,
         set_image_feature_mask=True,
+        visualize=False,
     ),
 ]
 

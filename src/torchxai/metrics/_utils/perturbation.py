@@ -67,11 +67,14 @@ def default_random_perturb_func(noise_scale: float = 0.02):
 
 
 def _generate_random_perturbation_masks(
-    total_perturbations_per_feature_group: int,
+    n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
     perturbation_probability: float = 0.1,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
+    """
+    Generate random perturbation masks for a given feature mask.
+    """
     if not isinstance(feature_mask, tuple):
         feature_mask = (feature_mask,)
 
@@ -84,27 +87,125 @@ def _generate_random_perturbation_masks(
         for (
             feature_mask_per_sample
         ) in feature_mask_per_type:  # unpack the samples in a batch
+            # feature_mask_per_sample could be a tensor of shape (channel, height, width) or (seq_length, feature_dim)
+            # find the total number of unique feature groups in the sample
             features_in_sample = torch.unique(feature_mask_per_sample)
+
+            # generate an empty mask for this sample, this could be a tensor of shape same as
+            # (n_perturbations_per_sample, channel, height, width) or (n_perturbations_per_sample, seq_length, feature_dim)
+            # where sample shape is (channel, height, width) or (seq_length, feature_dim)
+            # since we wish to generate n_perturbations_per_sample random perturabtions for each sample
             perturbation_masks_per_sample = torch.zeros(
                 (
-                    total_perturbations_per_feature_group,
+                    n_perturbations_per_sample,
                     *feature_mask_per_sample.shape,
                 ),
                 dtype=torch.bool,
                 device=device,
             )
-            for i in range(total_perturbations_per_feature_group):
+            for i in range(n_perturbations_per_sample):
+                # here we generate a single random perturbation mask for the sample. This would be of shape
+                # (channel, height, width) or (seq_length, feature_dim)
+                # we randomly drop features with probability perturbation_probability
+                # if total feature gorups are features_in_sample this will essentially return a mask
+                # with features_in_sample * perturbation_probability features dropped
                 feature_drop_mask = (
                     torch.rand(len(features_in_sample), device=device)
                     < perturbation_probability
                 )
+
+                # here we take the indices of the feature groups that are dropped
+                # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
+                # the features_in_sample will be [0, 1, 2] and if the feature_drop_mask is [True, False, True]
+                # the dropped_feature_indices will be [0, 2], meaning we need to drop 0 and 2 feature groups
                 dropped_feature_indices = features_in_sample[feature_drop_mask]
+
+                # here we set the perturbation mask to True where the feature group is dropped
                 for dropped_feature_idx in dropped_feature_indices:
                     perturbation_masks_per_sample[i][
                         feature_mask_per_sample == dropped_feature_idx
                     ] = True
+
+            # now we have n_perturbations_per_sample random perturbation masks for this sample so we append to list
+            # for batch conversion later
             perturbations_per_input_type.append(perturbation_masks_per_sample)
-        perturbation_masks += (torch.cat(perturbations_per_input_type, dim=0),)
+        # now we have n_perturbations_per_sample random perturbation masks for all samples in the batch
+        # we concatenate them to form a single tensor of shape (n_perturbations_per_sample * batch_size, ...)
+        perturbation_masks += (torch.stack(perturbations_per_input_type, dim=0),)
+
+    # output is a tuple of tensors each of shape
+    # ((batch_size, n_perturbations_per_sample, *input_shape), ...)
+    return perturbation_masks
+
+
+def _generate_random_perturbation_masks_with_fixed_n(
+    n_perturbations_per_sample: int,
+    feature_mask: Tuple[torch.Tensor, ...],
+    n_features_perturbed: int = 1,
+    device: torch.device = torch.device("cpu"),
+) -> Tuple[torch.Tensor, ...]:
+    """
+    Generate random perturbation masks for a given feature mask.
+    """
+    if not isinstance(feature_mask, tuple):
+        feature_mask = (feature_mask,)
+
+    # convert to device
+    feature_mask = convert_tensor(feature_mask, device=device)
+
+    perturbation_masks = tuple()
+    for feature_mask_per_type in feature_mask:  # unpack the tuples of feature types
+        perturbations_per_input_type = []
+        for (
+            feature_mask_per_sample
+        ) in feature_mask_per_type:  # unpack the samples in a batch
+            # feature_mask_per_sample could be a tensor of shape (channel, height, width) or (seq_length, feature_dim)
+            # find the total number of unique feature groups in the sample
+            features_in_sample = torch.unique(feature_mask_per_sample)
+
+            # generate an empty mask for this sample, this could be a tensor of shape same as
+            # (n_perturbations_per_sample, channel, height, width) or (n_perturbations_per_sample, seq_length, feature_dim)
+            # where sample shape is (channel, height, width) or (seq_length, feature_dim)
+            # since we wish to generate n_perturbations_per_sample random perturabtions for each sample
+            perturbation_masks_per_sample = torch.zeros(
+                (
+                    n_perturbations_per_sample,
+                    *feature_mask_per_sample.shape,
+                ),
+                dtype=torch.bool,
+                device=device,
+            )
+            for i in range(n_perturbations_per_sample):
+                # here we generate a single random perturbation mask for the sample. This would be of shape
+                # (channel, height, width) or (seq_length, feature_dim)
+                # we randomly drop features with probability perturbation_probability
+                # if total feature gorups are features_in_sample this will essentially return a mask
+                # with features_in_sample * perturbation_probability features dropped
+                feature_drop_mask = torch.randperm(
+                    len(features_in_sample), device=device
+                )[:n_features_perturbed]
+
+                # here we take the indices of the feature groups that are dropped
+                # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
+                # the features_in_sample will be [0, 1, 2] and if the feature_drop_mask is [True, False, True]
+                # the dropped_feature_indices will be [0, 2], meaning we need to drop 0 and 2 feature groups
+                dropped_feature_indices = features_in_sample[feature_drop_mask]
+
+                # here we set the perturbation mask to True where the feature group is dropped
+                for dropped_feature_idx in dropped_feature_indices:
+                    perturbation_masks_per_sample[i][
+                        feature_mask_per_sample == dropped_feature_idx
+                    ] = True
+
+            # now we have n_perturbations_per_sample random perturbation masks for this sample so we append to list
+            # for batch conversion later
+            perturbations_per_input_type.append(perturbation_masks_per_sample)
+        # now we have n_perturbations_per_sample random perturbation masks for all samples in the batch
+        # we concatenate them to form a single tensor of shape (n_perturbations_per_sample * batch_size, ...)
+        perturbation_masks += (torch.stack(perturbations_per_input_type, dim=0),)
+
+    # output is a tuple of tensors each of shape
+    # ((batch_size, n_perturbations_per_sample, *input_shape), ...)
     return perturbation_masks
 
 
@@ -131,7 +232,7 @@ def perturb_fn_drop_batched_single_output(
         total_samples = feature_mask[0].shape[0]
         current_batch_size = inputs[0].shape[0]
         perturbation_masks = _generate_random_perturbation_masks(
-            total_perturbations_per_feature_group=current_batch_size // total_samples,
+            n_perturbations_per_sample=current_batch_size // total_samples,
             feature_mask=feature_mask,
             perturbation_probability=perturbation_probability,
             device=inputs[0].device,

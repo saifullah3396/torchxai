@@ -13,9 +13,6 @@ from torchxai.explainers._perturbation.feature_ablation import FeatureAblationEx
 from torchxai.explainers._perturbation.kernel_shap import KernelShapExplainer
 from torchxai.explainers._perturbation.lime import LimeExplainer
 from torchxai.explainers._perturbation.occlusion import OcclusionExplainer
-from torchxai.explainers._perturbation.shapley_value_sampling import (
-    ShapleyValueSamplingExplainer,
-)
 from torchxai.explainers.explainer import Explainer
 from torchxai.explainers.random import RandomExplainer
 
@@ -32,7 +29,6 @@ AVAILABLE_EXPLAINERS = {
     "occlusion": OcclusionExplainer,
     "lime": LimeExplainer,
     "kernel_shap": KernelShapExplainer,
-    "shapley_values_sampling": ShapleyValueSamplingExplainer,
 }
 
 

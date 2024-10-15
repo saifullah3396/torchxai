@@ -87,6 +87,10 @@ class TestRuntimeConfig:
         if self.device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
+        self.test_name = (
+            f"fixture={self.target_fixture}_explainer={self.explainer}_{self.test_name}"
+        )
+
     def __repr__(self):
         kws = [
             (

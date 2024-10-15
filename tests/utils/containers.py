@@ -63,7 +63,6 @@ class TestBaseConfig:
             self.feature_mask = convert_tensor(self.feature_mask, device=device)
         if self.train_baselines is not None:
             self.train_baselines = convert_tensor(self.train_baselines, device=device)
-        self.model = self.model.eval()
         self.model.to(device)
 
 

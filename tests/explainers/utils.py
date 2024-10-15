@@ -134,7 +134,8 @@ def run_single_test(base_config, runtime_config, is_multi_target=False):
     if is_multi_target:
         runtime_config.explainer_kwargs["is_multi_target"] = True
 
-    base_config.model.to(runtime_config.device)
+    base_config.model.eval()
+    base_config.put_to_device(runtime_config.device)
     explainer = ExplainerFactory.create(
         runtime_config.explainer, base_config.model, **runtime_config.explainer_kwargs
     )
@@ -150,7 +151,7 @@ def run_single_test(base_config, runtime_config, is_multi_target=False):
                 target=base_config.target,
                 multiply_by_inputs=base_config.multiply_by_inputs,
                 use_captum_explainer=runtime_config.use_captum_explainer,
-                device=base_config.device,
+                device=runtime_config.device,
                 **runtime_config.explainer_kwargs,
             )
         return

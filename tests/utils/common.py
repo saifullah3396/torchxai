@@ -8,7 +8,6 @@ import torch
 import tqdm
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.attr import Attribution
-from ignite.utils import convert_tensor
 from torch import Tensor, nn
 
 from tests.helpers.basic_models import MNISTCNNModel, MNISTLinearModel
@@ -196,38 +195,10 @@ def compute_explanations(
     target: Optional[TargetType] = None,
     multiply_by_inputs: bool = False,
     use_captum_explainer: bool = False,
-    device="cpu",
     **explainer_kwargs,
 ) -> Tensor:
     if use_captum_explainer:
         explainer = explainer._explanation_fn
-
-    inputs = convert_tensor(inputs, device=device)
-    if target is not None:
-        target = (
-            convert_tensor(target, device=device)
-            if isinstance(target, torch.Tensor)
-            or (isinstance(target, list) and isinstance(target[0], torch.Tensor))
-            else target
-        )
-    if additional_forward_args is not None:
-        if isinstance(additional_forward_args, tuple):
-            additional_forward_args = tuple(
-                arg.to(device) if isinstance(arg, torch.Tensor) else arg
-                for arg in additional_forward_args
-            )
-        else:
-            additional_forward_args = (
-                additional_forward_args.to(device)
-                if isinstance(additional_forward_args, torch.Tensor)
-                else additional_forward_args
-            )
-    if baselines is not None:
-        baselines = convert_tensor(baselines, device=device)
-    if feature_mask is not None:
-        feature_mask = convert_tensor(feature_mask, device=device)
-    if train_baselines is not None:
-        train_baselines = convert_tensor(train_baselines, device=device)
 
     if isinstance(explainer, Explainer):
         # our own explainer does not take explainer configuration specific kwargs at inference

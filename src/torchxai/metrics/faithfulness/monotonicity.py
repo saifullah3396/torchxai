@@ -15,7 +15,6 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
@@ -28,7 +27,6 @@ from torchxai.metrics._utils.common import (
 )
 
 
-@log_usage()
 def eval_monotonicity_single_sample_tupled_computation(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -162,7 +160,6 @@ def eval_monotonicity_single_sample_tupled_computation(
     return monotonicity
 
 
-@log_usage()
 def monotonicity_tupled_computation(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -212,7 +209,6 @@ def monotonicity_tupled_computation(
     return monotonicity_batch
 
 
-@log_usage()
 def eval_monotonicity_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -339,7 +335,6 @@ def eval_monotonicity_single_sample(
     return monotonicity_score, torch.from_numpy(baseline_perturbed_fwds)
 
 
-@log_usage()
 def monotonicity(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -349,6 +344,7 @@ def monotonicity(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    is_multi_target: bool = False,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor]:
     """
@@ -514,6 +510,11 @@ def monotonicity(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
         show_progress (bool, optional): Displays the progress of computation.
     Returns:
         Returns:
@@ -535,6 +536,46 @@ def monotonicity(
         >>> # Computes the monotonicity scores for saliency maps
         >>> monotonicity, asc_baseline_perturb_fwds = monotonicity(net, input, attribution, baselines)
     """
+
+    if is_multi_target:
+        # monotonicity cannot be batched across targets, this is because it requires the removal
+        # of attribution features for each target in an desencding order of their importance. Since for each target
+        # the order of importance of features can be different, we cannot batch the computation across targets.
+        attributions_list = attributions
+        targets_list = target
+        isinstance(
+            attributions_list, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        assert isinstance(targets_list, list), "targets must be a list of targets"
+        assert all(
+            isinstance(x, int) for x in targets_list
+        ), "targets must be a list of ints"
+        assert len(targets_list) == len(attributions_list), (
+            """The number of targets in the targets_list and
+            attributions_list must match. Found number of targets in the targets_list is: {} and in the
+            attributions_list: {}"""
+        ).format(len(targets_list), len(attributions_list))
+
+        monotonicity_batch_list = []
+        asc_baseline_perturbed_fwds_batch_list = []
+        for attributions, target in zip(attributions_list, targets_list):
+            (monotonicity_batch, asc_baseline_perturbed_fwds_batch) = monotonicity(
+                forward_func=forward_func,
+                inputs=inputs,
+                attributions=attributions,
+                baselines=baselines,
+                feature_mask=feature_mask,
+                additional_forward_args=additional_forward_args,
+                target=target,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                show_progress=show_progress,
+            )
+            monotonicity_batch_list.append(monotonicity_batch)
+            asc_baseline_perturbed_fwds_batch_list.append(
+                asc_baseline_perturbed_fwds_batch
+            )
+        return monotonicity_batch_list, asc_baseline_perturbed_fwds_batch_list
+
     with torch.no_grad():
         # perform argument formattings
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -559,39 +600,47 @@ def monotonicity(
         monotonicity_batch = []
         asc_baseline_perturbed_fwds_batch = []
         for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-            monotonicity, asc_baseline_perturbed_fwds = eval_monotonicity_single_sample(
-                forward_func=forward_func,
-                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
-                attributions=tuple(
-                    attr[sample_idx].unsqueeze(0) for attr in attributions
-                ),
-                feature_mask=(
-                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                    if feature_mask is not None
-                    else None
-                ),
-                baselines=(
-                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
-                    if baselines is not None
-                    else None
-                ),
-                additional_forward_args=(
-                    tuple(
-                        (
-                            arg[sample_idx].unsqueeze(0)
-                            if isinstance(arg, torch.Tensor)
-                            else arg
+            monotonicity_score, asc_baseline_perturbed_fwds = (
+                eval_monotonicity_single_sample(
+                    forward_func=forward_func,
+                    inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
+                    attributions=tuple(
+                        attr[sample_idx].unsqueeze(0) for attr in attributions
+                    ),
+                    feature_mask=(
+                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                        if feature_mask is not None
+                        else None
+                    ),
+                    baselines=(
+                        tuple(
+                            baseline[sample_idx].unsqueeze(0) for baseline in baselines
                         )
-                        for arg in additional_forward_args
-                    )
-                    if additional_forward_args is not None
-                    else None
-                ),
-                target=target[sample_idx] if target is not None else None,
-                max_features_processed_per_batch=max_features_processed_per_batch,
-                show_progress=show_progress,
+                        if baselines is not None
+                        else None
+                    ),
+                    additional_forward_args=(
+                        tuple(
+                            (
+                                arg[sample_idx].unsqueeze(0)
+                                if isinstance(arg, torch.Tensor)
+                                else arg
+                            )
+                            for arg in additional_forward_args
+                        )
+                        if additional_forward_args is not None
+                        else None
+                    ),
+                    target=(
+                        target[sample_idx]
+                        if isinstance(target, (list, torch.Tensor))
+                        else target
+                    ),
+                    max_features_processed_per_batch=max_features_processed_per_batch,
+                    show_progress=show_progress,
+                )
             )
-            monotonicity_batch.append(monotonicity)
+            monotonicity_batch.append(monotonicity_score)
             asc_baseline_perturbed_fwds_batch.append(asc_baseline_perturbed_fwds)
         monotonicity_batch = torch.tensor(monotonicity_batch)
         return monotonicity_batch, asc_baseline_perturbed_fwds_batch

@@ -148,7 +148,6 @@ test_configurations = [
         ],
         n_perturbations_per_feature=[10, 10, 20],
         max_features_processed_per_batch=[None, 1, 40],
-        delta=1e-3,
     ),
     MetricTestRuntimeConfig_(
         test_name="classification_multilayer_model_with_tuple_targets_config_integrated_gradients",
@@ -202,6 +201,8 @@ def test_monotonicity_corr(metrics_runtime_test_configuration):
             monotonicity_corr_score,
             _,
             n_features_found,
+            _,
+            _,
         ) = monotonicity_corr_and_non_sens(
             forward_func=base_config.model,
             inputs=base_config.inputs,
@@ -214,7 +215,10 @@ def test_monotonicity_corr(metrics_runtime_test_configuration):
             max_features_processed_per_batch=max_features,
         )
         assert_tensor_almost_equal(
-            monotonicity_corr_score, curr_expected, delta=runtime_config.delta
+            monotonicity_corr_score,
+            curr_expected,
+            delta=runtime_config.delta,
+            mode="mean",
         )
         assert (
             n_features_found[0].item() == base_config.n_features

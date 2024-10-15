@@ -38,6 +38,11 @@ class Explainer(ABC):
         self._model = model
         self._explanation_fn = self._init_explanation_fn()
 
+    @model.setter
+    def is_multi_target(self, is_multi_target: bool) -> None:
+        self._is_multi_target = is_multi_target
+        self._explanation_fn = self._init_explanation_fn()
+
     @abstractmethod
     def _init_explanation_fn(self) -> Attribution:
         """

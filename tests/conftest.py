@@ -155,7 +155,7 @@ def classification_softmax_model_multi_tuple_input_single_target_config():
 
 
 @pytest.fixture()
-def classification_alexnet_model_config_single_sample():
+def classification_alexnet_model_single_sample_config():
     from torchvision.models import alexnet
 
     model = alexnet(pretrained=True)

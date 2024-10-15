@@ -53,6 +53,9 @@ def _construct_default_feature_mask(
     Returns:
         Tuple[torch.Tensor, ...]: The feature masks corresponding to each feature in the input tensor.
     """
+    if isinstance(attributions, torch.Tensor):
+        attributions = (attributions,)
+
     last_n_features = 0
     feature_mask = []
     bsz = attributions[0].size(0)
@@ -112,7 +115,9 @@ def _reduce_tensor_with_indices(
 ) -> torch.Tensor:
     source = source.flatten()
     reduced_attributions = torch.zeros_like(source)
-    assert reduced_attributions.shape[0] == indices.shape[0]
+    assert (
+        reduced_attributions.shape[0] == indices.shape[0]
+    ), f"Tensor shape {reduced_attributions.shape} does not match indices shape {indices.shape}"
     reduced_attributions.index_add_(
         0,
         indices,

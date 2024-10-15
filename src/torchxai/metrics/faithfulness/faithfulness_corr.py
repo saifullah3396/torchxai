@@ -1,4 +1,4 @@
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, List, Tuple, Union, cast
 
 import scipy
 import torch
@@ -12,7 +12,6 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
@@ -25,9 +24,11 @@ from torchxai.metrics._utils.perturbation import (
     _generate_random_perturbation_masks,
     default_random_perturb_func,
 )
+from torchxai.metrics.faithfulness.multi_target.faithfulness_corr import (
+    _multi_target_faithfulness_corr,
+)
 
 
-@log_usage()
 def faithfulness_corr(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -42,7 +43,12 @@ def faithfulness_corr(
     perturbation_probability: float = 0.1,
     show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,
-) -> Tuple[Tensor, Tensor, Tensor]:
+    is_multi_target: bool = False,
+) -> Tuple[
+    Union[Tensor, List[Tensor]],
+    Union[Tensor, List[Tensor]],
+    Union[Tensor, List[Tensor]],
+]:
     """
     Implementation of faithfulness correlation by Bhatt et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -118,13 +124,7 @@ def faithfulness_corr(
                 Default: None
 
         attributions (Tensor or tuple[Tensor, ...]):
-                Attribution scores computed based on an attribution algorithm.
-                This attribution scores can be computed using the implementations
-                provided in the `captum.attr` package. Some of those attribution
-                approaches are so called global methods, which means that
-                they factor in model inputs' multiplier, as described in:
-                https://arxiv.org/abs/1711.06104
-                Many global attribution algorithms can be used in local modes,
+                Attribution scores comTensor, Tensorion algorithms can be used in local modes,
                 meaning that the inputs multiplier isn't factored in the
                 attribution scores.
                 This can be done duing the definition of the attribution algorithm
@@ -274,6 +274,11 @@ def faithfulness_corr(
             multiple runs are consistent for same inputs repeated in a batch. If set to True, the same perturbation
             mask is used for all examples in the batch. This is useful for debugging and testing purposes.
             Default: False
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
         Returns:
             A tuple of three tensors:
             Tensor: - The faithfulness correlation scores of the batch. The first dimension is equal to the
@@ -298,6 +303,22 @@ def faithfulness_corr(
         >>> # outputs
         >>> faithfulness_corr, attribution_sums, perturbation_fwd_diffs = aopc(net, input, attribution)
     """
+    if is_multi_target:
+        return _multi_target_faithfulness_corr(
+            forward_func=forward_func,
+            inputs=inputs,
+            attributions_list=attributions,
+            baselines=baselines,
+            feature_mask=feature_mask,
+            additional_forward_args=additional_forward_args,
+            targets_list=target,
+            perturb_func=perturb_func,
+            n_perturb_samples=n_perturb_samples,
+            max_examples_per_batch=max_examples_per_batch,
+            perturbation_probability=perturbation_probability,
+            show_progress=show_progress,
+            set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
+        )
 
     def _generate_perturbations(
         current_n_perturb_samples: int,
@@ -340,7 +361,7 @@ def faithfulness_corr(
         pert_start = current_n_step - current_n_perturb_samples
         pert_end = current_n_step
         perturbation_masks = tuple(
-            torch.cat(tuple(y[pert_start:pert_end] for y in x.chunk(bsz)))
+            torch.cat(tuple(y[pert_start:pert_end] for y in x))
             for x in global_perturbation_masks
         )
 
@@ -487,9 +508,13 @@ def faithfulness_corr(
         else:
             feature_mask = _construct_default_feature_mask(attributions)
 
+        # here we generate perturbation masks for the complete run in one call
+        # global_perturbation_masks is a tuple of tensors, where each tensor is a perturbation mask
+        # for a specific tuple input (for single inputs it is a single tensor) of shape
+        # (batch_size, n_perturbations_per_sample, *input_shape)
         global_perturbation_masks = _generate_random_perturbation_masks(
-            n_perturb_samples,
-            feature_mask,
+            n_perturbations_per_sample=n_perturb_samples,
+            feature_mask=feature_mask,
             perturbation_probability=perturbation_probability,
             device=attributions[0][0].device,
         )
@@ -498,12 +523,11 @@ def faithfulness_corr(
         # this is only a flag for debugging/tests where we can check if multiple runs are consistent for same inputs repeated
         # in a batch
         if set_same_perturbation_mask_for_batch:
-            global_perturbation_masks = tuple(
-                x[:n_perturb_samples].repeat(
-                    x.shape[0] // n_perturb_samples, *([1] * len(x.shape[1:]))
-                )
-                for x in global_perturbation_masks
-            )
+            for x in global_perturbation_masks:
+                for batch_idx in range(len(x)):
+                    if batch_idx == 0:
+                        continue
+                    x[batch_idx] = x[0]
 
         # if not normalize, directly return aggrgated MSE ((a-b)^2,)
         # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)

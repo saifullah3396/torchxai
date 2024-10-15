@@ -23,7 +23,8 @@ from torchxai.metrics.faithfulness.faithfulness_estimate import (
 )  # noqa
 from torchxai.metrics.faithfulness.infidelity import infidelity  # noqa
 from torchxai.metrics.faithfulness.monotonicity import monotonicity  # noqa
+from torchxai.metrics.faithfulness.sensitivity_n import sensitivity_n  # noqa
 from torchxai.metrics.robustness import *  # noqa
 
 # robustness
-from torchxai.metrics.robustness.sensitivity_max import sensitivity_max  # noqa
+from torchxai.metrics.robustness.sensitivity import sensitivity_max_and_avg  # noqa

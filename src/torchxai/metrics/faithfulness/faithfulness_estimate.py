@@ -16,7 +16,6 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.log import log_usage
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
@@ -29,7 +28,6 @@ from torchxai.metrics._utils.common import (
 )
 
 
-@log_usage()
 def eval_faithfulness_estimate_single_sample_tupled_computation(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -162,7 +160,6 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
     return faithfulness_estimate
 
 
-@log_usage()
 def faithfulness_estimate_tupled_computation(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -215,7 +212,6 @@ def faithfulness_estimate_tupled_computation(
     return faithfulness_estimate_batch
 
 
-@log_usage()
 def eval_faithfulness_estimate_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -352,7 +348,6 @@ def eval_faithfulness_estimate_single_sample(
     )
 
 
-@log_usage()
 def faithfulness_estimate(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -362,6 +357,7 @@ def faithfulness_estimate(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    is_multi_target: bool = False,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
@@ -513,6 +509,11 @@ def faithfulness_estimate(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
         show_progress (bool, optional): Indicates whether to print the progress of the computation.
     Returns:
         Returns:
@@ -537,6 +538,56 @@ def faithfulness_estimate(
         >>> # Computes the faithfulness estimate scores for saliency maps
         >>> faithfulness_estimate, attr_sums, p_fwds = faithfulness_estimate(net, input, attribution, baselines)
     """
+    if is_multi_target:
+        # faithfulness_estimate computation cannot be batched across targets, this is because it requires the removal
+        # of attribution features for each target in an desencding order of their importance. Since for each target
+        # the order of importance of features can be different, we cannot batch the computation across targets.
+        attributions_list = attributions
+        targets_list = target
+        isinstance(
+            attributions_list, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        assert isinstance(targets_list, list), "targets must be a list of targets"
+        assert all(
+            isinstance(x, int) for x in targets_list
+        ), "targets must be a list of ints"
+        assert len(targets_list) == len(attributions_list), (
+            """The number of targets in the targets_list and
+            attributions_list must match. Found number of targets in the targets_list is: {} and in the
+            attributions_list: {}"""
+        ).format(len(targets_list), len(attributions_list))
+
+        faithfulness_estimate_batch_list = []
+        attributions_sum_perturbed_batch_list = []
+        inputs_perturbed_fwd_diffs_batch_list = []
+        for attributions, target in zip(attributions_list, targets_list):
+            (
+                faithfulness_estimate_batch,
+                attributions_sum_perturbed_batch,
+                inputs_perturbed_fwd_diffs_batch,
+            ) = faithfulness_estimate(
+                forward_func=forward_func,
+                inputs=inputs,
+                attributions=attributions,
+                baselines=baselines,
+                feature_mask=feature_mask,
+                additional_forward_args=additional_forward_args,
+                target=target,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                show_progress=show_progress,
+            )
+            faithfulness_estimate_batch_list.append(faithfulness_estimate_batch)
+            attributions_sum_perturbed_batch_list.append(
+                attributions_sum_perturbed_batch
+            )
+            inputs_perturbed_fwd_diffs_batch_list.append(
+                inputs_perturbed_fwd_diffs_batch
+            )
+        return (
+            faithfulness_estimate_batch_list,
+            attributions_sum_perturbed_batch_list,
+            inputs_perturbed_fwd_diffs_batch_list,
+        )
 
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -561,7 +612,7 @@ def faithfulness_estimate(
     inputs_perturbed_fwd_diffs_batch = []
     for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
         (
-            faithfulness_estimate,
+            faithfulness_estimate_score,
             attributions_sum_perturbed,
             inputs_perturbed_fwd_diffs,
         ) = eval_faithfulness_estimate_single_sample(
@@ -598,7 +649,7 @@ def faithfulness_estimate(
             max_features_processed_per_batch=max_features_processed_per_batch,
             show_progress=show_progress,
         )
-        faithfulness_estimate_batch.append(faithfulness_estimate)
+        faithfulness_estimate_batch.append(faithfulness_estimate_score)
         attributions_sum_perturbed_batch.append(attributions_sum_perturbed)
         inputs_perturbed_fwd_diffs_batch.append(inputs_perturbed_fwd_diffs)
     faithfulness_estimate_batch = torch.tensor(faithfulness_estimate_batch)

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, cast
+from typing import Any, Callable, List, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -12,6 +12,10 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 
+from torchxai.metrics.axiomatic.multi_target.completeness import (
+    _multi_target_completeness,
+)
+
 
 def completeness(
     forward_func: Callable,
@@ -20,7 +24,8 @@ def completeness(
     baselines: BaselineType,
     additional_forward_args: Any = None,
     target: TargetType = None,
-) -> Tensor:
+    is_multi_target: bool = False,
+) -> Union[Tensor, List[Tensor]]:
     """
     Implementation of Completeness test by Sundararajan et al., 2017, also referred
     to as Summation to Delta by Shrikumar et al., 2017 and Conservation by
@@ -152,6 +157,12 @@ def completeness(
                   target for the corresponding example.
 
                 Default: None
+
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar completeness scores per
                 input example. The first dimension is equal to the
@@ -172,6 +183,15 @@ def completeness(
         >>> # Computes completeness score for saliency maps
         >>> completeness = completeness(net, input, attribution, baselines)
     """
+    if is_multi_target:
+        return _multi_target_completeness(
+            forward_func=forward_func,
+            inputs=inputs,
+            attributions_list=attributions,
+            baselines=baselines,
+            additional_forward_args=additional_forward_args,
+            targets_list=target,
+        )
 
     with torch.no_grad():
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore

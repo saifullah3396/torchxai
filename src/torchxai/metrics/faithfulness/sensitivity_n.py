@@ -1,21 +1,32 @@
 #!/usr/bin/env python3
 
+import itertools
 from typing import Any, Callable
 
+import torch
+from captum._utils.common import _format_tensor_into_tuples
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 
+from torchxai.metrics._utils.common import (
+    _construct_default_feature_mask,
+    _validate_feature_mask,
+)
+from torchxai.metrics._utils.perturbation import (
+    _generate_random_perturbation_masks_with_fixed_n,
+)
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
 
 
-def infidelity(
+def sensitivity_n(
+    n: int,
     forward_func: Callable,
-    perturb_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
-    baselines: BaselineType = None,
+    baselines: BaselineType,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
     n_perturb_samples: int = 10,
@@ -24,9 +35,13 @@ def infidelity(
     is_multi_target: bool = False,
 ) -> Tensor:
     r"""
-    A wrapper around the Captum library's infidelity metric. The metric returns a list of infidelity
-    scores if is_multi_target is True using the `torchxai.metrics.faithfulness.multi_target._multi_target_infidelity`,
-    otherwise it returns a single infidelity score using the captum implementation `captum.metrics.infidelity`.
+    A wrapper around the Captum library's infidelity metric that computes senstivity_n.
+    The metric returns a list of senstivity_n scores if is_multi_target is True using the
+    `torchxai.metrics.faithfulness.multi_target._multi_target_infidelity`,
+    otherwise it returns a single sensitivity_n score using the captum implementation `captum.metrics.infidelity`.
+
+    Sensitivity-n takes the same implementation as infidelity but defines a fixed perturbation function
+    that perturbs n features for each sample at a time.
 
     Explanation infidelity represents the expected mean-squared error
     between the explanation multiplied by a meaningful input perturbation
@@ -53,63 +68,8 @@ def infidelity(
     attribution-based interpretability methods as well.
 
     Args:
-
         forward_func (Callable):
                 The forward function of the model or any modification of it.
-
-        perturb_func (Callable):
-                The perturbation function of model inputs. This function takes
-                model inputs and optionally baselines as input arguments and returns
-                either a tuple of perturbations and perturbed inputs or just
-                perturbed inputs. For example:
-
-                >>> def my_perturb_func(inputs):
-                >>>   <MY-LOGIC-HERE>
-                >>>   return perturbations, perturbed_inputs
-
-                If we want to only return perturbed inputs and compute
-                perturbations internally then we can wrap perturb_func with
-                `infidelity_perturb_func_decorator` decorator such as:
-
-                >>> from captum.metrics import infidelity_perturb_func_decorator
-
-                >>> @infidelity_perturb_func_decorator(<multipy_by_inputs flag>)
-                >>> def my_perturb_func(inputs):
-                >>>   <MY-LOGIC-HERE>
-                >>>   return perturbed_inputs
-
-                `infidelity_perturb_func_decorator` needs to be used with
-                `multipy_by_inputs` flag set to False in case infidelity
-                score is being computed for attribution maps that are local aka
-                that do not factor in inputs in the final attribution score.
-                Such attribution algorithms include Saliency, GradCam, Guided Backprop,
-                or Integrated Gradients and DeepLift attribution scores that are already
-                computed with `multipy_by_inputs=False` flag.
-
-                If there are more than one inputs passed to infidelity function those
-                will be passed to `perturb_func` as tuples in the same order as they
-                are passed to infidelity function.
-
-                If inputs
-                 - is a single tensor, the function needs to return a tuple
-                   of perturbations and perturbed input such as:
-                   perturb, perturbed_input and only perturbed_input in case
-                   `infidelity_perturb_func_decorator` is used.
-                 - is a tuple of tensors, corresponding perturbations and perturbed
-                   inputs must be computed and returned as tuples in the
-                   following format:
-
-                   (perturb1, perturb2, ... perturbN), (perturbed_input1,
-                   perturbed_input2, ... perturbed_inputN)
-
-                   Similar to previous case here as well we need to return only
-                   perturbed inputs in case `infidelity_perturb_func_decorator`
-                   decorates out `perturb_func`.
-
-                It is important to note that for performance reasons `perturb_func`
-                isn't called for each example individually but on a batch of
-                input examples that are repeated `max_examples_per_batch / batch_size`
-                times within the batch.
 
         inputs (Tensor or tuple[Tensor, ...]): Input for which
                 attributions are computed. If forward_func takes a single
@@ -124,7 +84,9 @@ def infidelity(
         baselines (scalar, Tensor, tuple of scalar, or Tensor, optional):
                 Baselines define reference values which sometimes represent ablated
                 values and are used to compare with the actual inputs to compute
-                importance scores in attribution algorithms. They can be represented
+                importance scores in attribution algorithms. For sensitivity-n baselines are required
+                to compute the perturbations. Baselines can be provided as:
+                They can be represented
                 as:
 
                 - a single tensor, if inputs is a single tensor, with
@@ -147,9 +109,9 @@ def infidelity(
                 - or a scalar, corresponding to a tensor in the
                   inputs' tuple. This scalar value is broadcasted
                   for corresponding input tensor.
-
-                Default: None
-
+        n (int): Number of features to perturb for each sample at a time. This n corresponds to the
+                sensitivity-n value. The perturbation function will perturb n features for each sample
+                n_perturb_samples times to compute the sensitivity-n for each sample.
         attributions (Tensor or tuple[Tensor, ...]):
                 Attribution scores computed based on an attribution algorithm.
                 This attribution scores can be computed using the implementations
@@ -192,6 +154,27 @@ def infidelity(
                 tensor as well. If inputs is provided as a tuple of tensors
                 then attributions will be tuples of tensors as well.
 
+        feature_mask (Tensor or tuple[Tensor, ...], optional):
+                feature_mask defines a mask for the input, grouping
+                features which should be perturbed together. feature_mask
+                should contain the same number of tensors as inputs.
+                Each tensor should
+                be the same size as the corresponding input or
+                broadcastable to match the input tensor. Each tensor
+                should contain integers in the range 0 to num_features
+                - 1, and indices corresponding to the same feature should
+                have the same value.
+                Note that features within each input tensor are perturbed
+                independently (not across tensors).
+                If the forward function returns a single scalar per batch,
+                we enforce that the first dimension of each mask must be 1,
+                since attributions are returned batch-wise rather than per
+                example, so the attributions must correspond to the
+                same features (indices) in each input example.
+                If None, then a feature mask is constructed which assigns
+                each scalar within a tensor as a separate feature, which
+                is perturbed independently.
+                Default: None
         additional_forward_args (Any, optional): If the forward function
                 requires additional arguments other than the inputs for
                 which attributions should not be computed, this argument
@@ -213,21 +196,21 @@ def infidelity(
                 For general 2D outputs, targets can be either:
 
                 - A single integer or a tensor containing a single
-                  integer, which is applied to all input examples
+                    integer, which is applied to all input examples
 
                 - A list of integers or a 1D tensor, with length matching
-                  the number of examples in inputs (dim 0). Each integer
-                  is applied as the target for the corresponding example.
+                    the number of examples in inputs (dim 0). Each integer
+                    is applied as the target for the corresponding example.
 
-                  For outputs with > 2 dimensions, targets can be either:
+                    For outputs with > 2 dimensions, targets can be either:
 
                 - A single tuple, which contains #output_dims - 1
-                  elements. This target index is applied to all examples.
+                    elements. This target index is applied to all examples.
 
                 - A list of tuples with length equal to the number of
-                  examples in inputs (dim 0), and each tuple containing
-                  #output_dims - 1 elements. Each tuple is applied as the
-                  target for the corresponding example.
+                    examples in inputs (dim 0), and each tuple containing
+                    #output_dims - 1 elements. Each tuple is applied as the
+                    target for the corresponding example.
 
                 Default: None
         n_perturb_samples (int, optional): The number of times input tensors
@@ -289,13 +272,70 @@ def infidelity(
         >>> def perturb_fn(inputs):
         >>>    noise = torch.tensor(np.random.normal(0, 0.003, inputs.shape)).float()
         >>>    return noise, inputs - noise
-        >>> # Computes infidelity score for saliency maps
-        >>> infid = infidelity(net, perturb_fn, input, attribution)
+        >>> # Computes sensitivity_n score for saliency maps
+        >>> infid = sensitivity_n(net, n=1, baselines=0, input, attribution)
     """
+    assert n > 0, "n should be greater than 0"
+    # attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+    feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
+    if feature_mask is not None:
+        # assert that all elements in the feature_mask are unique and non-negative increasing
+        _validate_feature_mask(feature_mask)
+    else:
+        feature_mask = _construct_default_feature_mask(attributions)
+
+    batch_size = inputs[0].shape[0] if isinstance(inputs, tuple) else inputs.shape[0]
+
+    def sensitivity_perturb_function(inputs, baselines):
+        # each input is repeated max_examples_per_batch / batch_size times
+        # so sample 1 is repeated max_examples_per_batch / batch_size times,
+        # then sample 2 is repeated max_examples_per_batch / batch_size times, etc.
+        # get input shape and number of samples
+        if not isinstance(inputs, tuple):
+            inputs = (inputs,)
+        if not isinstance(baselines, tuple):
+            baselines = (baselines,)
+
+        baselines = (
+            tuple(
+                torch.ones_like(input) * baseline
+                for input, baseline in zip(inputs, itertools.cycle(baselines))
+            )
+            if isinstance(baselines[0], int)
+            else baselines
+        )
+
+        device = inputs[0].device
+        total_repeated_inputs = inputs[0].shape[0]
+        n_perturbations = total_repeated_inputs // batch_size
+        perturbation_masks = _generate_random_perturbation_masks_with_fixed_n(
+            n_perturbations,
+            feature_mask,
+            n_features_perturbed=n,
+            device=device,
+        )
+        perturbation_masks = tuple(
+            mask.view(-1, *mask.shape[2:]) for mask in perturbation_masks
+        )
+        assert perturbation_masks[0].dtype == torch.bool
+
+        # perturb the inputs in place
+        inputs_perturbed = tuple(input.clone() for input in inputs)
+        expanded_perturbation_masks = []
+        for input_perturbed, mask, baseline in zip(
+            inputs_perturbed, perturbation_masks, baselines
+        ):
+            if len(input_perturbed.shape) != len(mask.shape):
+                mask = mask.unsqueeze(-1)
+            expanded_mask = mask.expand_as(input_perturbed)
+            input_perturbed[expanded_mask] = baseline[expanded_mask]
+            expanded_perturbation_masks.append(expanded_mask)
+        return tuple(expanded_perturbation_masks), inputs_perturbed
+
     if is_multi_target:
         return _multi_target_infidelity(
             forward_func=forward_func,
-            perturb_func=perturb_func,
+            perturb_func=sensitivity_perturb_function,
             inputs=inputs,
             attributions_list=attributions,
             baselines=baselines,
@@ -310,7 +350,7 @@ def infidelity(
 
     return infidelity(
         forward_func=forward_func,
-        perturb_func=perturb_func,
+        perturb_func=sensitivity_perturb_function,
         inputs=inputs,
         attributions=attributions,
         baselines=baselines,

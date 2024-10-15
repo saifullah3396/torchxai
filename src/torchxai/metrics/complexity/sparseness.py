@@ -9,7 +9,9 @@ from torch import Tensor
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
-def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
+def sparseness(
+    attributions: Tuple[Tensor, ...], is_multi_target: bool = False
+) -> Tensor:
     """
     Implementation of Sparseness metric by Chalasani et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -32,6 +34,12 @@ def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
     Args:
         attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
             tensor in the tuple has shape (batch_size, num_features).
+
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar sparseness scores per
                 input example. The first dimension is equal to the
@@ -52,6 +60,12 @@ def sparseness(attributions: Tuple[Tensor, ...]) -> Tensor:
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> sparseness_scores = sparseness(attribution)
     """
+    if is_multi_target:
+        isinstance(
+            attributions, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        return [sparseness(a) for a in attributions]
+
     with torch.no_grad():
         if not isinstance(attributions, tuple):
             attributions = (attributions,)

@@ -1,6 +1,6 @@
 from copy import deepcopy
 from inspect import signature
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, List, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -15,47 +15,12 @@ from captum._utils.typing import TensorOrTupleOfTensorsGeneric
 from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
 
-
-def default_perturb_func(
-    inputs: TensorOrTupleOfTensorsGeneric, perturb_radius: float = 0.02
-) -> Tuple[Tensor, ...]:
-    r"""A default function for generating perturbations of `inputs`
-    within perturbation radius of `perturb_radius`.
-    This function samples uniformly random from the L_Infinity ball
-    with `perturb_radius` radius.
-    The users can override this function if they prefer to use a
-    different perturbation function.
-
-    Args:
-
-        inputs (Tensor or tuple[Tensor, ...]): The input tensors that we'd
-                like to perturb by adding a random noise sampled uniformly
-                random from an L_infinity ball with a radius `perturb_radius`.
-
-        radius (float): A radius used for sampling from
-                an L_infinity ball.
-
-    Returns:
-
-        perturbed_input (tuple[Tensor, ...]): A list of perturbed inputs that
-                are created by adding noise sampled uniformly random
-                from L_infiniy ball with a radius `perturb_radius` to the
-                original inputs.
-
-    """
-    inputs = _format_tensor_into_tuples(inputs)
-    perturbed_input = tuple(
-        input
-        + torch.FloatTensor(input.size())  # type: ignore
-        .uniform_(-perturb_radius, perturb_radius)
-        .to(input.device)
-        for input in inputs
-    )
-    return perturbed_input
+from torchxai.explainers.explainer import Explainer
+from torchxai.metrics.robustness.utilities import default_perturb_func
 
 
-def sensitivity_max(
-    explanation_func: Callable,
+def _multi_target_sensitivity_scores(
+    explanation_func: Explainer,
     inputs: TensorOrTupleOfTensorsGeneric,
     perturb_func: Callable = default_perturb_func,
     perturb_radius: float = 0.02,
@@ -63,11 +28,7 @@ def sensitivity_max(
     norm_ord: str = "fro",
     max_examples_per_batch: int = None,
     **kwargs: Any,
-) -> Tensor:
-    """
-    This is a modified version of the captum `sensitivity_max` (see: from captum.metrics import sensitivity_max)
-    function that repeats the feature masks when performing perturbations.
-    """
+) -> List[Tensor]:
 
     def _generate_perturbations(
         current_n_perturb_samples: int,
@@ -131,63 +92,89 @@ def sensitivity_max(
                         kwargs_copy,
                     )
 
-        expl_perturbed_inputs = explanation_func(inputs_perturbed, **kwargs_copy)
+        def compute_sensitivity_per_target(expl_inputs, expl_perturbed_inputs):
+            # tuplize `expl_perturbed_inputs` in case it is not
+            expl_perturbed_inputs = _format_tensor_into_tuples(expl_perturbed_inputs)
 
-        # tuplize `expl_perturbed_inputs` in case it is not
-        expl_perturbed_inputs = _format_tensor_into_tuples(expl_perturbed_inputs)
+            expl_inputs_expanded = tuple(
+                expl_input.repeat_interleave(current_n_perturb_samples, dim=0)
+                for expl_input in expl_inputs
+            )
 
-        expl_inputs_expanded = tuple(
-            expl_input.repeat_interleave(current_n_perturb_samples, dim=0)
-            for expl_input in expl_inputs
-        )
-
-        sensitivities = torch.cat(
-            [
-                (expl_input - expl_perturbed).view(expl_perturbed.size(0), -1)
-                for expl_perturbed, expl_input in zip(
-                    expl_perturbed_inputs, expl_inputs_expanded
-                )
-            ],
-            dim=1,
-        )
-        # compute the norm of original input explanations
-        expl_inputs_norm_expanded = torch.norm(
-            torch.cat(
-                [expl_input.view(expl_input.size(0), -1) for expl_input in expl_inputs],
+            sensitivities = torch.cat(
+                [
+                    (expl_input - expl_perturbed).view(expl_perturbed.size(0), -1)
+                    for expl_perturbed, expl_input in zip(
+                        expl_perturbed_inputs, expl_inputs_expanded
+                    )
+                ],
                 dim=1,
-            ),
-            p=norm_ord,
-            dim=1,
-            keepdim=True,
-        ).repeat_interleave(current_n_perturb_samples, dim=0)
-        expl_inputs_norm_expanded = torch.where(
-            expl_inputs_norm_expanded == 0.0,
-            torch.tensor(
-                1.0,
-                device=expl_inputs_norm_expanded.device,
-                dtype=expl_inputs_norm_expanded.dtype,
-            ),
-            expl_inputs_norm_expanded,
-        )
+            )
+            # compute the norm of original input explanations
+            expl_inputs_norm_expanded = torch.norm(
+                torch.cat(
+                    [
+                        expl_input.view(expl_input.size(0), -1)
+                        for expl_input in expl_inputs
+                    ],
+                    dim=1,
+                ),
+                p=norm_ord,
+                dim=1,
+                keepdim=True,
+            ).repeat_interleave(current_n_perturb_samples, dim=0)
+            expl_inputs_norm_expanded = torch.where(
+                expl_inputs_norm_expanded == 0.0,
+                torch.tensor(
+                    1.0,
+                    device=expl_inputs_norm_expanded.device,
+                    dtype=expl_inputs_norm_expanded.dtype,
+                ),
+                expl_inputs_norm_expanded,
+            )
 
-        # compute the norm for each input noisy example
-        sensitivities_norm = (
-            torch.norm(sensitivities, p=norm_ord, dim=1, keepdim=True)
-            / expl_inputs_norm_expanded
-        )
-        return max_values(sensitivities_norm.view(bsz, -1))
+            # compute the norm for each input noisy example
+            sensitivities_norm = (
+                torch.norm(sensitivities, p=norm_ord, dim=1, keepdim=True)
+                / expl_inputs_norm_expanded
+            )
+            return max_values(sensitivities_norm.view(bsz, -1))
+
+        # this computes the explanation for the original input for all targets in a single call
+        expl_perturbed_inputs_list = explanation_func(inputs_perturbed, **kwargs_copy)
+
+        return [
+            compute_sensitivity_per_target(expl_inputs, expl_perturbed)
+            for expl_inputs, expl_perturbed in zip(
+                expl_inputs_list, expl_perturbed_inputs_list
+            )
+        ]
+
+    assert isinstance(explanation_func, Explainer), (
+        "Explanation function must be an instance of "
+        "`torchxai.explainers.Explainer`."
+    )
+    assert (
+        explanation_func._is_multi_target
+    ), "Explanation function must be a multi-target explainer."
+    target = kwargs.get("target", None)
+    assert isinstance(target, list), "targets must be a list of targets"
+    assert all(isinstance(x, int) for x in target), "targets must be a list of ints"
 
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
 
     bsz = inputs[0].size(0)
 
+    def _agg_sensitivity_scores(agg_tensors, tensors):
+        return [torch.cat([agg_t, t], dim=-1) for agg_t, t in zip(agg_tensors, tensors)]
+
     with torch.no_grad():
-        expl_inputs = explanation_func(inputs, **kwargs)
-        metrics_max = _divide_and_aggregate_metrics(
+        expl_inputs_list = explanation_func.explain(inputs, **kwargs)
+        metric_scores_list = _divide_and_aggregate_metrics(
             cast(Tuple[Tensor, ...], inputs),
             n_perturb_samples,
             _next_sensitivity_max,
             max_examples_per_batch=max_examples_per_batch,
-            agg_func=torch.max,
+            agg_func=_agg_sensitivity_scores,
         )
-    return metrics_max
+    return metric_scores_list

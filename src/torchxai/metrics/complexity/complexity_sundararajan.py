@@ -11,6 +11,7 @@ def complexity_sundararajan(
     attributions: Tuple[torch.Tensor, ...],
     eps: float = 1.0e-5,
     normalize_attribution: bool = True,
+    is_multi_target: bool = False,
 ) -> torch.Tensor:
     """
     Implementation of Complexity metric by Sundararajan at el., 2017. This implementation
@@ -35,6 +36,11 @@ def complexity_sundararajan(
             tensor in the tuple has shape (batch_size, num_features).
         eps (float): The threshold value for attributions to be considered important.
         normalize_attribution (bool): If True, the attributions are normalized to sum to 1.
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar effective complexity per
                 input example. The first dimension is equal to the
@@ -55,6 +61,19 @@ def complexity_sundararajan(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> effective_complexity_scores = effective_complexity(attribution)
     """
+
+    if is_multi_target:
+        isinstance(
+            attributions, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        return [
+            complexity_sundararajan(
+                a,
+                eps=eps,
+                normalize_attribution=normalize_attribution,
+            )
+            for a in attributions
+        ]
 
     with torch.no_grad():
         if not isinstance(attributions, tuple):

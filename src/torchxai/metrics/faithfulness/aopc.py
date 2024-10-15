@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from dataclasses import dataclass
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
@@ -27,6 +28,13 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
+
+
+@dataclass
+class AOPCOutput:
+    desc: Union[List[Tensor], List[List[Tensor]]]
+    asc: Union[List[Tensor], List[List[Tensor]]]
+    rand: Union[List[Tensor], List[List[Tensor]]]
 
 
 def perturb_input(input, baseline, feature_mask, indices, feature_idx):
@@ -301,8 +309,9 @@ def aopc(
     total_features_perturbed: int = 100,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
+    is_multi_target: bool = False,
     show_progress: bool = False,
-) -> Tensor:
+) -> AOPCOutput:
     """
     Implementation of Area over the Perturbation Curve by Samek et al., 2015. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -477,18 +486,24 @@ def aopc(
         n_random_perms (int, optional): The number of random permutations of the feature importance scores
             that will be used to compute the AOPC scores for the random runs. Default: 10
         seed (int, optional): The seed value for the random number generator for reproducibility. Default: None
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
         show_progress (bool, optional): Displays the progress of the computation. Default: False
     Returns:
-        A tuple of three tensors:
-        Tensor: - AOPC scores for the descending order of feature importance. The first dimension is equal to the
-                number of examples in the input batch and the second dimension is equal to the max number of features
-                perturbed per example.
-        Tensor: - AOPC scores for the ascending order of feature importance. The first dimension is equal to the
-                number of examples in the input batch and the second dimension is equal to the max number of features
-                perturbed per example.
-        Tensor: - AOPC scores for the random order of feature importance. The first dimension is equal to the
-                number of examples in the input batch and the second dimension is equal to the max number of features
-                perturbed per example.
+        AOPCOutput: A dataclass that contains the descending, ascending and random AOPC scores for the input
+            samples. The dataclass contains the following fields:
+            - desc (Union[List[Tensor], List[List[Tensor]]]): A list of tensors or a list of list of tensors
+                representing the descending AOPC scores for each input example. The first dimension is equal to the
+                number of examples in the input batch.
+            - asc (Union[List[Tensor], List[List[Tensor]]]): A list of tensors or a list of list of tensors
+                representing the ascending AOPC scores for each input example. The first dimension is equal to the
+                number of examples in the input batch.
+            - rand (Union[List[Tensor], List[List[Tensor]]]): A list of tensors or a list of list of tensors
+                representing the random AOPC scores for each input example. The first dimension is equal to the
+                number of examples in the input batch.
 
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
@@ -504,6 +519,51 @@ def aopc(
         >>> # Computes the aopc scores for saliency maps
         >>> aopc_desc, aopc_asc, aopc_rand = aopc(net, input, attribution, baselines)
     """
+    if is_multi_target:
+        # aopc computation cannot be batched across targets, this is because it requires the removal
+        # of attribution features for each target in an ascending/desencding order of their importance. Since for each target
+        # the order of importance of features can be different, we cannot batch the computation across targets.
+        attributions_list = attributions
+        targets_list = target
+        isinstance(
+            attributions_list, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        assert isinstance(targets_list, list), "targets must be a list of targets"
+        assert all(
+            isinstance(x, int) for x in targets_list
+        ), "targets must be a list of ints"
+        assert len(targets_list) == len(attributions_list), (
+            """The number of targets in the targets_list and
+            attributions_list must match. Found number of targets in the targets_list is: {} and in the
+            attributions_list: {}"""
+        ).format(len(targets_list), len(attributions_list))
+
+        aopc_descending_batch_list = []
+        aopc_ascending_batch_list = []
+        aopc_random_batch_list = []
+        for attributions, target in zip(attributions_list, targets_list):
+            aopc_output: AOPCOutput = aopc(
+                forward_func=forward_func,
+                inputs=inputs,
+                attributions=attributions,
+                baselines=baselines,
+                feature_mask=feature_mask,
+                additional_forward_args=additional_forward_args,
+                target=target,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                total_features_perturbed=total_features_perturbed,
+                n_random_perms=n_random_perms,
+                seed=seed,
+                show_progress=show_progress,
+            )
+            aopc_descending_batch_list.append(aopc_output.desc)
+            aopc_ascending_batch_list.append(aopc_output.asc)
+            aopc_random_batch_list.append(aopc_output.rand)
+        return AOPCOutput(
+            desc=aopc_descending_batch_list,
+            asc=aopc_ascending_batch_list,
+            rand=aopc_random_batch_list,
+        )
 
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -563,8 +623,8 @@ def aopc(
         )
         aopc_batch.append(aopc_scores)
 
-    return (
-        [x[0] for x in aopc_batch],
-        [x[1] for x in aopc_batch],
-        [x[2:].mean(0) for x in aopc_batch],
+    return AOPCOutput(
+        desc=[x[0] for x in aopc_batch],
+        asc=[x[1] for x in aopc_batch],
+        rand=[x[2:].mean(0) for x in aopc_batch],
     )  # descending, ascending, random

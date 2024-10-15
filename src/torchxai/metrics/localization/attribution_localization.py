@@ -11,6 +11,7 @@ def attribution_localization(
     segmentation_masks: Tuple[torch.Tensor, ...],
     positive_attributions: bool = True,
     weighted: bool = False,
+    is_multi_target: bool = False,
 ) -> torch.Tensor:
     """
     Implementation of the Attribution Localization by Kohlbrenner et al., 2020. This implementation
@@ -53,6 +54,20 @@ def attribution_localization(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> attribution_localization_score = attribution_localization(attribution, feature_mask)
     """
+    if is_multi_target:
+        isinstance(
+            attributions, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        return [
+            attribution_localization(
+                attributions=a,
+                segmentation_masks=segmentation_masks,
+                positive_attributions=positive_attributions,
+                weighted=weighted,
+            )
+            for a in attributions
+        ]
+
     with torch.no_grad():
         is_attributions_tuple = _is_tuple(attributions)
         attributions = _format_tensor_into_tuples(attributions)

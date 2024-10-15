@@ -8,7 +8,9 @@ from torch.distributions import Categorical
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
-def complexity(attributions: Tuple[torch.Tensor, ...]) -> torch.Tensor:
+def complexity(
+    attributions: Tuple[torch.Tensor, ...], is_multi_target: bool = False
+) -> torch.Tensor:
     """
     Implementation of Complexity metric by Bhatt et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -27,6 +29,11 @@ def complexity(attributions: Tuple[torch.Tensor, ...]) -> torch.Tensor:
     Args:
         attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
             tensor in the tuple has shape (batch_size, num_features).
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar complexity scores per
                 input example. The first dimension is equal to the
@@ -46,6 +53,12 @@ def complexity(attributions: Tuple[torch.Tensor, ...]) -> torch.Tensor:
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> complexity_scores = complexity(attribution)
     """
+    if is_multi_target:
+        isinstance(
+            attributions, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        return [complexity(a) for a in attributions]
+
     with torch.no_grad():
         if not isinstance(attributions, tuple):
             attributions = (attributions,)

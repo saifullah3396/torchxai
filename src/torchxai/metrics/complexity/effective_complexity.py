@@ -268,6 +268,7 @@ def effective_complexity(
     max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     use_absolute_attributions: bool = True,
+    is_multi_target: bool = False,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
@@ -475,16 +476,12 @@ def effective_complexity(
                 features in each example (`C * H * W`) exceeds
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
-                in a sequential order. However the total effective batch size will still be
-                `max_features_processed_per_batch * n_perturbations_per_feature` as in each
-                perturbation step, `max_features_processed_per_batch * n_perturbations_per_feature` features
-                are processed. If `max_features_processed_per_batch` is None, all
-                examples are processed together. `max_features_processed_per_batch` should
-                at least be equal `n_perturbations_per_feature` and at most
-                `C * H * W * n_perturbations_per_feature`.
-        eps (float, optional): Defines the minimum threshold for the output model forward
-                variances. If the absolute value of the the model forward variances is less than `eps`, it is
-                considered as zero. This is used to compute the effective complexity metric. Default: 1e-5
+                in a sequeeffective_complexityd as zero. This is used to compute the effective complexity metric. Default: 1e-5
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
         show_progress (bool, optional): Displays the progress of the computation. Default: True
     Returns:
         A tuple of tensors:
@@ -514,6 +511,57 @@ def effective_complexity(
         >>> # Computes the effective complexity for saliency maps
         >>> effective_complexity, non_sens, n_features = effective_complexity(net, input, attribution, baselines)
     """
+    if is_multi_target:
+        # effective complexity computation cannot be batched across targets, this is because it requires the removal
+        # of attribution features for each target in an ascending order of their importance. Since for each target
+        # the order of importance of features can be different, we cannot batch the computation across targets.
+        attributions_list = attributions
+        targets_list = target
+        isinstance(
+            attributions_list, list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+        assert isinstance(targets_list, list), "targets must be a list of targets"
+        assert all(
+            isinstance(x, int) for x in targets_list
+        ), "targets must be a list of ints"
+        assert len(targets_list) == len(attributions_list), (
+            """The number of targets in the targets_list and
+            attributions_list must match. Found number of targets in the targets_list is: {} and in the
+            attributions_list: {}"""
+        ).format(len(targets_list), len(attributions_list))
+
+        effective_complexity_batch_list = []
+        perturbed_fwd_diffs_relative_vars_batch_list = []
+        n_features_batch_list = []
+        for attributions, target in zip(attributions_list, targets_list):
+            (
+                effective_complexity_batch,
+                perturbed_fwd_diffs_relative_vars_batch,
+                n_features_batch,
+            ) = effective_complexity(
+                forward_func=forward_func,
+                inputs=inputs,
+                attributions=attributions,
+                feature_mask=feature_mask,
+                additional_forward_args=additional_forward_args,
+                target=target,
+                perturb_func=perturb_func,
+                n_perturbations_per_feature=n_perturbations_per_feature,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                eps=eps,
+                use_absolute_attributions=use_absolute_attributions,
+                show_progress=show_progress,
+            )
+            effective_complexity_batch_list.append(effective_complexity_batch)
+            perturbed_fwd_diffs_relative_vars_batch_list.append(
+                perturbed_fwd_diffs_relative_vars_batch
+            )
+            n_features_batch_list.append(n_features_batch)
+        return (
+            effective_complexity_batch_list,
+            perturbed_fwd_diffs_relative_vars_batch_list,
+            n_features_batch_list,
+        )
 
     with torch.no_grad():
         # perform argument formattings
@@ -552,44 +600,46 @@ def effective_complexity(
         perturbed_fwd_diffs_relative_vars_batch = []
         n_features_batch = []
         for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-            effective_complexity, perturbed_fwd_diffs_relative_vars, n_features = (
-                eval_effective_complexity_single_sample(
-                    forward_func=forward_func,
-                    inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
-                    attributions=tuple(
-                        attr[sample_idx].unsqueeze(0) for attr in attributions
-                    ),
-                    feature_mask=(
-                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                        if feature_mask is not None
-                        else None
-                    ),
-                    additional_forward_args=(
-                        tuple(
-                            (
-                                arg[sample_idx].unsqueeze(0)
-                                if isinstance(arg, torch.Tensor)
-                                else arg
-                            )
-                            for arg in additional_forward_args
+            (
+                effective_complexity_score,
+                perturbed_fwd_diffs_relative_vars,
+                n_features,
+            ) = eval_effective_complexity_single_sample(
+                forward_func=forward_func,
+                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
+                attributions=tuple(
+                    attr[sample_idx].unsqueeze(0) for attr in attributions
+                ),
+                feature_mask=(
+                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                    if feature_mask is not None
+                    else None
+                ),
+                additional_forward_args=(
+                    tuple(
+                        (
+                            arg[sample_idx].unsqueeze(0)
+                            if isinstance(arg, torch.Tensor)
+                            else arg
                         )
-                        if additional_forward_args is not None
-                        else None
-                    ),
-                    target=(
-                        target[sample_idx]
-                        if isinstance(target, (list, torch.Tensor))
-                        else target
-                    ),
-                    perturb_func=perturb_func,
-                    n_perturbations_per_feature=n_perturbations_per_feature,
-                    max_features_processed_per_batch=max_features_processed_per_batch,
-                    eps=eps,
-                    show_progress=show_progress,
-                )
+                        for arg in additional_forward_args
+                    )
+                    if additional_forward_args is not None
+                    else None
+                ),
+                target=(
+                    target[sample_idx]
+                    if isinstance(target, (list, torch.Tensor))
+                    else target
+                ),
+                perturb_func=perturb_func,
+                n_perturbations_per_feature=n_perturbations_per_feature,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                eps=eps,
+                show_progress=show_progress,
             )
 
-            effective_complexity_batch.append(effective_complexity)
+            effective_complexity_batch.append(effective_complexity_score)
             perturbed_fwd_diffs_relative_vars_batch.append(
                 perturbed_fwd_diffs_relative_vars
             )

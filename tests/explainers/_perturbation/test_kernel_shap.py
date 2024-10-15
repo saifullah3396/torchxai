@@ -219,7 +219,7 @@ test_configurations = [
         delta=1e-3,
     ),
     *_make_config_for_explainer(
-        target_fixture="classification_alexnet_model_config_single_sample",
+        target_fixture="classification_alexnet_model_single_sample_config",
         override_target=[0, 1, 2],
         expected=[None] * 3,
         set_image_feature_mask=True,

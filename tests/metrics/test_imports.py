@@ -23,7 +23,8 @@ def test_faithfulness_imports() -> None:
     from torchxai.metrics import faithfulness_estimate  # noqa
     from torchxai.metrics import infidelity  # noqa
     from torchxai.metrics import monotonicity  # noqa
+    from torchxai.metrics import sensitivity_n  # noqa
 
 
 def test_robustness_imports() -> None:
-    from torchxai.metrics import sensitivity_max  # noqa
+    from torchxai.metrics import sensitivity_max_and_avg  # noqa

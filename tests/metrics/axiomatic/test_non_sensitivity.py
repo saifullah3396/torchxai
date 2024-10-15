@@ -127,6 +127,8 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             _,
             non_sensitivity_score,
             n_features_found,
+            _,
+            _,
         ) = monotonicity_corr_and_non_sens(
             forward_func=base_config.model,
             inputs=base_config.inputs,

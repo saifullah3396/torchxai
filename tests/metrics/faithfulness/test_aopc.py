@@ -246,7 +246,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
         itertools.cycle(runtime_config.expected_rand),
     ):
         set_all_random_seeds(1234)
-        (aopcs_desc, aopcs_asc, aopcs_rand) = aopc(
+        aopc_output = aopc(
             forward_func=base_config.model,
             inputs=base_config.inputs,
             attributions=explanations,
@@ -260,7 +260,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
         )
         explanations_flattened, _ = _tuple_tensors_to_tensors(explanations)
 
-        for x in [aopcs_desc, aopcs_asc, aopcs_rand]:
+        for x in [aopc_output.desc, aopc_output.asc, aopc_output.rand]:
             # match the batch size
             assert len(x) == explanations_flattened.shape[0], (
                 f"The number of samples in the aopc output should match the number of samples in the input. "
@@ -284,22 +284,22 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
                 x[0].shape[0] == expected_output_size + 1
             ), f"The output size of aopcs is invalid. Expected: {expected_output_size}, Got: {x[0].shape[0]}"
 
-        for output, expected in zip(aopcs_desc, curr_expected_desc):
+        for output, expected in zip(aopc_output.desc, curr_expected_desc):
             assert_tensor_almost_equal(
                 output.float(), expected.float(), delta=runtime_config.delta
             )
-        for output, expected in zip(aopcs_asc, curr_expected_asc):
+        for output, expected in zip(aopc_output.asc, curr_expected_asc):
             assert_tensor_almost_equal(
                 output.float(), expected.float(), delta=runtime_config.delta
             )
-        for output, expected in zip(aopcs_rand, curr_expected_rand):
+        for output, expected in zip(aopc_output.rand, curr_expected_rand):
             assert_tensor_almost_equal(
                 output.float(), expected.float(), delta=runtime_config.delta
             )
 
-        aopcs_desc_list.append(aopcs_desc)
-        aopcs_asc_list.append(aopcs_asc)
-        aopcs_rand_list.append(aopcs_rand)
+        aopcs_desc_list.append(aopc_output.desc)
+        aopcs_asc_list.append(aopc_output.asc)
+        aopcs_rand_list.append(aopc_output.rand)
     assert_all_tensors_almost_equal(aopcs_desc_list)
     assert_all_tensors_almost_equal(aopcs_asc_list)
     assert_all_tensors_almost_equal(aopcs_rand_list)

@@ -135,6 +135,7 @@ def test_monotonicity(metrics_runtime_test_configuration):
             monotonicity_result.float(),
             curr_expected.float(),
             delta=runtime_config.delta,
+            mode="mean",
         )
         explanations_flattened, _ = _tuple_tensors_to_tensors(explanations)
         assert len(fwds) == explanations_flattened.shape[0], (

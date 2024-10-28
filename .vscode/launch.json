@@ -5,18 +5,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/torchfusion/runners/train.py",
-            "console": "integratedTerminal",
-            "envFile": "${workspaceFolder}/.env",
-            "args": [
-                "--cfg",
-                "./cfg/",
-            ],
-        },
-        {
             "name": "Python Debugger: Attach",
             "type": "debugpy",
             "request": "attach",

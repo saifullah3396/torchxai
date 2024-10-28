@@ -7,7 +7,6 @@ TorchXAI provides efficient implementations of several XAI (Explainable AI) metr
 # Installation
 Install project requirements:
 ```
-pip install -r external/torchfusion/requirements.txt
 pip install -r requirements.txt
 ```
 

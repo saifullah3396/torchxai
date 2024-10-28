@@ -76,7 +76,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-explanation_framework = ["torchfusion"]
 test = ["coverage"]
 
 # [project.urls]

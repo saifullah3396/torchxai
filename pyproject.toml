@@ -105,4 +105,4 @@ markers = [
 ]
 
 [tool.distutils.egg_info]
-egg_base = "./build"
+egg_base = "."

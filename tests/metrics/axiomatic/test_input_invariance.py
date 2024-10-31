@@ -182,6 +182,7 @@ def test_input_invariance(metrics_runtime_test_configuration):
         inputs=base_config.inputs,
         constant_shifts=runtime_config.constant_shifts,
         input_layer_names=base_config.input_layer_names,
+        return_intermediate_results=True,
         **kwargs,
         **(
             runtime_config.explainer_kwargs

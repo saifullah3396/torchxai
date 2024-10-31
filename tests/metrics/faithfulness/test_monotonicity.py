@@ -130,6 +130,7 @@ def test_monotonicity(metrics_runtime_test_configuration):
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             max_features_processed_per_batch=max_features,
+            return_intermediate_results=True,
         )
         assert_tensor_almost_equal(
             monotonicity_result.float(),

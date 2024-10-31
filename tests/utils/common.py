@@ -197,6 +197,7 @@ def compute_explanations(
     use_captum_explainer: bool = False,
     **explainer_kwargs,
 ) -> Tensor:
+    print("use_captum_explainer", use_captum_explainer)
     if use_captum_explainer:
         explainer = explainer._explanation_fn
 

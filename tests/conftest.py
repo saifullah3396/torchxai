@@ -301,7 +301,6 @@ def metrics_runtime_test_configuration(request):
         feature_mask=base_config.feature_mask,
         target=base_config.target,
         multiply_by_inputs=base_config.multiply_by_inputs,
-        device=runtime_config.device,
         use_captum_explainer=runtime_config.use_captum_explainer,
         **runtime_config.explainer_kwargs,
     )

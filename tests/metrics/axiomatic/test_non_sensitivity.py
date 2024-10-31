@@ -139,6 +139,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             perturb_func=runtime_config.perturb_func,
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
+            return_intermediate_results=True,
         )
         assert_tensor_almost_equal(
             non_sensitivity_score, curr_expected, delta=runtime_config.delta

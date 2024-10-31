@@ -958,6 +958,7 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
                 max_examples_per_batch=max_examples,
                 perturbation_probability=runtime_config.perturbation_probability,
                 set_same_perturbation_mask_for_batch=runtime_config.set_same_perturbation_mask_for_batch,
+                return_intermediate_results=True,
             )
         )
 

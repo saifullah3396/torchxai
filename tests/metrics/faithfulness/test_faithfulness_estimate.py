@@ -26,25 +26,25 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
 
 test_configurations = [
     MetricTestRuntimeConfig_(
-        test_name="basic_model_single_input_config_integrated_gradients",
+        test_name="basic_model_single_input_config",
         target_fixture="basic_model_single_input_config",
         expected=torch.ones(1),
         max_features_processed_per_batch=[5, 1, 40],
     ),
     MetricTestRuntimeConfig_(
-        test_name="basic_model_batch_input_config_integrated_gradients",
+        test_name="basic_model_batch_input_config",
         target_fixture="basic_model_batch_input_config",
         expected=torch.ones(3),
         max_features_processed_per_batch=[5, 1, 40],
     ),
     MetricTestRuntimeConfig_(
-        test_name="basic_model_batch_input_with_additional_forward_args_config_integrated_gradients",
+        test_name="basic_model_batch_input_with_additional_forward_args_config",
         target_fixture="basic_model_batch_input_with_additional_forward_args_config",
         expected=torch.tensor([torch.nan]),
         max_features_processed_per_batch=[5, 1, 40],
     ),
     MetricTestRuntimeConfig_(
-        test_name="classification_convnet_model_with_multiple_targets_config_integrated_gradients",
+        test_name="classification_convnet_model_with_multiple_targets_config",
         target_fixture="classification_convnet_model_with_multiple_targets_config",
         explainer="deep_lift",
         use_captum_explainer=True,
@@ -56,13 +56,13 @@ test_configurations = [
         max_features_processed_per_batch=[5, 1, 40],
     ),
     MetricTestRuntimeConfig_(
-        test_name="classification_multilayer_model_with_tuple_targets_config_integrated_gradients",
+        test_name="classification_multilayer_model_with_tuple_targets_config",
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
         expected=torch.tensor([0.9966, 1.0000, 1.0000, 1.0000]),
         max_features_processed_per_batch=[5, 1, 40],
     ),
     MetricTestRuntimeConfig_(
-        test_name="classification_multilayer_model_with_baseline_and_tuple_targets_config_integrated_gradients",
+        test_name="classification_multilayer_model_with_baseline_and_tuple_targets_config",
         target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
         expected=torch.tensor([1.0000, 1.0000, 1.0000, 1.0000]),
         max_features_processed_per_batch=[5, 1, 40],
@@ -110,6 +110,7 @@ def test_faithfulness_estimate(metrics_runtime_test_configuration):
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             max_features_processed_per_batch=max_features,
+            return_intermediate_results=True,
         )
         assert_tensor_almost_equal(
             faithfulness_estimate_score,

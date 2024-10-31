@@ -167,6 +167,7 @@ def test_effective_complexity(metrics_runtime_test_configuration):
             max_features_processed_per_batch=max_features,
             eps=runtime_config.eps,
             use_absolute_attributions=True,
+            return_intermediate_results=True,
         )
         assert_tensor_almost_equal(
             effective_complexity_score, curr_expected, delta=runtime_config.delta

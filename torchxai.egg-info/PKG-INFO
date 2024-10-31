@@ -1,0 +1,91 @@
+Metadata-Version: 2.1
+Name: torchxai
+Version: 0.0.0
+Summary: TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques.
+Author-email: Saifullah <saifullah.saifullah@dfki.de>
+Maintainer-email: Saifullah <saifullah.saifullah@dfki.de>
+License: MIT License
+        
+        Copyright (c) [year] [fullname]
+        
+        Permission is hereby granted, free of charge, to any person obtaining a copy
+        of this software and associated documentation files (the "Software"), to deal
+        in the Software without restriction, including without limitation the rights
+        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        copies of the Software, and to permit persons to whom the Software is
+        furnished to do so, subject to the following conditions:
+        
+        The above copyright notice and this permission notice shall be included in all
+        copies or substantial portions of the Software.
+        
+        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE.
+Project-URL: Homepage, https://github.com/saifullah3396/torchxai/
+Project-URL: Bug Reports, https://github.com/saifullah3396/torchxai/
+Project-URL: Source, https://github.com/saifullah3396/torchxai/
+Keywords: torch,explainable-ai,interpretability,machine-learning,deep-learning
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3 :: Only
+Requires-Python: >=3.8
+Description-Content-Type: text/markdown
+License-File: LICENSE.txt
+Requires-Dist: autopep8==2.1.0
+Requires-Dist: click>=8.0.0
+Requires-Dist: hydra-core==1.3.2
+Requires-Dist: omegaconf==2.3.0
+Requires-Dist: pytorch-ignite==0.5.0.post2
+Requires-Dist: torch==2.3.0
+Requires-Dist: tqdm==4.66.4
+Requires-Dist: captum
+Requires-Dist: pytest
+Provides-Extra: explanation-framework
+Requires-Dist: atria@ git+https://git.opendfki.de/saifullah/atria.git ; extra == "explanation-framework"
+Provides-Extra: test
+Requires-Dist: coverage; extra == "test"
+
+# TorchXAI
+TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques.
+
+# Description
+TorchXAI provides efficient implementations of several XAI (Explainable AI) metrics that seamlessly integrate with the Captum library. The primary goal of this toolkit is to offer batch computation of various explainability metrics, enabling scalable evaluation while maintaining compatibility with the established Captum framework.
+
+# Installation
+Install project requirements:
+```
+pip install -r requirements.txt
+```
+
+# Usage
+Import the required metric, such as completeness
+```
+from torchxai.metrics.axiomatic import completeness
+from captum.attr import Saliency
+
+# ImageClassifier takes a single input tensor of images Nx3x32x32,
+# and returns an Nx10 tensor of class probabilities.
+net = ImageClassifier()
+
+saliency = Saliency(net)
+input = torch.randn(2, 3, 32, 32, requires_grad=True)
+baselines = torch.zeros(2, 3, 32, 32)
+
+# Computes saliency maps for class 3.
+attribution = saliency.attribute(input, target=3)
+
+# define a perturbation function for the input
+# Computes completeness score for saliency maps
+completeness_score = completeness(net, input, attribution, baselines)
+```

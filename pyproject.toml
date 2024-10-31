@@ -36,68 +36,36 @@ classifiers = [
 
 dependencies = [
     "autopep8==2.1.0",
-    "click==8.1",
-    "coloredlogs==15.0.1",
-    "dacite==1.6.0",
-    "dataclasses==0.6",
-    "datadings==3.4.6",
-    "datasets==2.19.1",
-    "einops==0.8.0",
+    "click>=8.0.0",
     "hydra-core==1.3.2",
-    "lxml==5.2.1",
     "omegaconf==2.3.0",
-    "opencv-python==4.8.0.74",
-    "optuna==3.6.1",
-    "pandas==2.0.3",
-    "Pillow==9.5.0",
-    "protobuf==5.26.1",
-    "pycocotools==2.0.7",
-    "pycodestyle==2.11.1",
-    "pynvml==11.5.0",
-    "pytorch-fid==0.3.0",
     "pytorch-ignite==0.5.0.post2",
-    "scikit-image==0.21.0",
-    "scikit-learn==1.3.2",
-    "scipy==1.10.1",
-    "seqeval==1.2.2",
-    "tensorboardX==2.6.2.2",
-    "timm==0.9.16",
     "torch==2.3.0",
-    "torchinfo==1.8.0",
-    "torchtext==0.18.0",
-    "torchvision==0.18.0",
     "tqdm==4.66.4",
-    "transformers==4.40.2",
-    "docile-benchmark==0.3.1",
-    "seaborn",
     "captum",
-    "h5py",
     "pytest"
 ]
 
 [project.optional-dependencies]
 test = ["coverage"]
 
-# [project.urls]
-# "Homepage" = "https://github.com/pypa/sampleproject"
-# "Bug Reports" = "https://github.com/pypa/sampleproject/issues"
-# "Funding" = "https://donate.pypi.org"
-# "Say Thanks!" = "http://saythanks.io/to/example"
-# "Source" = "https://github.com/pypa/sampleproject/"
 
-# # The following would provide a command line executable called `sample`
-# # which executes the function `main` from this package when invoked.
-# [project.scripts]
-# sample = "sample:main"
+[project.urls]
+"Homepage" = "https://github.com/saifullah3396/torchxai/"
+"Bug Reports" = "https://github.com/saifullah3396/torchxai/"
+"Source" = "https://github.com/saifullah3396/torchxai/"
 
-[tool.setuptools]
-package-data = {"sample" = ["*.dat"]}
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["torchxai*"]
+
+[tool.setuptools.package-data]
+torchxai = ["*.txt", "*.yaml"]
 
 [tool.pytest.ini_options]
 pythonpath = [
     ".", "src", "tests"
 ]
-# Define markers for selective testing
 markers = [
     "metrics: Tests related to metrics.",
     "explainers: Tests related to explainers."

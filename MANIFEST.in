@@ -1,0 +1,5 @@
+# MANIFEST.in
+
+# Include everything in the cfg/ directory
+recursive-include src/atria *.yaml
+recursive-include src/atria *.py

@@ -25,13 +25,13 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     set_image_feature_mask: bool = True
     test_name: str = "classification_alexnet_model"
     explainerstr = "saliency"
-    override_target: List[int] = dataclasses.field(defaul_factory=lambda: [0, 1, 2])
+    override_target: List[int] = dataclasses.field(default_factory=lambda: [0, 1, 2])
     explainer_kwargs: dict = dataclasses.field(
-        defaul_factory=lambda: {"is_multi_target": True}
+        default_factory=lambda: {"is_multi_target": True}
     )
     delta: float = 1e-8
     max_features_processed_per_batch: List[int] = dataclasses.field(
-        defaul_factory=lambda: [5, 1, 40]
+        default_factory=lambda: [5, 1, 40]
     )
 
 

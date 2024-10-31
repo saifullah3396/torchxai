@@ -6,26 +6,23 @@ import numpy as np
 import scipy
 import torch
 import tqdm
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_additional_forward_args,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.common import (ExpansionTypes,
+                                  _expand_additional_forward_args,
+                                  _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_baseline, _format_tensor_into_tuples,
+                                  _run_forward)
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
-from torchxai.metrics._utils.common import (
-    _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
-    _split_tensors_to_tuple_tensors,
-    _tuple_tensors_to_tensors,
-    _validate_feature_mask,
-)
+from torchxai.metrics._utils.batching import \
+    _divide_and_aggregate_metrics_n_features
+from torchxai.metrics._utils.common import (_construct_default_feature_mask,
+                                            _reduce_tensor_with_indices,
+                                            _split_tensors_to_tuple_tensors,
+                                            _tuple_tensors_to_tensors,
+                                            _validate_feature_mask)
 
 
 def eval_faithfulness_estimate_single_sample_tupled_computation(
@@ -359,6 +356,8 @@ def faithfulness_estimate(
     max_features_processed_per_batch: int = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Faithfulness Estimate by Alvares-Melis at el., 2018a and 2018b. This implementation
@@ -515,6 +514,13 @@ def faithfulness_estimate(
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
         show_progress (bool, optional): Indicates whether to print the progress of the computation.
+        return_intermediate_results (bool, optional): Indicates whether to return intermediate results
+                of the computation. If set to True, the function will return the sum of attributions for each
+                perturbation step and the forward difference between perturbed and unperturbed input for each
+                perturbation step. Default is False.
+        return_dict (bool, optional): Indicates whether to return the metric outputs as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Returns:
             A tuple of three tensors:
@@ -575,6 +581,7 @@ def faithfulness_estimate(
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 show_progress=show_progress,
+                return_dict=False,
             )
             faithfulness_estimate_batch_list.append(faithfulness_estimate_batch)
             attributions_sum_perturbed_batch_list.append(
@@ -583,11 +590,24 @@ def faithfulness_estimate(
             inputs_perturbed_fwd_diffs_batch_list.append(
                 inputs_perturbed_fwd_diffs_batch
             )
-        return (
-            faithfulness_estimate_batch_list,
-            attributions_sum_perturbed_batch_list,
-            inputs_perturbed_fwd_diffs_batch_list,
-        )
+
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "faithfulness_estimate_score": faithfulness_estimate_batch_list,
+                    "attributions_sum_perturbed": attributions_sum_perturbed_batch_list,
+                    "inputs_perturbed_fwd_diffs": inputs_perturbed_fwd_diffs_batch_list,
+                }
+            else:
+                return (
+                    faithfulness_estimate_batch_list,
+                    attributions_sum_perturbed_batch_list,
+                    inputs_perturbed_fwd_diffs_batch_list,
+                )
+        else:
+            if return_dict:
+                return {"faithfulness_estimate_score": faithfulness_estimate_batch_list}
+            return faithfulness_estimate_batch_list
 
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -653,8 +673,21 @@ def faithfulness_estimate(
         attributions_sum_perturbed_batch.append(attributions_sum_perturbed)
         inputs_perturbed_fwd_diffs_batch.append(inputs_perturbed_fwd_diffs)
     faithfulness_estimate_batch = torch.tensor(faithfulness_estimate_batch)
-    return (
-        faithfulness_estimate_batch,
-        attributions_sum_perturbed_batch,
-        inputs_perturbed_fwd_diffs_batch,
-    )
+
+    if return_intermediate_results:
+        if return_dict:
+            return {
+                "faithfulness_estimate_score": faithfulness_estimate_batch,
+                "attributions_sum_perturbed": attributions_sum_perturbed_batch,
+                "inputs_perturbed_fwd_diffs": inputs_perturbed_fwd_diffs_batch,
+            }
+        else:
+            return (
+                faithfulness_estimate_batch,
+                attributions_sum_perturbed_batch,
+                inputs_perturbed_fwd_diffs_batch,
+            )
+    else:
+        if return_dict:
+            return {"faithfulness_estimate_score": faithfulness_estimate_batch}
+        return faithfulness_estimate_batch

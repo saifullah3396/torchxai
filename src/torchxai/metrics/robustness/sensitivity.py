@@ -177,6 +177,7 @@ def sensitivity_max_and_avg(
     norm_ord: str = "fro",
     max_examples_per_batch: int = None,
     is_multi_target: bool = False,
+    return_dict: bool = False,
     **kwargs: Any,
 ) -> Tuple[Tensor, Tensor]:
     r"""
@@ -294,6 +295,9 @@ def sensitivity_max_and_avg(
                 are then returned as a list of metric outputs corresponding to each target class. For multi-target
                 infidelity, captum implementation is extened in _multi_target_infidelity function.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
         **kwargs (Any, optional): Contains a list of arguments that are passed
                 to `explanation_func` explanation function which in some cases
                 could be the `attribute` function of an attribution algorithm.
@@ -332,8 +336,20 @@ def sensitivity_max_and_avg(
     )
 
     if is_multi_target:
-        return [torch.max(score) for score in sensitivity_scores], [
-            torch.mean(score) for score in sensitivity_scores
-        ]
+        if return_dict:
+            return {
+                "sensitivity_max": [torch.max(score) for score in sensitivity_scores],
+                "sensitivity_avg": [torch.mean(score) for score in sensitivity_scores],
+            }
+        else:
+            return [torch.max(score) for score in sensitivity_scores], [
+                torch.mean(score) for score in sensitivity_scores
+            ]
     else:
-        return torch.max(sensitivity_scores), torch.mean(sensitivity_scores)
+        if return_dict:
+            return {
+                "sensitivity_max": torch.max(sensitivity_scores),
+                "sensitivity_avg": torch.mean(sensitivity_scores),
+            }
+        else:
+            return torch.max(sensitivity_scores), torch.mean(sensitivity_scores)

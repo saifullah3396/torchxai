@@ -25,6 +25,7 @@ def completeness(
     additional_forward_args: Any = None,
     target: TargetType = None,
     is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> Union[Tensor, List[Tensor]]:
     """
     Implementation of Completeness test by Sundararajan et al., 2017, also referred
@@ -163,6 +164,9 @@ def completeness(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar completeness scores per
                 input example. The first dimension is equal to the
@@ -184,7 +188,7 @@ def completeness(
         >>> completeness = completeness(net, input, attribution, baselines)
     """
     if is_multi_target:
-        return _multi_target_completeness(
+        completeness_score = _multi_target_completeness(
             forward_func=forward_func,
             inputs=inputs,
             attributions_list=attributions,
@@ -192,6 +196,10 @@ def completeness(
             additional_forward_args=additional_forward_args,
             targets_list=target,
         )
+
+        if return_dict:
+            return {"completeness_score": completeness_score}
+        return completeness_score
 
     with torch.no_grad():
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -237,4 +245,7 @@ def completeness(
 
         # compute the absolute difference between the sum of attributions and the forward pass difference
         # this is the completeness score, the lower the score the better the completeness
-        return torch.abs(attributions_sum - fwd_diffs)
+        completeness_score = torch.abs(attributions_sum - fwd_diffs)
+        if return_dict:
+            return {"completeness_score": completeness_score}
+        return completeness_score

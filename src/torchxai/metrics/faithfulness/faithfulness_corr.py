@@ -44,6 +44,8 @@ def faithfulness_corr(
     show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,
     is_multi_target: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
 ) -> Tuple[
     Union[Tensor, List[Tensor]],
     Union[Tensor, List[Tensor]],
@@ -279,6 +281,11 @@ def faithfulness_corr(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
+        return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate
+                processing outputs are returned. Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
         Returns:
             A tuple of three tensors:
             Tensor: - The faithfulness correlation scores of the batch. The first dimension is equal to the
@@ -304,7 +311,11 @@ def faithfulness_corr(
         >>> faithfulness_corr, attribution_sums, perturbation_fwd_diffs = aopc(net, input, attribution)
     """
     if is_multi_target:
-        return _multi_target_faithfulness_corr(
+        (
+            faithfulness_corr_scores_list,
+            attributions_expanded_perturbed_sum_list,
+            perturbed_fwd_diffs_list,
+        ) = _multi_target_faithfulness_corr(
             forward_func=forward_func,
             inputs=inputs,
             attributions_list=attributions,
@@ -319,6 +330,24 @@ def faithfulness_corr(
             show_progress=show_progress,
             set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
         )
+
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "faithfulness_corr_score": faithfulness_corr_scores_list,
+                    "attributions_expanded_perturbed_sum": attributions_expanded_perturbed_sum_list,
+                    "perturbed_fwd_diffs": perturbed_fwd_diffs_list,
+                }
+            else:
+                return (
+                    faithfulness_corr_scores_list,
+                    attributions_expanded_perturbed_sum_list,
+                    perturbed_fwd_diffs_list,
+                )
+        else:
+            if return_dict:
+                return {"faithfulness_corr_score": faithfulness_corr_scores_list}
+            return faithfulness_corr_scores_list
 
     def _generate_perturbations(
         current_n_perturb_samples: int,
@@ -551,8 +580,21 @@ def faithfulness_corr(
                 )
             ]
         )
-    return (
-        faithfulness_corr_scores,
-        attributions_expanded_perturbed_sum,
-        perturbed_fwd_diffs,
-    )
+
+    if return_intermediate_results:
+        if return_dict:
+            return {
+                "faithfulness_corr_score": faithfulness_corr_scores,
+                "attributions_expanded_perturbed_sum": attributions_expanded_perturbed_sum,
+                "perturbed_fwd_diffs": perturbed_fwd_diffs,
+            }
+        else:
+            return (
+                faithfulness_corr_scores,
+                attributions_expanded_perturbed_sum,
+                perturbed_fwd_diffs,
+            )
+    else:
+        if return_dict:
+            return {"faithfulness_corr_score": faithfulness_corr_scores}
+        return faithfulness_corr_scores

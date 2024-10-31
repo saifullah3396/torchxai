@@ -33,6 +33,7 @@ def sensitivity_n(
     max_examples_per_batch: int = None,
     normalize: bool = False,
     is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> Tensor:
     r"""
     A wrapper around the Captum library's infidelity metric that computes senstivity_n.
@@ -253,6 +254,9 @@ def sensitivity_n(
                 are then returned as a list of metric outputs corresponding to each target class. For multi-target
                 infidelity, captum implementation is extened in _multi_target_infidelity function.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
 
         infidelities (Tensor): A tensor of scalar infidelity scores per
@@ -333,7 +337,7 @@ def sensitivity_n(
         return tuple(expanded_perturbation_masks), inputs_perturbed
 
     if is_multi_target:
-        return _multi_target_infidelity(
+        sensitivity_n_score = _multi_target_infidelity(
             forward_func=forward_func,
             perturb_func=sensitivity_perturb_function,
             inputs=inputs,
@@ -345,10 +349,13 @@ def sensitivity_n(
             max_examples_per_batch=max_examples_per_batch,
             normalize=normalize,
         )
+        if return_dict:
+            return {"sensitivity_n_score": sensitivity_n_score}
+        return sensitivity_n_score
 
     from captum.metrics import infidelity
 
-    return infidelity(
+    sensitivity_n_score = infidelity(
         forward_func=forward_func,
         perturb_func=sensitivity_perturb_function,
         inputs=inputs,
@@ -360,3 +367,6 @@ def sensitivity_n(
         max_examples_per_batch=max_examples_per_batch,
         normalize=normalize,
     )
+    if return_dict:
+        {"sensitivity_n_score": sensitivity_n_score}
+    return sensitivity_n_score

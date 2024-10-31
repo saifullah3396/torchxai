@@ -22,6 +22,7 @@ def infidelity(
     max_examples_per_batch: int = None,
     normalize: bool = False,
     is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> Tensor:
     r"""
     A wrapper around the Captum library's infidelity metric. The metric returns a list of infidelity
@@ -293,7 +294,7 @@ def infidelity(
         >>> infid = infidelity(net, perturb_fn, input, attribution)
     """
     if is_multi_target:
-        return _multi_target_infidelity(
+        infidelity_score = _multi_target_infidelity(
             forward_func=forward_func,
             perturb_func=perturb_func,
             inputs=inputs,
@@ -305,10 +306,13 @@ def infidelity(
             max_examples_per_batch=max_examples_per_batch,
             normalize=normalize,
         )
+        if return_dict:
+            return {"infidelity_score": infidelity_score}
+        return infidelity_score
 
     from captum.metrics import infidelity
 
-    return infidelity(
+    infidelity_score = infidelity(
         forward_func=forward_func,
         perturb_func=perturb_func,
         inputs=inputs,
@@ -320,3 +324,7 @@ def infidelity(
         max_examples_per_batch=max_examples_per_batch,
         normalize=normalize,
     )
+
+    if return_dict:
+        return {"infidelity_score": infidelity_score}
+    return infidelity_score

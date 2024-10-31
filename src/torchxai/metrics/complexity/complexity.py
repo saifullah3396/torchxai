@@ -9,7 +9,9 @@ from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def complexity(
-    attributions: Tuple[torch.Tensor, ...], is_multi_target: bool = False
+    attributions: Tuple[torch.Tensor, ...],
+    is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> torch.Tensor:
     """
     Implementation of Complexity metric by Bhatt et al., 2020. This implementation
@@ -34,6 +36,9 @@ def complexity(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar complexity scores per
                 input example. The first dimension is equal to the
@@ -57,7 +62,10 @@ def complexity(
         isinstance(
             attributions, list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        return [complexity(a) for a in attributions]
+        complexity_score = [complexity(a, return_dict=False) for a in attributions]
+        if return_dict:
+            return {"complexity_score": complexity_score}
+        return complexity_score
 
     with torch.no_grad():
         if not isinstance(attributions, tuple):
@@ -83,4 +91,7 @@ def complexity(
         attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise entropy of the fractional contribution
-        return Categorical(probs=attributions).entropy()
+        complexity_score = Categorical(probs=attributions).entropy()
+        if return_dict:
+            return {"complexity_score": complexity_score}
+        return complexity_score

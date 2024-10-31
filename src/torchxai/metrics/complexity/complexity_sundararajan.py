@@ -12,6 +12,7 @@ def complexity_sundararajan(
     eps: float = 1.0e-5,
     normalize_attribution: bool = True,
     is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> torch.Tensor:
     """
     Implementation of Complexity metric by Sundararajan at el., 2017. This implementation
@@ -41,6 +42,9 @@ def complexity_sundararajan(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar effective complexity per
                 input example. The first dimension is equal to the
@@ -66,14 +70,20 @@ def complexity_sundararajan(
         isinstance(
             attributions, list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        return [
+        complexity_sundararajan_score = [
             complexity_sundararajan(
                 a,
                 eps=eps,
                 normalize_attribution=normalize_attribution,
+                return_dict=False,
             )
             for a in attributions
         ]
+        if return_dict:
+            return {
+                "complexity_sundararajan_score": complexity_sundararajan_score,
+            }
+        return complexity_sundararajan_score
 
     with torch.no_grad():
         if not isinstance(attributions, tuple):
@@ -93,4 +103,7 @@ def complexity_sundararajan(
             attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise effective complexity of the attribution map
-        return torch.sum(attributions.abs() > eps, dim=1)
+        complexity_sundararajan_score = torch.sum(attributions.abs() > eps, dim=1)
+        if return_dict:
+            return {"complexity_sundararajan_score": complexity_sundararajan_score}
+        return complexity_sundararajan_score

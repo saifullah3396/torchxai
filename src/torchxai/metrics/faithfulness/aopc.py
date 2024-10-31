@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
-from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
@@ -28,13 +27,6 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-
-
-@dataclass
-class AOPCOutput:
-    desc: Union[List[Tensor], List[List[Tensor]]]
-    asc: Union[List[Tensor], List[List[Tensor]]]
-    rand: Union[List[Tensor], List[List[Tensor]]]
 
 
 def perturb_input(input, baseline, feature_mask, indices, feature_idx):
@@ -311,7 +303,8 @@ def aopc(
     seed: Optional[int] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
-) -> AOPCOutput:
+    return_dict: bool = False,
+) -> Any:
     """
     Implementation of Area over the Perturbation Curve by Samek et al., 2015. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
@@ -492,8 +485,11 @@ def aopc(
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
         show_progress (bool, optional): Displays the progress of the computation. Default: False
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
-        AOPCOutput: A dataclass that contains the descending, ascending and random AOPC scores for the input
+        A dictionary that contains the descending, ascending and random AOPC scores for the input
             samples. The dataclass contains the following fields:
             - desc (Union[List[Tensor], List[List[Tensor]]]): A list of tensors or a list of list of tensors
                 representing the descending AOPC scores for each input example. The first dimension is equal to the
@@ -542,7 +538,7 @@ def aopc(
         aopc_ascending_batch_list = []
         aopc_random_batch_list = []
         for attributions, target in zip(attributions_list, targets_list):
-            aopc_output: AOPCOutput = aopc(
+            aopc_output = aopc(
                 forward_func=forward_func,
                 inputs=inputs,
                 attributions=attributions,
@@ -555,15 +551,23 @@ def aopc(
                 n_random_perms=n_random_perms,
                 seed=seed,
                 show_progress=show_progress,
+                return_dict=False,
             )
             aopc_descending_batch_list.append(aopc_output.desc)
             aopc_ascending_batch_list.append(aopc_output.asc)
             aopc_random_batch_list.append(aopc_output.rand)
-        return AOPCOutput(
-            desc=aopc_descending_batch_list,
-            asc=aopc_ascending_batch_list,
-            rand=aopc_random_batch_list,
-        )
+        if return_dict:
+            return dict(
+                desc=aopc_descending_batch_list,
+                asc=aopc_ascending_batch_list,
+                rand=aopc_random_batch_list,
+            )
+        else:
+            return (
+                aopc_descending_batch_list,
+                aopc_ascending_batch_list,
+                aopc_random_batch_list,
+            )
 
     # perform argument formattings
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
@@ -623,8 +627,15 @@ def aopc(
         )
         aopc_batch.append(aopc_scores)
 
-    return AOPCOutput(
-        desc=[x[0] for x in aopc_batch],
-        asc=[x[1] for x in aopc_batch],
-        rand=[x[2:].mean(0) for x in aopc_batch],
-    )  # descending, ascending, random
+    if return_dict:
+        return dict(
+            desc=[x[0] for x in aopc_batch],
+            asc=[x[1] for x in aopc_batch],
+            rand=[x[2:].mean(0) for x in aopc_batch],
+        )  # descending, ascending, random
+    else:
+        return (
+            [x[0] for x in aopc_batch],
+            [x[1] for x in aopc_batch],
+            [x[2:].mean(0) for x in aopc_batch],
+        )

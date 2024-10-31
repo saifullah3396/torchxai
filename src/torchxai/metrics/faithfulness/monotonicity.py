@@ -5,26 +5,23 @@ from typing import Any, Callable, Tuple, Union, cast
 import numpy as np
 import torch
 import tqdm
-from captum._utils.common import (
-    ExpansionTypes,
-    _expand_additional_forward_args,
-    _expand_target,
-    _format_additional_forward_args,
-    _format_baseline,
-    _format_tensor_into_tuples,
-    _run_forward,
-)
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.common import (ExpansionTypes,
+                                  _expand_additional_forward_args,
+                                  _expand_target,
+                                  _format_additional_forward_args,
+                                  _format_baseline, _format_tensor_into_tuples,
+                                  _run_forward)
+from captum._utils.typing import (BaselineType, TargetType,
+                                  TensorOrTupleOfTensorsGeneric)
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
-from torchxai.metrics._utils.common import (
-    _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
-    _split_tensors_to_tuple_tensors,
-    _tuple_tensors_to_tensors,
-    _validate_feature_mask,
-)
+from torchxai.metrics._utils.batching import \
+    _divide_and_aggregate_metrics_n_features
+from torchxai.metrics._utils.common import (_construct_default_feature_mask,
+                                            _reduce_tensor_with_indices,
+                                            _split_tensors_to_tuple_tensors,
+                                            _tuple_tensors_to_tensors,
+                                            _validate_feature_mask)
 
 
 def eval_monotonicity_single_sample_tupled_computation(
@@ -346,6 +343,8 @@ def monotonicity(
     max_features_processed_per_batch: int = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
 ) -> Tuple[Tensor, Tensor]:
     """
     Implementation of Monotonicity metric by Arya at el., 2019. This implementation
@@ -516,6 +515,12 @@ def monotonicity(
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
         show_progress (bool, optional): Displays the progress of computation.
+        return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate
+                results of the metric computation are returned. If set to True, the intermediate results
+                are returned as a tuple of tensors. Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Returns:
             A tuple of three tensors:
@@ -569,12 +574,26 @@ def monotonicity(
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 show_progress=show_progress,
+                return_dict=False,
+                return_intermediate_results=True,
             )
             monotonicity_batch_list.append(monotonicity_batch)
             asc_baseline_perturbed_fwds_batch_list.append(
                 asc_baseline_perturbed_fwds_batch
             )
-        return monotonicity_batch_list, asc_baseline_perturbed_fwds_batch_list
+
+        if return_intermediate_results:
+            if return_dict:
+                {
+                    "monotonicity_score": monotonicity_batch_list,
+                    "asc_baseline_perturbed_fwds_batch": asc_baseline_perturbed_fwds_batch_list,
+                }
+            else:
+                return monotonicity_batch, asc_baseline_perturbed_fwds_batch_list
+        else:
+            if return_dict:
+                return {"monotonicity_score": monotonicity_batch_list}
+            return monotonicity_batch_list
 
     with torch.no_grad():
         # perform argument formattings
@@ -643,4 +662,16 @@ def monotonicity(
             monotonicity_batch.append(monotonicity_score)
             asc_baseline_perturbed_fwds_batch.append(asc_baseline_perturbed_fwds)
         monotonicity_batch = torch.tensor(monotonicity_batch)
-        return monotonicity_batch, asc_baseline_perturbed_fwds_batch
+
+        if return_intermediate_results:
+            if return_dict:
+                {
+                    "monotonicity_score": monotonicity_batch,
+                    "asc_baseline_perturbed_fwds_batch": asc_baseline_perturbed_fwds_batch,
+                }
+            else:
+                return monotonicity_batch, asc_baseline_perturbed_fwds_batch
+        else:
+            if return_dict:
+                return {"monotonicity_score": monotonicity_batch}
+            return monotonicity_batch

@@ -12,6 +12,7 @@ def attribution_localization(
     positive_attributions: bool = True,
     weighted: bool = False,
     is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> torch.Tensor:
     """
     Implementation of the Attribution Localization by Kohlbrenner et al., 2020. This implementation
@@ -34,6 +35,9 @@ def attribution_localization(
             representing the desired segmented region for for each input attribution.
         weighted (bool, optional): If True, the metric is weighted by the ratio of the total mask size and the
             size of segmented region.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+            with keys as the metric names and values as the corresponding metric outputs.
+            Default is False.
 
     Returns:
         Tensor: A tensor of scalar complexity scores per
@@ -58,15 +62,21 @@ def attribution_localization(
         isinstance(
             attributions, list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        return [
+        attribution_localization_scores = [
             attribution_localization(
                 attributions=a,
                 segmentation_masks=segmentation_masks,
                 positive_attributions=positive_attributions,
                 weighted=weighted,
+                return_dict=False,
             )
             for a in attributions
         ]
+        if return_dict:
+            return {
+                "attribution_localization_score": attribution_localization_scores,
+            }
+        return attribution_localization_scores
 
     with torch.no_grad():
         is_attributions_tuple = _is_tuple(attributions)
@@ -104,4 +114,11 @@ def attribution_localization(
                 )
             )
 
-        return _format_output(is_attributions_tuple, attribution_localization_scores)
+        attribution_localization_scores = _format_output(
+            is_attributions_tuple, attribution_localization_scores
+        )
+        if return_dict:
+            {
+                "attribution_localization_score": attribution_localization_scores,
+            }
+        return attribution_localization_scores

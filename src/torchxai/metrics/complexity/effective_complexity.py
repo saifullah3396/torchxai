@@ -270,6 +270,8 @@ def effective_complexity(
     use_absolute_attributions: bool = True,
     is_multi_target: bool = False,
     show_progress: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Effective complexity metric by Nguyen at el., 2020. This implementation
@@ -496,7 +498,11 @@ def effective_complexity(
             n_features_batch (Tensor): A tensor of scalar values that represent the total number of
                     features that are processed in the input batch. The first dimension is equal to the
                     number of examples in the input batch and the second dimension is one.
-
+            return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate
+                    results are returned. Default: False
+            return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                    with keys as the metric names and values as the corresponding metric outputs.
+                    Default is False.
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
         >>> # and returns an Nx10 tensor of class probabilities.
@@ -551,17 +557,32 @@ def effective_complexity(
                 eps=eps,
                 use_absolute_attributions=use_absolute_attributions,
                 show_progress=show_progress,
+                return_intermediate_results=True,
+                return_dict=False,
             )
             effective_complexity_batch_list.append(effective_complexity_batch)
             perturbed_fwd_diffs_relative_vars_batch_list.append(
                 perturbed_fwd_diffs_relative_vars_batch
             )
             n_features_batch_list.append(n_features_batch)
-        return (
-            effective_complexity_batch_list,
-            perturbed_fwd_diffs_relative_vars_batch_list,
-            n_features_batch_list,
-        )
+
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "effective_complexity_score": effective_complexity_batch_list,
+                    "perturbed_fwd_diffs_relative_vars_batch": perturbed_fwd_diffs_relative_vars_batch_list,
+                    "n_features_batch": n_features_batch_list,
+                }
+            else:
+                return (
+                    effective_complexity_batch_list,
+                    perturbed_fwd_diffs_relative_vars_batch_list,
+                    n_features_batch_list,
+                )
+        else:
+            if return_dict:
+                return {"effective_complexity_score": effective_complexity_batch_list}
+            return effective_complexity
 
     with torch.no_grad():
         # perform argument formattings
@@ -645,8 +666,20 @@ def effective_complexity(
             )
             n_features_batch.append(n_features)
         effective_complexity_batch = torch.tensor(effective_complexity_batch)
-        return (
-            effective_complexity_batch,
-            perturbed_fwd_diffs_relative_vars_batch,
-            n_features_batch,
-        )
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "effective_complexity_score": effective_complexity_batch,
+                    "perturbed_fwd_diffs_relative_vars_batch": perturbed_fwd_diffs_relative_vars_batch,
+                    "n_features_batch": n_features_batch,
+                }
+            else:
+                return (
+                    effective_complexity_batch,
+                    perturbed_fwd_diffs_relative_vars_batch,
+                    n_features_batch,
+                )
+        else:
+            if return_dict:
+                return {"effective_complexity_score": effective_complexity_batch}
+            return effective_complexity_batch

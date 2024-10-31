@@ -293,6 +293,8 @@ def monotonicity_corr_and_non_sens(
     eps: float = 1e-5,
     is_multi_target: bool = False,
     show_progress: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Monotonicity Correlation and NonSensitivity by Nguyen at el., 2020. This implementation
@@ -525,6 +527,12 @@ def monotonicity_corr_and_non_sens(
                 Default is False.
 
         show_progress (bool, optional): Displays the progress of the computation. Default: True
+        return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate results
+                of the metric computation are returned.
+                Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         A tuple of tensors:
             monotonicity_corr_batch (Tensor): A tensor of scalar monotonicity_corr scores per
@@ -554,7 +562,13 @@ def monotonicity_corr_and_non_sens(
         >>> monotonicity_corr, non_sens, n_features = monotonicity_corr_and_non_sens(net, input, attribution, baselines)
     """
     if is_multi_target:
-        return _multi_target_monotonicity_corr_and_non_sens(
+        (
+            monotonicity_corr_batch_list,
+            non_sens_batch_list,
+            n_features_batch,
+            perturbed_fwd_diffs_relative_vars_batch_list,
+            feature_group_attribution_scores_batch_list,
+        ) = _multi_target_monotonicity_corr_and_non_sens(
             forward_func=forward_func,
             inputs=inputs,
             attributions_list=attributions,
@@ -567,6 +581,32 @@ def monotonicity_corr_and_non_sens(
             eps=eps,
             show_progress=show_progress,
         )
+
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "monotonicity_corr_score": monotonicity_corr_batch_list,
+                    "non_sensitivity_score": non_sens_batch_list,
+                    "n_features": n_features_batch,
+                    "perturbed_fwd_diffs_relative_vars": perturbed_fwd_diffs_relative_vars_batch_list,
+                    "feature_group_attribution_scores": feature_group_attribution_scores_batch_list,
+                }
+            else:
+                return (
+                    monotonicity_corr_batch_list,
+                    non_sens_batch_list,
+                    n_features_batch,
+                    perturbed_fwd_diffs_relative_vars_batch_list,
+                    feature_group_attribution_scores_batch_list,
+                )
+        else:
+            if return_dict:
+                return {
+                    "monotonicity_corr_score": monotonicity_corr_batch_list,
+                    "non_sensitivity_score": non_sens_batch_list,
+                }
+            else:
+                return monotonicity_corr_batch_list, non_sens_batch_list
 
     with torch.no_grad():
         # perform argument formattings
@@ -656,10 +696,29 @@ def monotonicity_corr_and_non_sens(
         feature_group_attribution_scores_batch = torch.tensor(
             feature_group_attribution_scores_batch
         )
-        return (
-            monotonicity_corr_batch,
-            non_sens_batch,
-            n_features_batch,
-            perturbed_fwd_diffs_relative_vars_batch,
-            feature_group_attribution_scores_batch,
-        )
+
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "monotonicity_corr_score": monotonicity_corr_batch,
+                    "non_sensitivity_score": non_sens_batch,
+                    "n_features": n_features_batch,
+                    "perturbed_fwd_diffs_relative_vars": perturbed_fwd_diffs_relative_vars_batch,
+                    "feature_group_attribution_scores": feature_group_attribution_scores_batch,
+                }
+            else:
+                return (
+                    monotonicity_corr_batch,
+                    non_sens_batch,
+                    n_features_batch,
+                    perturbed_fwd_diffs_relative_vars_batch,
+                    feature_group_attribution_scores_batch,
+                )
+        else:
+            if return_dict:
+                return {
+                    "monotonicity_corr_score": monotonicity_corr_batch,
+                    "non_sensitivity_score": non_sens_batch,
+                }
+            else:
+                return monotonicity_corr_batch, non_sens_batch

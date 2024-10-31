@@ -19,6 +19,8 @@ def input_invariance(
     constant_shifts: TensorOrTupleOfTensorsGeneric,
     input_layer_names: Tuple[str],
     is_multi_target: bool = False,
+    return_intermediate_results: bool = False,
+    return_dict: bool = False,
     **kwargs: Any,
 ) -> Union[Tensor, List[Tensor]]:
     """
@@ -75,7 +77,12 @@ def input_invariance(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
-
+        return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate results
+                of the metric computation are returned.
+                Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
         **kwargs (Any, optional): Contains a list of arguments that are passed
                 to `explanation_func` explanation function which in some cases
                 could be the `attribute` function of an attribution algorithm.
@@ -112,13 +119,30 @@ def input_invariance(
             _multi_target_input_invariance,
         )
 
-        return _multi_target_input_invariance(
-            explainer=explainer,
-            inputs=inputs,
-            constant_shifts=constant_shifts,
-            input_layer_names=input_layer_names,
-            **kwargs,
+        input_invarance_score, inputs_expl, shifted_inputs_expl = (
+            _multi_target_input_invariance(
+                explainer=explainer,
+                inputs=inputs,
+                constant_shifts=constant_shifts,
+                input_layer_names=input_layer_names,
+                return_intermediate_results=return_intermediate_results,
+                **kwargs,
+            )
         )
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "input_invarance_score": input_invarance_score,
+                    "inputs_expl": inputs_expl,
+                    "shifted_inputs_expl": shifted_inputs_expl,
+                }
+            else:
+                return (input_invarance_score, inputs_expl, shifted_inputs_expl)
+        else:
+            if return_dict:
+                return {"input_invarance_score": input_invarance_score}
+            else:
+                return input_invarance_score
 
     # Keeps track whether original input is a tuple or not before
     # converting it into a tuple.
@@ -201,8 +225,23 @@ def input_invariance(
             )
         )
 
-        return (
-            input_invarance_score,
-            _format_output(is_inputs_tuple, inputs_expl),
-            _format_output(is_inputs_tuple, shifted_inputs_expl),
-        )
+        if return_intermediate_results:
+            if return_dict:
+                return {
+                    "input_invarance_score": input_invarance_score,
+                    "inputs_expl": _format_output(is_inputs_tuple, inputs_expl),
+                    "shifted_inputs_expl": _format_output(
+                        is_inputs_tuple, shifted_inputs_expl
+                    ),
+                }
+            else:
+                return (
+                    input_invarance_score,
+                    _format_output(is_inputs_tuple, inputs_expl),
+                    _format_output(is_inputs_tuple, shifted_inputs_expl),
+                )
+        else:
+            if return_dict:
+                return {"input_invarance_score": input_invarance_score}
+            else:
+                return input_invarance_score

@@ -10,7 +10,9 @@ from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def sparseness(
-    attributions: Tuple[Tensor, ...], is_multi_target: bool = False
+    attributions: Tuple[Tensor, ...],
+    is_multi_target: bool = False,
+    return_dict: bool = False,
 ) -> Tensor:
     """
     Implementation of Sparseness metric by Chalasani et al., 2020. This implementation
@@ -40,6 +42,9 @@ def sparseness(
                 each corresponding to a required target class in the output. The corresponding metric outputs
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
     Returns:
         Tensor: A tensor of scalar sparseness scores per
                 input example. The first dimension is equal to the
@@ -64,7 +69,10 @@ def sparseness(
         isinstance(
             attributions, list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        return [sparseness(a) for a in attributions]
+        sparseness_score = [sparseness(a, return_dict=False) for a in attributions]
+        if return_dict:
+            return {"sparseness_score": sparseness_score}
+        return sparseness_score
 
     with torch.no_grad():
         if not isinstance(attributions, tuple):
@@ -85,10 +93,13 @@ def sparseness(
             ) / (vec.shape[0] * np.sum(vec))
 
         # compute batch-wise Gini Index of the attribution map
-        return torch.tensor(
+        sparseness_score = torch.tensor(
             [
                 gini_index(attribution.detach().cpu().numpy() + 1e-8)
                 for attribution in attributions
             ],
             device=attributions.device,
         ).float()
+        if return_dict:
+            return {"sparseness_score": sparseness_score}
+        return sparseness_score

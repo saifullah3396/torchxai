@@ -18,7 +18,7 @@ def infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_infidelity_perturb_fn,
+    perturb_func: Callable = default_infidelity_perturb_fn(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
     normalize: bool = True,

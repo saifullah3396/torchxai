@@ -86,9 +86,12 @@ def default_random_perturb_func(noise_scale: float = 0.02):
     return wrapped
 
 
-def default_infidelity_perturb_fn(inputs, noise_scale: float = 0.003):
-    noise = torch.tensor(torch.randn_like(inputs) * noise_scale).float()
-    return noise, inputs - noise
+def default_infidelity_perturb_fn(noise_scale: float = 0.003):
+    def wrapped(inputs, baselines=None):
+        noise = torch.randn_like(inputs) * noise_scale
+        return noise, inputs - noise
+
+    return wrapped
 
 
 def _generate_random_perturbation_masks(

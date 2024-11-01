@@ -1,4 +1,5 @@
 from copy import deepcopy
+from functools import reduce
 from typing import Any
 
 import torch
@@ -19,7 +20,7 @@ def _create_model_with_shifted_bias(
 
         # add hooks to save the output of the input layers
         for input_layer_name in input_layer_names:
-            module = getattr(shifted_model, input_layer_name)
+            module = reduce(getattr, [shifted_model, *input_layer_name.split(".")])
             saved_outputs = {}
 
             def output_saver(saved_outputs):
@@ -46,12 +47,12 @@ def _create_model_with_shifted_bias(
                 # however note that this will only work reasonably if a constant shift of the same value is applied
                 # throughout the image, even then, without padding the output will be slightly shifted around the corners
                 module.bias = nn.Parameter(
-                    module_output[
+                    module_output[0][
                         :, module_output.shape[1] // 2, module_output.shape[1] // 2
                     ]
                 )
             elif isinstance(module, nn.Linear):
-                module.bias = nn.Parameter(module_output)
+                module.bias = nn.Parameter(module_output[0])
             else:
                 raise ValueError("Input layer is not a Conv2d or Linear layer")
         return shifted_model

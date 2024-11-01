@@ -42,7 +42,6 @@ class MultiTargetSaliency(Saliency):
         gradient_mask = apply_gradient_requirements(inputs)
 
         # verify that the target is valid
-        print("inputs", inputs, target)
         _verify_target_for_multi_target_impl(inputs, target)
 
         # No need to format additional_forward_args here.

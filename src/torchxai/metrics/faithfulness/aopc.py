@@ -627,15 +627,20 @@ def aopc(
         )
         aopc_batch.append(aopc_scores)
 
+    def _convert_to_tensor_if_possible(list_of_tensors):
+        if all([x.shape == list_of_tensors[0].shape for x in list_of_tensors]):
+            return torch.stack(list_of_tensors)
+        return list_of_tensors
+
     if return_dict:
         return dict(
-            desc=[x[0] for x in aopc_batch],
-            asc=[x[1] for x in aopc_batch],
-            rand=[x[2:].mean(0) for x in aopc_batch],
+            desc=_convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+            asc=_convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+            rand=_convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
         )  # descending, ascending, random
     else:
         return (
-            [x[0] for x in aopc_batch],
-            [x[1] for x in aopc_batch],
-            [x[2:].mean(0) for x in aopc_batch],
+            _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+            _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+            _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
         )

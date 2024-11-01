@@ -156,11 +156,11 @@ def _divide_and_aggregate_metrics_n_perturbations_per_feature(
     show_progress: bool = False,
 ) -> torch.Tensor:
     r"""
-    This function is used to slice large number of samples `n_perturb_samples` per
+    This function is used to slice large number of samples `n_perturbations_per_feature` per
     input example into smaller pieces, computing the metrics for each small piece and
-    aggregating the results a
-    print('feature_mask', tuple(x.shape for x in feature_mask))
-    return 0 urbation purposes for example.
+    aggregating the results all `n_perturbations_per_feature` per example. The function
+    returns overall aggregated metric per sample. The size of each slice is determined
+    by the `max_features_processed_per_batch` input parameter.
         metric_func (Callable): This function takes the number of samples per
                         input batch and returns an overall metric for each example.
         agg_func (Callable, optional): This function is used to aggregate the
@@ -241,11 +241,11 @@ def _divide_and_aggregate_metrics_n_features(
     show_progress: bool = False,
 ) -> torch.Tensor:
     r"""
-    This function is used to slice large number of samples `n_perturb_samples` per
+    This function is used to slice large number of samples `n_features` per
     input example into smaller pieces, computing the metrics for each small piece and
-    aggregating the results a
-    print('feature_mask', tuple(x.shape for x in feature_mask))
-    return 0 urbation purposes for example.
+    aggregating the results all `n_features` per example. The function
+    returns overall aggregated metric per sample. The size of each slice is determined
+    by the `max_features_processed_per_batch` input parameter.
         metric_func (Callable): This function takes the number of samples per
                         input batch and returns an overall metric for each example.
         agg_func (Callable, optional): This function is used to aggregate the

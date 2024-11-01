@@ -20,7 +20,7 @@ def infidelity(
     target: TargetType = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
-    normalize: bool = False,
+    normalize: bool = True,
     is_multi_target: bool = False,
     return_dict: bool = False,
 ) -> Tensor:

@@ -1,3 +1,4 @@
+import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import scipy
@@ -375,17 +376,16 @@ def faithfulness_corr(
                 inputs_arg = inputs_expanded
                 baselines_arg = baselines_expanded
                 perturbation_mask_arg = perturbation_masks
-            return (
-                perturb_func(
-                    inputs=inputs_arg,
-                    perturbation_masks=perturbation_mask_arg,
-                    baselines=baselines_arg,
-                )
-                if baselines_arg is not None
-                else perturb_func(
-                    inputs=inputs_arg, perturbation_masks=perturbation_mask_arg
-                )
+            pertub_kwargs = dict(
+                inputs=inputs_arg,
+                perturbation_masks=perturbation_mask_arg,
             )
+            if (
+                inspect.signature(perturb_func).parameters.get("baselines")
+                and baselines_arg is not None
+            ):
+                pertub_kwargs["baselines"] = baselines_arg
+            return perturb_func(**pertub_kwargs)
 
         pert_start = current_n_step - current_n_perturb_samples
         pert_end = current_n_step

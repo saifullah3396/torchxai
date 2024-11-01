@@ -32,7 +32,7 @@ def default_zero_baseline_func():
     return wrapped
 
 
-def default_random_perturb_func(noise_scale: float = 0.02):
+def default_fixed_baseline_perturb_func():
     def wrapped(
         inputs: TensorOrTupleOfTensorsGeneric,
         perturbation_masks: TensorOrTupleOfTensorsGeneric,
@@ -46,17 +46,37 @@ def default_random_perturb_func(noise_scale: float = 0.02):
             baselines = (baselines,)
         assert perturbation_masks[0].dtype == torch.bool
 
-        if baselines is None:
-            # generate random noise if baselines are not provided
-            baselines = tuple(
-                torch.tensor(
-                    np.random.uniform(low=-noise_scale, high=noise_scale, size=x.shape),
-                    device=x.device,
-                ).float()
-                for x in inputs
-            )
-
         for input, mask, baseline in zip(inputs, perturbation_masks, baselines):
+            if len(input.shape) > len(mask.shape):
+                mask = mask.unsqueeze(-1)
+
+            input[mask.expand_as(input)] = baseline[mask.expand_as(input)]
+        return inputs
+
+    return wrapped
+
+
+def default_random_perturb_func(noise_scale: float = 0.02):
+    def wrapped(
+        inputs: TensorOrTupleOfTensorsGeneric,
+        perturbation_masks: TensorOrTupleOfTensorsGeneric,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        if not isinstance(inputs, tuple):
+            inputs = (inputs,)
+        if not isinstance(perturbation_masks, tuple):
+            perturbation_masks = (perturbation_masks,)
+        assert perturbation_masks[0].dtype == torch.bool
+
+        # generate random noise if baselines are not provided
+        random_baselines = tuple(
+            torch.tensor(
+                np.random.uniform(low=-noise_scale, high=noise_scale, size=x.shape),
+                device=x.device,
+            ).float()
+            for x in inputs
+        )
+
+        for input, mask, baseline in zip(inputs, perturbation_masks, random_baselines):
             if len(input.shape) > len(mask.shape):
                 mask = mask.unsqueeze(-1)
 

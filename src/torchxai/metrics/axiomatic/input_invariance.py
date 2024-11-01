@@ -164,10 +164,12 @@ def input_invariance(
 
     assert (
         len(inputs) == len(constant_shifts)
-        and inputs[0].shape[1:] == constant_shifts[0].shape
+        and inputs[0].shape[1:] == constant_shifts[0].shape[1:]
+        and constant_shifts[0].shape[0] == 1
     ), (
         "The number of inputs should be the same as the number of constant shifts and the batch size of the "
-        "constant shifts should be 1. "
+        "constant shifts should be 1. Current shapes are: "
+        f"{inputs[0].shape} and {constant_shifts[0].shape}"
     )
 
     shifted_explainer = _create_shifted_expainer(
@@ -179,7 +181,7 @@ def input_invariance(
 
     # create shifted inputs
     constant_shift_expanded = tuple(
-        constant_shift.unsqueeze(0).expand_as(input)
+        constant_shift.expand_as(input)
         for input, constant_shift in zip(inputs, constant_shifts)
     )
     shifted_inputs = tuple(

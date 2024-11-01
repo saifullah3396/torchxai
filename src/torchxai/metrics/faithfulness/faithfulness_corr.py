@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import scipy
 import torch
@@ -39,7 +39,7 @@ def faithfulness_corr(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturb_samples: int = 10,
-    max_examples_per_batch: int = None,
+    max_examples_per_batch: Optional[int] = None,
     perturbation_probability: float = 0.1,
     show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,

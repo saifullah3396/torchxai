@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 import torch
 from captum._utils.common import _format_tensor_into_tuples
@@ -30,7 +30,7 @@ def sensitivity_n(
     additional_forward_args: Any = None,
     target: TargetType = None,
     n_perturb_samples: int = 10,
-    max_examples_per_batch: int = None,
+    max_examples_per_batch: Optional[int] = None,
     normalize: bool = False,
     is_multi_target: bool = False,
     return_dict: bool = False,

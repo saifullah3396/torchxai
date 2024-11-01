@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
@@ -19,7 +19,7 @@ def infidelity(
     additional_forward_args: Any = None,
     target: TargetType = None,
     n_perturb_samples: int = 10,
-    max_examples_per_batch: int = None,
+    max_examples_per_batch: Optional[int] = None,
     normalize: bool = False,
     is_multi_target: bool = False,
     return_dict: bool = False,

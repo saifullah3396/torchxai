@@ -1,27 +1,30 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
 import tqdm
-from captum._utils.common import (ExpansionTypes,
-                                  _expand_additional_forward_args,
-                                  _expand_target,
-                                  _format_additional_forward_args,
-                                  _format_baseline, _format_tensor_into_tuples,
-                                  _run_forward)
-from captum._utils.typing import (BaselineType, TargetType,
-                                  TensorOrTupleOfTensorsGeneric)
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_additional_forward_args,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_baseline,
+    _format_tensor_into_tuples,
+    _run_forward,
+)
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 
-from torchxai.metrics._utils.batching import \
-    _divide_and_aggregate_metrics_n_features
-from torchxai.metrics._utils.common import (_construct_default_feature_mask,
-                                            _reduce_tensor_with_indices,
-                                            _split_tensors_to_tuple_tensors,
-                                            _tuple_tensors_to_tensors,
-                                            _validate_feature_mask)
+from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
+from torchxai.metrics._utils.common import (
+    _construct_default_feature_mask,
+    _reduce_tensor_with_indices,
+    _split_tensors_to_tuple_tensors,
+    _tuple_tensors_to_tensors,
+    _validate_feature_mask,
+)
 
 
 def eval_monotonicity_single_sample_tupled_computation(
@@ -340,7 +343,7 @@ def monotonicity(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    max_features_processed_per_batch: int = None,
+    max_features_processed_per_batch: Optional[int] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
     return_intermediate_results: bool = False,

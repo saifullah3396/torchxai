@@ -82,7 +82,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
     for max_examples_per_batch in runtime_config.max_examples_per_batch:
         set_all_random_seeds(1234)
         sensitivity_n_batch_list_1 = sensitivity_n(
-            n=runtime_config.sensitivity_n,
+            n_features_perturbed=runtime_config.sensitivity_n,
             forward_func=base_config.model,
             inputs=base_config.inputs,
             attributions=explanations,
@@ -100,7 +100,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
         for explanation, target in zip(explanations, runtime_config.override_target):
             set_all_random_seeds(1234)
             sensitivity_n_batch = sensitivity_n(
-                n=runtime_config.sensitivity_n,
+                n_features_perturbed=runtime_config.sensitivity_n,
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
                 attributions=explanation,

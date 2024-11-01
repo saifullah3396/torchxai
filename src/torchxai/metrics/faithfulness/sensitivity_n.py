@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Union
 
 import torch
 from captum._utils.common import _format_tensor_into_tuples
@@ -21,7 +21,7 @@ from torchxai.metrics.faithfulness.multi_target.infidelity import (
 
 
 def sensitivity_n(
-    n: int,
+    n_features_perturbed: Union[int, float],
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
@@ -110,9 +110,12 @@ def sensitivity_n(
                 - or a scalar, corresponding to a tensor in the
                   inputs' tuple. This scalar value is broadcasted
                   for corresponding input tensor.
-        n (int): Number of features to perturb for each sample at a time. This n corresponds to the
-                sensitivity-n value. The perturbation function will perturb n features for each sample
-                n_perturb_samples times to compute the sensitivity-n for each sample.
+        n_features_perturbed (int or float): Number of features to perturb for each sample at a time.
+                This n corresponds to the sensitivity-n value. The perturbation function will perturb n
+                features for each sample n_perturb_samples times to compute the sensitivity-n for each sample.
+                Alternatively, if n_features_perturbed is a float, it will be interpreted as a percentage of the total
+                number of features in the input. For example, if n_features_perturbed=0.1, 10% of the total number of features
+                will be perturbed for each sample at a time.
         attributions (Tensor or tuple[Tensor, ...]):
                 Attribution scores computed based on an attribution algorithm.
                 This attribution scores can be computed using the implementations
@@ -277,10 +280,21 @@ def sensitivity_n(
         >>>    noise = torch.tensor(np.random.normal(0, 0.003, inputs.shape)).float()
         >>>    return noise, inputs - noise
         >>> # Computes sensitivity_n score for saliency maps
-        >>> infid = sensitivity_n(net, n=1, baselines=0, input, attribution)
+        >>> infid = sensitivity_n(net, n_features_perturbed=1, baselines=0, input, attribution)
     """
-    assert n > 0, "n should be greater than 0"
-    # attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+    if isinstance(n_features_perturbed, float):
+        assert (
+            0 < n_features_perturbed <= 1
+        ), "If n_features_perturbed is a float, it should be in the range (0, 1]"
+    elif isinstance(n_features_perturbed, int):
+        assert (
+            n_features_perturbed > 0
+        ), "n_features_perturbed should be greater than 0. This defines the N in sensitivity-N"
+    else:
+        raise ValueError(
+            "n_features_perturbed should be either an int or a float between (0, 1]"
+        )
+
     feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
     if feature_mask is not None:
         # assert that all elements in the feature_mask are unique and non-negative increasing
@@ -315,7 +329,7 @@ def sensitivity_n(
         perturbation_masks = _generate_random_perturbation_masks_with_fixed_n(
             n_perturbations,
             feature_mask,
-            n_features_perturbed=n,
+            n_features_perturbed=n_features_perturbed,
             device=device,
         )
         perturbation_masks = tuple(
@@ -368,5 +382,5 @@ def sensitivity_n(
         normalize=normalize,
     )
     if return_dict:
-        {"sensitivity_n_score": sensitivity_n_score}
+        return {"sensitivity_n_score": sensitivity_n_score}
     return sensitivity_n_score

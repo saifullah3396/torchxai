@@ -218,7 +218,7 @@ def test_sensitivity_n(metrics_runtime_test_configuration):
             inputs=base_config.inputs,
             attributions=explanations,
             baselines=base_config.baselines if base_config.baselines is not None else 0,
-            n=runtime_config.sensitivity_n,
+            n_features_perturbed=runtime_config.sensitivity_n,
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             n_perturb_samples=runtime_config.n_perturb_samples,

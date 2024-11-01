@@ -5,6 +5,7 @@ from typing import Any, Callable, Optional
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
 
+from torchxai.metrics._utils.perturbation import default_infidelity_perturb_fn
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
@@ -12,12 +13,12 @@ from torchxai.metrics.faithfulness.multi_target.infidelity import (
 
 def infidelity(
     forward_func: Callable,
-    perturb_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    perturb_func: Callable = default_infidelity_perturb_fn,
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
     normalize: bool = True,

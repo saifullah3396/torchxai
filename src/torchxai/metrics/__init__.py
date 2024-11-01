@@ -6,7 +6,7 @@ from torchxai.metrics.axiomatic.monotonicity_corr_and_non_sens import (
 )  # noqa
 
 # complexity
-from torchxai.metrics.complexity.complexity import complexity  # noqa
+from torchxai.metrics.complexity.complexity_entropy import complexity_entropy  # noqa
 from torchxai.metrics.complexity.complexity_sundararajan import (
     complexity_sundararajan,
 )  # noqa

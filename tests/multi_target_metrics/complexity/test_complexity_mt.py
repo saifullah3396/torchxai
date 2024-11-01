@@ -6,7 +6,7 @@ import torch  # noqa
 
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
-from torchxai.metrics import complexity
+from torchxai.metrics import complexity_entropy
 
 
 @dataclass
@@ -52,12 +52,12 @@ def test_complexity_multi_target(metrics_runtime_test_configuration):
 
     per_target_complexity = []
     for explanation, target in zip(explanations, runtime_config.override_target):
-        output = complexity(
+        output = complexity_entropy(
             attributions=explanation,
         )
         per_target_complexity.append(output)
 
-    multi_target_complexity_output = complexity(
+    multi_target_complexity_output = complexity_entropy(
         attributions=explanations,
         is_multi_target=True,
     )

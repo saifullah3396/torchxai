@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
@@ -265,7 +265,7 @@ def effective_complexity(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
-    max_features_processed_per_batch: int = None,
+    max_features_processed_per_batch: Optional[int] = None,
     eps: float = 1e-5,
     use_absolute_attributions: bool = True,
     is_multi_target: bool = False,

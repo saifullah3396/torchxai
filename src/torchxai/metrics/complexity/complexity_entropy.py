@@ -8,7 +8,7 @@ from torch.distributions import Categorical
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
-def complexity(
+def complexity_entropy(
     attributions: Tuple[torch.Tensor, ...],
     is_multi_target: bool = False,
     return_dict: bool = False,
@@ -62,7 +62,9 @@ def complexity(
         isinstance(
             attributions, list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        complexity_score = [complexity(a, return_dict=False) for a in attributions]
+        complexity_score = [
+            complexity_entropy(a, return_dict=False) for a in attributions
+        ]
         if return_dict:
             return {"complexity_score": complexity_score}
         return complexity_score

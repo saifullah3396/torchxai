@@ -6,7 +6,7 @@ import torch
 
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
-from torchxai.metrics.complexity.complexity import complexity
+from torchxai.metrics.complexity.complexity_entropy import complexity_entropy
 
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
@@ -79,7 +79,7 @@ test_configurations = [
 )
 def test_complexity(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
-    output = complexity(
+    output = complexity_entropy(
         attributions=explanations,
     )
     assert_tensor_almost_equal(

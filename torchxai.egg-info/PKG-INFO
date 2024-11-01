@@ -51,8 +51,6 @@ Requires-Dist: torch==2.3.0
 Requires-Dist: tqdm==4.66.4
 Requires-Dist: captum
 Requires-Dist: pytest
-Provides-Extra: explanation-framework
-Requires-Dist: atria@ git+https://git.opendfki.de/saifullah/atria.git ; extra == "explanation-framework"
 Provides-Extra: test
 Requires-Dist: coverage; extra == "test"
 

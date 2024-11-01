@@ -1,8 +1,8 @@
 LICENSE.txt
-MANIFEST.in
 README.md
 pyproject.toml
 src/torchxai/__init__.py
+src/torchxai/explainers/__init__.py
 src/torchxai/explainers/_utils.py
 src/torchxai/explainers/explainer.py
 src/torchxai/explainers/factory.py
@@ -20,11 +20,6 @@ src/torchxai/explainers/_perturbation/kernel_shap.py
 src/torchxai/explainers/_perturbation/lime.py
 src/torchxai/explainers/_perturbation/lime_base.py
 src/torchxai/explainers/_perturbation/occlusion.py
-src/torchxai/explanation_framework/conf/build_configurations.py
-src/torchxai/explanation_framework/ignite/torchxai_metric.py
-src/torchxai/explanation_framework/registry/metrics_registry.py
-src/torchxai/explanation_framework/utilities/common.py
-src/torchxai/explanation_framework/utilities/containers.py
 src/torchxai/metrics/__init__.py
 src/torchxai/metrics/_utils/batching.py
 src/torchxai/metrics/_utils/common.py
@@ -37,7 +32,7 @@ src/torchxai/metrics/axiomatic/utilities.py
 src/torchxai/metrics/axiomatic/multi_target/completeness.py
 src/torchxai/metrics/axiomatic/multi_target/input_invariance.py
 src/torchxai/metrics/axiomatic/multi_target/monotonicity_corr_and_non_sens.py
-src/torchxai/metrics/complexity/complexity.py
+src/torchxai/metrics/complexity/complexity_entropy.py
 src/torchxai/metrics/complexity/complexity_sundararajan.py
 src/torchxai/metrics/complexity/effective_complexity.py
 src/torchxai/metrics/complexity/sparseness.py

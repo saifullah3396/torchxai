@@ -8,8 +8,5 @@ tqdm==4.66.4
 captum
 pytest
 
-[explanation_framework]
-atria@ git+https://git.opendfki.de/saifullah/atria.git
-
 [test]
 coverage

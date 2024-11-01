@@ -12,7 +12,7 @@ def test_axiomatic_imports() -> None:
 
 
 def test_complexity_imports() -> None:
-    from torchxai.metrics import complexity  # noqa
+    from torchxai.metrics import complexity_entropy  # noqa
     from torchxai.metrics import effective_complexity  # noqa
     from torchxai.metrics import sparseness  # noqa
 

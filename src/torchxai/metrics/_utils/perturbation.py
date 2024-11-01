@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Tuple
+from typing import Tuple, Union
 
 import numpy as np
 import torch
@@ -141,7 +141,7 @@ def _generate_random_perturbation_masks(
 def _generate_random_perturbation_masks_with_fixed_n(
     n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
-    n_features_perturbed: int = 1,
+    n_features_perturbed: Union[int, float] = 1,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
     """
@@ -168,6 +168,13 @@ def _generate_random_perturbation_masks_with_fixed_n(
             # here we generate a single random perturbation mask for the sample. This would be of shape
             # (channel, height, width) or (seq_length, feature_dim)
             # we randomly drop n_features_perturbed features
+            if isinstance(n_features_perturbed, float):
+                assert (
+                    0 <= n_features_perturbed <= 1
+                ), "n_features_perturbed should be in [0, 1] if passed as a float percentage of total features"
+                n_features_perturbed = int(
+                    n_features_perturbed * len(features_in_sample)
+                )
             feature_drop_mask = torch.randperm(len(features_in_sample), device=device)[
                 :n_features_perturbed
             ]

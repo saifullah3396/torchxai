@@ -19,6 +19,7 @@ def _create_model_with_shifted_bias(
         shifted_model.eval()
 
         # add hooks to save the output of the input layers
+        forward_hooks = []
         for input_layer_name in input_layer_names:
             module = reduce(getattr, [shifted_model, *input_layer_name.split(".")])
             saved_outputs = {}
@@ -29,7 +30,8 @@ def _create_model_with_shifted_bias(
 
                 return hook
 
-            module.register_forward_hook(output_saver(saved_outputs))
+            hook = module.register_forward_hook(output_saver(saved_outputs))
+            forward_hooks.append(hook)
 
         # perform a forward pass to save the input layer outputs
         shifted_model(
@@ -55,6 +57,10 @@ def _create_model_with_shifted_bias(
                 module.bias = nn.Parameter(module_output[0])
             else:
                 raise ValueError("Input layer is not a Conv2d or Linear layer")
+
+        for hook in forward_hooks:
+            hook.remove()
+
         return shifted_model
 
 

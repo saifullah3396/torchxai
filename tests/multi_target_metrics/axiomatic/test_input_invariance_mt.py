@@ -69,7 +69,7 @@ def setup_test_config_for_explainer(explainer, **kwargs):
             target_fixture="mnist_train_configuration",
             explainer=explainer,
             train_and_eval_model=True,
-            constant_shifts=torch.ones(1, 28, 28),
+            constant_shifts=torch.ones(1, 28, 28).unsqueeze(0),
             use_captum_explainer=False,
             override_target=[0, 1, 2],
             expected=None,
@@ -147,6 +147,7 @@ def test_input_invariance(metrics_runtime_test_configuration):
         constant_shifts=runtime_config.constant_shifts,
         input_layer_names=base_config.input_layer_names,
         target=runtime_config.override_target,
+        return_intermediate_results=True,
         **kwargs,
         **(
             runtime_config.explainer_kwargs
@@ -169,6 +170,7 @@ def test_input_invariance(metrics_runtime_test_configuration):
             constant_shifts=runtime_config.constant_shifts,
             input_layer_names=base_config.input_layer_names,
             target=target,
+            return_intermediate_results=True,
             **kwargs,
             **(
                 runtime_config.explainer_kwargs

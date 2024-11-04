@@ -125,7 +125,6 @@ def input_invariance(
                 inputs=inputs,
                 constant_shifts=constant_shifts,
                 input_layer_names=input_layer_names,
-                return_intermediate_results=return_intermediate_results,
                 **kwargs,
             )
         )

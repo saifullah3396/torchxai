@@ -110,9 +110,9 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
                 total_features_perturbed=runtime_config.total_features_perturbed,
                 seed=42,
             )
-            desc_batch_list_2.append(output.desc)
-            asc_batch_list_2.append(output.asc)
-            rand_batch_list_2.append(output.rand)
+            desc_batch_list_2.append(output["desc"])
+            asc_batch_list_2.append(output["asc"])
+            rand_batch_list_2.append(output["rand"])
 
         assert len(desc_batch_list_1) == len(desc_batch_list_2)
         assert len(asc_batch_list_1) == len(asc_batch_list_2)

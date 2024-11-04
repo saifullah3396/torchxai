@@ -112,8 +112,9 @@ def test_effective_complexity(metrics_runtime_test_configuration):
             perturb_func=runtime_config.perturb_func,
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
-            show_progress=False,
+            show_progress=True,
             is_multi_target=True,
+            return_intermediate_results=True,
         )
 
         set_all_random_seeds(1234)
@@ -134,7 +135,8 @@ def test_effective_complexity(metrics_runtime_test_configuration):
                 perturb_func=runtime_config.perturb_func,
                 n_perturbations_per_feature=n_perturbs,
                 max_features_processed_per_batch=max_features,
-                show_progress=False,
+                show_progress=True,
+                return_intermediate_results=True,
             )
             effective_complexity_score_batch_list_2.append(
                 effective_complexity_score_batch

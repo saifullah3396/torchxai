@@ -112,8 +112,9 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             perturb_func=runtime_config.perturb_func,
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
-            show_progress=False,
+            show_progress=True,
             is_multi_target=True,
+            return_intermediate_results=True,
         )
         non_sensitivity_score_batch_list_2 = []
         perturbed_fwd_diffs_relative_vars_batch_list_2 = []
@@ -138,7 +139,8 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
                 perturb_func=runtime_config.perturb_func,
                 n_perturbations_per_feature=n_perturbs,
                 max_features_processed_per_batch=max_features,
-                show_progress=False,
+                show_progress=True,
+                return_intermediate_results=True,
             )
             non_sensitivity_score_batch_list_2.append(non_sensitivity_score_batch)
             perturbed_fwd_diffs_relative_vars_batch_list_2.append(

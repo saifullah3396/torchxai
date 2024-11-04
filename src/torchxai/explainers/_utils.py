@@ -4,6 +4,7 @@ from inspect import signature
 from typing import Any, Callable, Tuple, Union
 
 import torch
+import tqdm
 from captum._utils.common import (
     ExpansionTypes,
     _expand_target,
@@ -130,7 +131,7 @@ def _compute_gradients_sequential_autograd(
     return multi_target_gradients
 
 
-def _compute_gradients_vmap_autograd(
+def _compute_gradients_vmap_autograd_direct(
     forward_fn: Callable,
     inputs: Union[Tensor, Tuple[Tensor, ...]],
     target: Tuple[TargetType, ...] = None,
@@ -172,6 +173,60 @@ def _compute_gradients_vmap_autograd(
         tuple(grad_per_input for grad_per_input in grad_per_target)
         for grad_per_target in multi_target_gradients
     ]
+
+
+def _compute_gradients_vmap_autograd(
+    forward_fn: Callable,
+    inputs: Union[Tensor, Tuple[Tensor, ...]],
+    target: Tuple[TargetType, ...] = None,
+    additional_forward_args: Any = None,
+    grad_batch_size: int = 1,
+    show_progress: bool = False,
+) -> Tuple[Tensor, ...]:
+    with torch.autograd.set_grad_enabled(True):
+        outputs = _run_forward_multi_target(
+            forward_fn, inputs, target, additional_forward_args
+        )
+        if (
+            len(outputs.shape) > 1
+        ):  # this is the case where the output is of dimension [batch_size, ...]
+            unit_vectors = torch.eye(outputs.shape[-1]).to(outputs.device)
+            multi_target_gradients = None
+            for start_idx in tqdm.tqdm(
+                range(0, outputs.shape[-1], grad_batch_size), disable=not show_progress
+            ):
+                end_idx = min(start_idx + grad_batch_size, outputs.shape[-1])
+                grads = torch.autograd.grad(
+                    torch.unbind(outputs),
+                    inputs,
+                    (unit_vectors[start_idx:end_idx],) * outputs.shape[0],
+                    is_grads_batched=True,
+                    retain_graph=True if end_idx < outputs.shape[-1] else False,
+                )
+
+                if multi_target_gradients is None:
+                    multi_target_gradients = grads
+                else:
+                    multi_target_gradients = tuple(
+                        torch.cat((a, b), dim=0)
+                        for a, b in zip(multi_target_gradients, grads)
+                    )
+            multi_target_gradients = [
+                tuple(
+                    grad_per_target[idx] for grad_per_target in multi_target_gradients
+                )
+                for idx in range(len(multi_target_gradients[0]))
+            ]
+        else:
+            # this is the case where the output is of dimension [batch_size]
+            # in which case there is not target to choose from
+            grads = torch.autograd.grad(
+                torch.unbind(outputs),
+                inputs,
+            )
+            multi_target_gradients = [grads]
+
+    return multi_target_gradients
 
 
 def _batch_attribution_multi_target(

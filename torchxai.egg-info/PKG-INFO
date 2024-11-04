@@ -58,12 +58,23 @@ Requires-Dist: coverage; extra == "test"
 TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques.
 
 # Description
-TorchXAI provides efficient implementations of several XAI (Explainable AI) metrics that seamlessly integrate with the Captum library. The primary goal of this toolkit is to offer batch computation of various explainability metrics, enabling scalable evaluation while maintaining compatibility with the established Captum framework.
+TorchXAI provides efficient implementations of several XAI (Explainable AI) metrics that seamlessly integrate with the Captum library. The primary goal of this toolkit is to offer batch computation and task/data-agnostic implementations of various explainability metrics, enabling scalable evaluation while maintaining compatibility with the established Captum framework.
 
-# Installation
-Install project requirements:
+# Installation with Pip
+The project can be installed directly with pip:
 ```
-pip install -r requirements.txt
+pip install git+https://github.com/saifullah3396/torchxai.git
+```
+
+# Installation from Source
+Clone the repository:
+```
+git clone https://github.com/saifullah3396/torchxai.git
+```
+
+Install the project with pip on source directory
+```
+pip install -e .
 ```
 
 # Usage

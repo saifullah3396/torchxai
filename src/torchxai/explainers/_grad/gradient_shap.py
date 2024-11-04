@@ -56,7 +56,11 @@ class MultiTargetInputBaselineXGradient(InputBaselineXGradient):
             for input, baseline in zip(inputs, baselines)
         )
         multi_target_gradients = self.gradient_func(
-            self.forward_func, input_baseline_scaled, target, additional_forward_args
+            self.forward_func,
+            input_baseline_scaled,
+            target,
+            additional_forward_args,
+            grad_batch_size=self.grad_batch_size,
         )
 
         def gradients_to_attributions(per_target_gradients):
@@ -186,9 +190,11 @@ class MultiTargetGradientShap(GradientShap):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(forward_func, multiply_by_inputs)
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     def attribute(
         self,
@@ -217,6 +223,7 @@ class MultiTargetGradientShap(GradientShap):
             self.forward_func, self.multiplies_by_inputs
         )
         input_min_baseline_x_grad.gradient_func = self.gradient_func
+        input_min_baseline_x_grad.grad_batch_size = self.grad_batch_size
 
         nt = MultiTargetNoiseTunnel(input_min_baseline_x_grad)
 
@@ -246,6 +253,7 @@ class GradientShapExplainer(Explainer):
         model (torch.nn.Module): The model whose output is to be explained.
         n_samples (int): Number of random samples used to approximate the integral.
         internal_batch_size (int): Batch size used internally for computation.
+        grad_batch_size (int): Grad batch size is used internally for batch gradient computation.
     """
 
     def __init__(
@@ -254,8 +262,11 @@ class GradientShapExplainer(Explainer):
         n_samples: int = 25,
         is_multi_target: bool = False,
         internal_batch_size: int = 1,
+        grad_batch_size: int = 64,
     ) -> None:
-        super().__init__(model, is_multi_target, internal_batch_size)
+        super().__init__(
+            model, is_multi_target, internal_batch_size, grad_batch_size=grad_batch_size
+        )
         self.n_samples = n_samples
 
     def _init_explanation_fn(self) -> Attribution:
@@ -266,7 +277,9 @@ class GradientShapExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetGradientShap(self._model)
+            return MultiTargetGradientShap(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return GradientShapCustom(self._model)
 
     def explain(

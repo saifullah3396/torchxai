@@ -29,9 +29,11 @@ class MultiTargetGuidedBackprop(GuidedBackprop):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(model)
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     @log_usage()
     def attribute(
@@ -67,7 +69,11 @@ class MultiTargetGuidedBackprop(GuidedBackprop):
             self.model.apply(self._register_hooks)
 
             multi_target_gradients = self.gradient_func(
-                self.forward_func, inputs, target, additional_forward_args
+                self.forward_func,
+                inputs,
+                target,
+                additional_forward_args,
+                grad_batch_size=self.grad_batch_size,
             )
         finally:
             self._remove_hooks()
@@ -95,7 +101,9 @@ class GuidedBackpropExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetGuidedBackprop(self._model)
+            return MultiTargetGuidedBackprop(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return GuidedBackprop(self._model)
 
     def explain(

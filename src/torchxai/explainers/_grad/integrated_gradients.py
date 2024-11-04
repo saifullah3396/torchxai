@@ -39,9 +39,11 @@ class MultiTargetIntegratedGradients(IntegratedGradients):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(forward_func, multiply_by_inputs)
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     def attribute(  # type: ignore
         self,
@@ -182,6 +184,7 @@ class MultiTargetIntegratedGradients(IntegratedGradients):
             inputs=scaled_features_tpl,
             target=expanded_target,
             additional_forward_args=input_additional_args,
+            grad_batch_size=self.grad_batch_size,
         )
 
         # flattening grads so that we can multilpy it with step-size
@@ -230,6 +233,7 @@ class IntegratedGradientsExplainer(Explainer):
         model (torch.nn.Module): The model whose output is to be explained.
         internal_batch_size (int, optional): The batch size for internal computations. Default is 16.
         n_steps (int, optional): The number of steps for the integrated gradients approximation. Default is 100.
+        grad_batch_size (int): Grad batch size is used internally for batch gradient computation.
 
     Attributes:
         n_steps (int): The number of steps for integrated gradients.
@@ -241,11 +245,14 @@ class IntegratedGradientsExplainer(Explainer):
         is_multi_target: bool = False,
         internal_batch_size: int = 50,
         n_steps: int = 50,
+        grad_batch_size: int = 64,
     ) -> None:
         """
         Initialize the IntegratedGradientsExplainer with the model, internal batch size, and steps.
         """
-        super().__init__(model, is_multi_target, internal_batch_size)
+        super().__init__(
+            model, is_multi_target, internal_batch_size, grad_batch_size=grad_batch_size
+        )
         self.n_steps = n_steps
 
     def _init_explanation_fn(self) -> Attribution:
@@ -256,7 +263,9 @@ class IntegratedGradientsExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetIntegratedGradients(self._model)
+            return MultiTargetIntegratedGradients(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return IntegratedGradients(self._model)
 
     def explain(

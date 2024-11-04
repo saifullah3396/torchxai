@@ -53,10 +53,12 @@ class MultiTargetDeepLift(DeepLift):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(model, multiply_by_inputs, eps)
 
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     @log_usage()
     def attribute(  # type: ignore
@@ -112,7 +114,9 @@ class MultiTargetDeepLift(DeepLift):
                 expanded_target,
                 additional_forward_args,
             )
-            multi_target_gradients = self.gradient_func(wrapped_forward_func, inputs)
+            multi_target_gradients = self.gradient_func(
+                wrapped_forward_func, inputs, grad_batch_size=self.grad_batch_size
+            )
 
             def gradients_to_attributions(gradients):
                 if custom_attribution_func is None:
@@ -268,7 +272,9 @@ class DeepLiftExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetDeepLift(self._model)
+            return MultiTargetDeepLift(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return DeepLift(self._model)
 
     def explain(

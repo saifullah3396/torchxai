@@ -4,7 +4,7 @@ from logging import getLogger
 import torch
 
 from tests.explainers.utils import (
-    make_config_for_explainer,
+    make_config_for_explainer_with_grad_batch_size,
     run_explainer_test_with_config,
 )
 
@@ -21,7 +21,7 @@ logger = getLogger(__name__)
 
 
 test_configurations = [
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="basic_model_single_input_config",
         explainer="saliency",
         expected=(
@@ -29,7 +29,7 @@ test_configurations = [
             torch.tensor([-1.0]),
         ),
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="basic_model_single_input_config",
         explainer="saliency",
         expected=(
@@ -39,13 +39,13 @@ test_configurations = [
         override_target=0,
         throws_exception=True,
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="basic_model_single_batched_input_config",
         explainer="saliency",
         expected=(torch.tensor([[1.0]]), torch.tensor([[-1.0]])),
         override_target=0,
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="basic_model_batch_input_config",
         explainer="saliency",
         expected=(
@@ -53,7 +53,7 @@ test_configurations = [
             torch.tensor([-1.0, -1.0, -1.0]),
         ),
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="basic_model_batch_input_with_additional_forward_args_config",
         explainer="saliency",
         expected=(
@@ -61,7 +61,7 @@ test_configurations = [
             torch.tensor([[0, 0, 0]]),
         ),
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_convnet_model_with_multiple_targets_config",
         explainer="saliency",
         expected=(
@@ -70,7 +70,7 @@ test_configurations = [
             .repeat(20, 1, 1, 1)
         ),
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
         explainer="saliency",
         expected=[
@@ -87,7 +87,7 @@ test_configurations = [
             [(0, 0, 0), (0, 1, 1), (1, 1, 1), (0, 1, 1)],
         ],
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_sigmoid_model_single_input_single_target_config",
         explainer="saliency",
         expected=[
@@ -126,7 +126,7 @@ test_configurations = [
         ],
         override_target=[torch.tensor([0]), torch.tensor([1])],
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_softmax_model_single_input_single_target_config",
         explainer="saliency",
         expected=[
@@ -165,13 +165,13 @@ test_configurations = [
         ],
         override_target=[torch.tensor([0]), torch.tensor([1])],
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_alexnet_model_config",
         explainer="saliency",
         override_target=[0, 1, 2],
         expected=[None] * 3,
     ),
-    make_config_for_explainer(
+    *make_config_for_explainer_with_grad_batch_size(
         target_fixture="classification_alexnet_model_config",
         explainer="saliency",
         override_target=[

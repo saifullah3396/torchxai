@@ -15,6 +15,7 @@ from torchxai.explainers.factory import ExplainerFactory
 @dataclasses.dataclass
 class ExplainersTestRuntimeConfig(TestRuntimeConfig):
     is_multi_target: bool = False
+    grad_batch_size: int = 64
     visualize: bool = False
     check_multi_target_list_against_single_target: bool = True
 
@@ -34,7 +35,22 @@ def make_config_for_explainer(
     )
 
 
-def make_config_for_explainers_with_internal_batch_size(
+def make_config_for_explainer_with_grad_batch_size(
+    *args,
+    **kwargs,
+):
+    return [
+        make_config_for_explainer(
+            *args,
+            **kwargs,
+            explainer_kwargs={"grad_batch_size": grad_batch_size},
+            test_name_suffix=f"_grad_batch_size{grad_batch_size}",
+        )
+        for grad_batch_size in [1, 10, 64]
+    ]
+
+
+def make_config_for_explainer_with_internal_and_grad_batch_size(
     *args,
     **kwargs,
 ):
@@ -43,7 +59,29 @@ def make_config_for_explainers_with_internal_batch_size(
         make_config_for_explainer(
             *args,
             **kwargs,
-            explainer_kwargs={"internal_batch_size": internal_batch_size},
+            explainer_kwargs={
+                "internal_batch_size": internal_batch_size,
+                "grad_batch_size": grad_batch_size,
+            },
+            test_name_suffix=f"_internal_batch_size_{internal_batch_size}_grad_batch_size_{grad_batch_size}",
+        )
+        for grad_batch_size in [1, 10, 64]
+        for internal_batch_size in internal_batch_sizes
+    ]
+
+
+def make_config_for_explainer_with_internal_batch_size(
+    *args,
+    **kwargs,
+):
+    internal_batch_sizes = kwargs.pop("internal_batch_sizes", [None])
+    return [
+        make_config_for_explainer(
+            *args,
+            **kwargs,
+            explainer_kwargs={
+                "internal_batch_size": internal_batch_size,
+            },
             test_name_suffix=f"_internal_batch_size_{internal_batch_size}",
         )
         for internal_batch_size in internal_batch_sizes

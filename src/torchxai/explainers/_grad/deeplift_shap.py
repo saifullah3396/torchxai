@@ -23,7 +23,11 @@ from torch import Tensor
 from torch.nn import Module
 
 from torchxai.explainers._grad.deeplift import MultiTargetDeepLift
-from torchxai.explainers._utils import _verify_target_for_multi_target_impl
+from torchxai.explainers._utils import (
+    _compute_gradients_sequential_autograd,
+    _compute_gradients_vmap_autograd,
+    _verify_target_for_multi_target_impl,
+)
 from torchxai.explainers.explainer import Explainer
 
 
@@ -251,8 +255,24 @@ class DeepLiftShapBatched(DeepLift):
 
 
 class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
-    def __init__(self, model: Module, multiply_by_inputs: bool = True) -> None:
-        MultiTargetDeepLift.__init__(self, model, multiply_by_inputs=multiply_by_inputs)
+    def __init__(
+        self,
+        model: Module,
+        multiply_by_inputs: bool = True,
+        gradient_func=(
+            _compute_gradients_vmap_autograd
+            if torch.__version__ >= "2.3.0"
+            else _compute_gradients_sequential_autograd
+        ),
+        grad_batch_size: int = 10,
+    ) -> None:
+        MultiTargetDeepLift.__init__(
+            self,
+            model,
+            multiply_by_inputs=multiply_by_inputs,
+            gradient_func=gradient_func,
+            grad_batch_size=grad_batch_size,
+        )
 
     def attribute(  # type: ignore
         self,
@@ -487,10 +507,6 @@ class MultiTargetDeepLiftShapBatched(MultiTargetDeepLift):
 class DeepLiftShapExplainer(Explainer):
     """
     A Explainer class for handling DeepLIFTSHAP attribution using the Captum library.
-
-    Args:
-        model (torch.nn.Module): The model whose output is to be explained.
-        internal_batch_size (int, optional): The batch size for internal computations. Default is 16.
     """
 
     def _init_explanation_fn(self) -> Attribution:
@@ -501,7 +517,9 @@ class DeepLiftShapExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetDeepLiftShapBatched(self._model)
+            return MultiTargetDeepLiftShapBatched(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return DeepLiftShapBatched(self._model)
 
     def explain(

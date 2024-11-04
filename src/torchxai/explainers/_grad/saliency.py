@@ -27,9 +27,11 @@ class MultiTargetSaliency(Saliency):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(forward_func)
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     @log_usage()
     def attribute(
@@ -52,7 +54,11 @@ class MultiTargetSaliency(Saliency):
         # No need to format additional_forward_args here.
         # They are being formated in the `_run_forward` function in `common.py`
         multi_target_gradients = self.gradient_func(
-            self.forward_func, inputs, target, additional_forward_args
+            self.forward_func,
+            inputs,
+            target,
+            additional_forward_args,
+            grad_batch_size=self.grad_batch_size,
         )
 
         def gradients_to_attributions(gradients):
@@ -91,7 +97,9 @@ class SaliencyExplainer(Explainer):
         """
 
         if self._is_multi_target:
-            return MultiTargetSaliency(self._model)
+            return MultiTargetSaliency(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return Saliency(self._model)
 
     def explain(

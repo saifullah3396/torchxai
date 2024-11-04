@@ -27,9 +27,11 @@ class MultiTargetInputXGradient(InputXGradient):
             if torch.__version__ >= "2.3.0"
             else _compute_gradients_sequential_autograd
         ),
+        grad_batch_size: int = 10,
     ) -> None:
         super().__init__(forward_func)
         self.gradient_func = gradient_func
+        self.grad_batch_size = grad_batch_size
 
     @log_usage()
     def attribute(
@@ -49,7 +51,11 @@ class MultiTargetInputXGradient(InputXGradient):
         _verify_target_for_multi_target_impl(inputs, target)
 
         multi_target_gradients = self.gradient_func(
-            self.forward_func, inputs, target, additional_forward_args
+            self.forward_func,
+            inputs,
+            target,
+            additional_forward_args,
+            grad_batch_size=self.grad_batch_size,
         )
 
         def gradients_to_attributions(gradients):
@@ -85,7 +91,9 @@ class InputXGradientExplainer(Explainer):
             Attribution: The initialized explanation function.
         """
         if self._is_multi_target:
-            return MultiTargetInputXGradient(self._model)
+            return MultiTargetInputXGradient(
+                self._model, grad_batch_size=self._grad_batch_size
+            )
         return InputXGradient(self._model)
 
     def explain(

@@ -15,7 +15,7 @@ class Explainer(ABC):
         model (Union[torch.nn.Module, Callable]): The model used for attribution computation.
         is_multi_target (bool): A flag indicating whether the explainer is multi-target explainer.
         internal_batch_size (int): The internal batch size used for attribution computation.
-        explanation_fn (Attribution): The attribution class used by the handler.
+        grad_batch_size (int): Grad batch size is used internally for batch gradient computation.
     """
 
     def __init__(
@@ -23,10 +23,12 @@ class Explainer(ABC):
         model: Union[torch.nn.Module, Callable],
         is_multi_target: bool = False,
         internal_batch_size: int = 64,
+        grad_batch_size: int = 64,
     ) -> None:
         self._model = model
-        self._internal_batch_size = internal_batch_size
         self._is_multi_target = is_multi_target
+        self._internal_batch_size = internal_batch_size
+        self._grad_batch_size = grad_batch_size
         self._explanation_fn = self._init_explanation_fn()
 
     @property

@@ -5,7 +5,7 @@ import torch  # noqa
 
 from tests.explainers.utils import (
     ExplainersTestRuntimeConfig,
-    make_config_for_explainers_with_internal_batch_size,
+    make_config_for_explainer_with_internal_batch_size,
     run_explainer_test_with_config,
 )
 from tests.utils.common import grid_segmenter
@@ -20,7 +20,7 @@ def _make_config_for_explainer(
     *args,
     **kwargs,
 ):
-    return make_config_for_explainers_with_internal_batch_size(
+    return make_config_for_explainer_with_internal_batch_size(
         *args,
         **kwargs,
         explainer="kernel_shap",

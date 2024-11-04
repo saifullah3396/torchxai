@@ -98,6 +98,7 @@ def _compute_gradients_sequential_autograd(
     inputs: Union[Tensor, Tuple[Tensor, ...]],
     target: Tuple[TargetType, ...] = None,
     additional_forward_args: Any = None,
+    **kwargs,
 ) -> Tuple[Tensor, ...]:
     with torch.autograd.set_grad_enabled(True):
         outputs = _run_forward_multi_target(

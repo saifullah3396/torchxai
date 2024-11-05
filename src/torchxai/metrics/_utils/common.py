@@ -102,7 +102,7 @@ def _tuple_tensors_to_tensors(
     if len(tuple_tensors[0].shape) == 1:
         tuple_tensors = tuple(x.unsqueeze(-1) for x in tuple_tensors)
     return (
-        torch.cat(tuple(x.view(x.shape[0], -1) for x in tuple_tensors), dim=1),
+        torch.cat(tuple(x.reshape(x.shape[0], -1) for x in tuple_tensors), dim=1),
         tuple(x.shape[1:] for x in tuple_tensors),
     )
 

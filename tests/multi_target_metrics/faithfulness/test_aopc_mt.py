@@ -58,7 +58,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_non_sensitivity(metrics_runtime_test_configuration):
+def test_aopc_multi_target(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
 
     assert len(explanations) == len(
@@ -67,6 +67,9 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
 
     if runtime_config.set_image_feature_mask:
         base_config.feature_mask = grid_segmenter(base_config.inputs, cell_size=32)
+        base_config.feature_mask = base_config.feature_mask.expand_as(
+            base_config.inputs
+        )
 
     runtime_config.max_features_processed_per_batch = _format_to_list(
         runtime_config.max_features_processed_per_batch
@@ -74,12 +77,10 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
 
     for max_features in runtime_config.max_features_processed_per_batch:
         set_all_random_seeds(1234)
-        aopc_output = aopc(
+        desc_batch_list_1, asc_batch_list_1, rand_batch_list_1 = aopc(
             forward_func=base_config.model,
             inputs=base_config.inputs,
-            attributions=[
-                explanation.sum(dim=1, keepdim=True) for explanation in explanations
-            ],
+            attributions=explanations,
             baselines=base_config.baselines,
             feature_mask=base_config.feature_mask,
             additional_forward_args=base_config.additional_forward_args,
@@ -88,11 +89,8 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             total_features_perturbed=runtime_config.total_features_perturbed,
             seed=42,
             is_multi_target=True,
+            return_dict=False,
         )
-        desc_batch_list_1 = aopc_output.desc
-        asc_batch_list_1 = aopc_output.asc
-        rand_batch_list_1 = aopc_output.rand
-
         set_all_random_seeds(1234)
         desc_batch_list_2 = []
         asc_batch_list_2 = []
@@ -101,7 +99,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             output = aopc(
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
-                attributions=explanation.sum(dim=1, keepdim=True),
+                attributions=explanation,
                 baselines=base_config.baselines,
                 feature_mask=base_config.feature_mask,
                 additional_forward_args=base_config.additional_forward_args,
@@ -109,6 +107,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
                 max_features_processed_per_batch=max_features,
                 total_features_perturbed=runtime_config.total_features_perturbed,
                 seed=42,
+                return_dict=True,
             )
             desc_batch_list_2.append(output["desc"])
             asc_batch_list_2.append(output["asc"])

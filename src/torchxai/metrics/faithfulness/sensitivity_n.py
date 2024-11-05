@@ -362,7 +362,6 @@ def sensitivity_n(
             n_perturb_samples=n_perturb_samples,
             max_examples_per_batch=max_examples_per_batch,
             normalize=normalize,
-            return_dict=False,
         )
         if return_dict:
             return {"sensitivity_n_score": sensitivity_n_score}

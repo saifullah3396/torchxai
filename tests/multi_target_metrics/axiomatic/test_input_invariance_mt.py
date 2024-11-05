@@ -115,7 +115,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_input_invariance(metrics_runtime_test_configuration):
+def test_input_invariance_multi_target(metrics_runtime_test_configuration):
     base_config, runtime_config, explainer = metrics_runtime_test_configuration
 
     device = base_config.inputs.device

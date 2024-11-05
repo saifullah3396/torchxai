@@ -538,7 +538,7 @@ def aopc(
         aopc_ascending_batch_list = []
         aopc_random_batch_list = []
         for attributions, target in zip(attributions_list, targets_list):
-            aopc_output = aopc(
+            desc, asc, rand = aopc(
                 forward_func=forward_func,
                 inputs=inputs,
                 attributions=attributions,
@@ -553,9 +553,9 @@ def aopc(
                 show_progress=show_progress,
                 return_dict=False,
             )
-            aopc_descending_batch_list.append(aopc_output.desc)
-            aopc_ascending_batch_list.append(aopc_output.asc)
-            aopc_random_batch_list.append(aopc_output.rand)
+            aopc_descending_batch_list.append(desc)
+            aopc_ascending_batch_list.append(asc)
+            aopc_random_batch_list.append(rand)
         if return_dict:
             return dict(
                 desc=aopc_descending_batch_list,
@@ -585,6 +585,19 @@ def aopc(
         attributions must match. Found number of tensors in the inputs is: {} and in the
         attributions: {}"""
     ).format(len(inputs), len(attributions))
+    if feature_mask is not None:
+        assert len(feature_mask) == len(feature_mask), (
+            """The number of tensors in the inputs and
+                feature_masks must match. Found number of tensors in the inputs is: {} and in the
+                attributions: {}"""
+        ).format(len(feature_mask), len(feature_mask))
+        for input, attribution, mask in zip(inputs, attributions, feature_mask):
+            assert input.shape == mask.shape == attribution.shape, (
+                """
+                    The shape of the input, attribution and feature mask must match. Found shapes are: input {}
+                    attribution {} and feature mask {}
+                    """
+            ).format(input.shape, attribution.shape, mask.shape)
 
     bsz = inputs[0].size(0)
     aopc_batch = []

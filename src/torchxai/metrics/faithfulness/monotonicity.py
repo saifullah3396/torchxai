@@ -235,6 +235,8 @@ def eval_monotonicity_single_sample(
             perturbation_mask = (
                 feature_mask == ascending_attribution_indices[feature_idx]
             )
+            if len(inputs.shape) > len(perturbation_mask.shape):
+                perturbation_mask = perturbation_mask.unsqueeze(-1)
             global_perturbed_baselines[perturbation_mask.expand_as(inputs)] = inputs[
                 perturbation_mask.expand_as(inputs)
             ]  # input[0] here since batch size is 1
@@ -592,7 +594,7 @@ def monotonicity(
                     "asc_baseline_perturbed_fwds_batch": asc_baseline_perturbed_fwds_batch_list,
                 }
             else:
-                return monotonicity_batch, asc_baseline_perturbed_fwds_batch_list
+                return monotonicity_batch_list, asc_baseline_perturbed_fwds_batch_list
         else:
             if return_dict:
                 return {"monotonicity_score": monotonicity_batch_list}
@@ -617,6 +619,19 @@ def monotonicity(
             attributions must match. Found number of tensors in the inputs is: {} and in the
             attributions: {}"""
         ).format(len(inputs), len(attributions))
+        if feature_mask is not None:
+            assert len(feature_mask) == len(feature_mask), (
+                """The number of tensors in the inputs and
+                feature_masks must match. Found number of tensors in the inputs is: {} and in the
+                attributions: {}"""
+            ).format(len(feature_mask), len(feature_mask))
+            for input, attribution, mask in zip(inputs, attributions, feature_mask):
+                assert input.shape == mask.shape == attribution.shape, (
+                    """
+                    The shape of the input, attribution and feature mask must match. Found shapes are: input {}
+                    attribution {} and feature mask {}
+                    """
+                ).format(input.shape, attribution.shape, mask.shape)
 
         bsz = inputs[0].size(0)
         monotonicity_batch = []

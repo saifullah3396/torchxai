@@ -585,6 +585,7 @@ def faithfulness_estimate(
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 show_progress=show_progress,
                 return_dict=False,
+                return_intermediate_results=True,
             )
             faithfulness_estimate_batch_list.append(faithfulness_estimate_batch)
             attributions_sum_perturbed_batch_list.append(
@@ -628,6 +629,19 @@ def faithfulness_estimate(
         attributions must match. Found number of tensors in the inputs is: {} and in the
         attributions: {}"""
     ).format(len(inputs), len(attributions))
+    if feature_mask is not None:
+        assert len(feature_mask) == len(feature_mask), (
+            """The number of tensors in the inputs and
+            feature_masks must match. Found number of tensors in the inputs is: {} and in the
+            attributions: {}"""
+        ).format(len(feature_mask), len(feature_mask))
+        for input, attribution, mask in zip(inputs, attributions, feature_mask):
+            assert input.shape == mask.shape == attribution.shape, (
+                """
+                The shape of the input, attribution and feature mask must match. Found shapes are: input {}
+                attribution {} and feature mask {}
+                """
+            ).format(input.shape, attribution.shape, mask.shape)
 
     bsz = inputs[0].size(0)
     faithfulness_estimate_batch = []

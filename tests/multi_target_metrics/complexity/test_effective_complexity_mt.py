@@ -65,7 +65,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_effective_complexity(metrics_runtime_test_configuration):
+def test_effective_complexity_multi_target(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
 
     assert len(explanations) == len(

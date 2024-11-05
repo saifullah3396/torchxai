@@ -104,7 +104,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_faithfulness_corr(metrics_runtime_test_configuration):
+def test_faithfulness_corr_multi_target(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
 
     assert len(explanations) == len(
@@ -113,6 +113,9 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
 
     if runtime_config.set_image_feature_mask:
         base_config.feature_mask = grid_segmenter(base_config.inputs, cell_size=32)
+        base_config.feature_mask = base_config.feature_mask.expand_as(
+            base_config.inputs
+        )
 
     runtime_config.n_perturb_samples = _format_to_list(runtime_config.n_perturb_samples)
     runtime_config.max_examples_per_batch = _format_to_list(
@@ -168,6 +171,7 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
             show_progress=False,
             is_multi_target=True,
             perturbation_probability=runtime_config.perturbation_probability,
+            return_intermediate_results=True,
         )
         faithfulness_corr_score_batch_list_2 = []
         perturbed_fwd_diffs_relative_vars_batch_list_2 = []
@@ -183,7 +187,7 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
             ) = faithfulness_corr(
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
-                attributions=explanation.sum(dim=1, keepdim=True),
+                attributions=explanation,
                 baselines=perturbation_baseline,
                 feature_mask=base_config.feature_mask,
                 additional_forward_args=base_config.additional_forward_args,
@@ -193,6 +197,7 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
                 max_examples_per_batch=max_examples,
                 show_progress=False,
                 perturbation_probability=runtime_config.perturbation_probability,
+                return_intermediate_results=True,
             )
             faithfulness_corr_score_batch_list_2.append(faithfulness_corr_score_batch)
             perturbed_fwd_diffs_relative_vars_batch_list_2.append(

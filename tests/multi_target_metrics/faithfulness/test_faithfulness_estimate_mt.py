@@ -52,7 +52,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_non_sensitivity(metrics_runtime_test_configuration):
+def test_non_sensitivity_multi_target(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
 
     assert len(explanations) == len(
@@ -61,6 +61,9 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
 
     if runtime_config.set_image_feature_mask:
         base_config.feature_mask = grid_segmenter(base_config.inputs, cell_size=32)
+        base_config.feature_mask = base_config.feature_mask.expand_as(
+            base_config.inputs
+        )
 
     runtime_config.max_features_processed_per_batch = _format_to_list(
         runtime_config.max_features_processed_per_batch
@@ -75,15 +78,14 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
         ) = faithfulness_estimate(
             forward_func=base_config.model,
             inputs=base_config.inputs,
-            attributions=[
-                explanation.sum(dim=1, keepdim=True) for explanation in explanations
-            ],
+            attributions=explanations,
             baselines=base_config.baselines,
             feature_mask=base_config.feature_mask,
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             max_features_processed_per_batch=max_features,
             is_multi_target=True,
+            return_intermediate_results=True,
         )
 
         set_all_random_seeds(1234)
@@ -98,12 +100,13 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             ) = faithfulness_estimate(
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
-                attributions=explanation.sum(dim=1, keepdim=True),
+                attributions=explanation,
                 baselines=base_config.baselines,
                 feature_mask=base_config.feature_mask,
                 additional_forward_args=base_config.additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features,
+                return_intermediate_results=True,
             )
             faithfulness_estimate_batch_list_2.append(faithfulness_estimate_batch)
             attributions_sum_perturbed_batch_list_2.append(

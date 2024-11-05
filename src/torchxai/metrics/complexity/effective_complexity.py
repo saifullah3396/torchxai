@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
@@ -15,7 +15,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -259,10 +258,12 @@ def eval_effective_complexity_single_sample(
 def effective_complexity(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        TensorOrTupleOfTensorsGeneric, List[TensorOrTupleOfTensorsGeneric]
+    ],
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
-    target: TargetType = None,
+    target: Union[TargetType, List[TargetType]] = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,

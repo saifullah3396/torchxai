@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import torch
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def complexity_sundararajan(
-    attributions: Tuple[torch.Tensor, ...],
+    attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
     eps: float = 1.0e-5,
     normalize_attribution: bool = True,
     is_multi_target: bool = False,

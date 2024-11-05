@@ -101,13 +101,33 @@ def _tuple_tensors_to_tensors(
         return tuple_tensors, tuple_tensors.shape
     if len(tuple_tensors[0].shape) == 1:
         tuple_tensors = tuple(x.unsqueeze(-1) for x in tuple_tensors)
-    return torch.cat(tuple_tensors, dim=1), tuple(x.shape for x in tuple_tensors)
+    return (
+        torch.cat(tuple(x.view(x.shape[0], -1) for x in tuple_tensors), dim=1),
+        tuple(x.shape[1:] for x in tuple_tensors),
+    )
 
 
+# tests/metrics/faithfulness/test_faithfulness_estimate.py inputs_perturbed tensor([[0., 1.],
+#         [3., 0.]], device='cuda:0')
+# splitted_inputs (tensor([[0.],
+#         [3.]], device='cuda:0'), tensor([[1.],
+#         [0.]], device='cuda:0'))
 def _split_tensors_to_tuple_tensors(
     tensor: Tuple[torch.Tensor], shapes, dim=1
 ) -> torch.Tensor:
-    return tensor.split_with_sizes([x[dim] for x in shapes], dim=dim)
+    import numpy as np
+
+    assert len(tensor.shape) == 2
+    tensor_tuple = ()
+    last_size = 0
+    for shape in shapes:
+        size = np.prod(tuple(shape))
+        bsz = tensor.shape[0]
+        tensor_tuple += (
+            tensor[:, last_size : last_size + size].view(bsz, *tuple(shape)),
+        )
+        last_size += size
+    return tensor_tuple
 
 
 def _reduce_tensor_with_indices(

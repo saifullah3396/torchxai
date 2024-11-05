@@ -264,7 +264,7 @@ def eval_faithfulness_estimate_single_sample(
         inputs_perturbed_fwd = _run_forward(
             forward_func,
             # the inputs are [batch_size, feature_size, feature_dims] so we need to split them by feature size
-            _split_tensors_to_tuple_tensors(inputs_perturbed, inputs_shape, dim=1),
+            _split_tensors_to_tuple_tensors(inputs_perturbed, inputs_shape),
             targets_expanded,
             additional_forward_args_expanded,
         )

@@ -216,7 +216,7 @@ test_configurations = [
     ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
     indirect=True,
 )
-def test_non_sensitivity(metrics_runtime_test_configuration):
+def test_aopc(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
     runtime_config.max_features_processed_per_batch = _format_to_list(
         runtime_config.max_features_processed_per_batch

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import torch
 from torch.distributions import Categorical
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def complexity_entropy(
-    attributions: Tuple[torch.Tensor, ...],
+    attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
     is_multi_target: bool = False,
     return_dict: bool = False,
 ) -> torch.Tensor:
@@ -70,6 +69,7 @@ def complexity_entropy(
         return complexity_score
 
     with torch.no_grad():
+        print("attributions", tuple(x.shape for x in attributions))
         if not isinstance(attributions, tuple):
             attributions = (attributions,)
 

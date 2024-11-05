@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
-from typing import Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
 from torch import Tensor
-
 from torchxai.metrics._utils.common import _tuple_tensors_to_tensors
 
 
 def sparseness(
-    attributions: Tuple[Tensor, ...],
+    attributions: Union[Tuple[Tensor, ...], List[Tuple[Tensor, ...]]],
     is_multi_target: bool = False,
     return_dict: bool = False,
 ) -> Tensor:

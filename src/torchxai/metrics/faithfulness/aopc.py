@@ -174,7 +174,7 @@ def eval_aopcs_single_sample(
 
         # split the perturbed inputs by feature size
         perturbed_inputs = _split_tensors_to_tuple_tensors(
-            perturbed_inputs, inputs_shape, dim=1
+            perturbed_inputs, inputs_shape
         )
         inputs_perturbed_fwd = _run_forward(
             forward_func,

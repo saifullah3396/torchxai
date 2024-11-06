@@ -115,7 +115,9 @@ def complexity_entropy_feature_grouped(
     Implementation of Complexity metric by Bhatt et al., 2020. This implementation
     reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
     In addition, the implementation takes some ideas about the implementation of the metric from the python
-    Quantus library.
+    Quantus library. In this particular implementation, the attributions are grouped into feature groups and the
+    complexity is computed based on the entropy of the fractional contribution of feature groups to the total
+    magnitude of the attribution.
 
     Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
     magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain

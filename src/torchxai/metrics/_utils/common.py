@@ -107,11 +107,6 @@ def _tuple_tensors_to_tensors(
     )
 
 
-# tests/metrics/faithfulness/test_faithfulness_estimate.py inputs_perturbed tensor([[0., 1.],
-#         [3., 0.]], device='cuda:0')
-# splitted_inputs (tensor([[0.],
-#         [3.]], device='cuda:0'), tensor([[1.],
-#         [0.]], device='cuda:0'))
 def _split_tensors_to_tuple_tensors(
     tensor: Tuple[torch.Tensor], shapes, dim=1
 ) -> torch.Tensor:

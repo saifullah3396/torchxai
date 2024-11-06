@@ -130,24 +130,31 @@ def _split_tensors_to_tuple_tensors(
     return tensor_tuple
 
 
+def _reduce_tensor_with_indices_non_deterministic(
+    source: torch.Tensor, indices: torch.Tensor
+) -> torch.Tensor:
+    source = source.flatten()
+    reduced_attributions = torch.zeros(indices.max() + 1, dtype=source.dtype)
+    reduced_attributions.index_add_(
+        0,
+        indices.cpu(),
+        source.cpu(),
+    )
+    n_features = (indices.max() + 1).item()
+    return reduced_attributions, n_features
+
+
 def _reduce_tensor_with_indices(
     source: torch.Tensor, indices: torch.Tensor
 ) -> torch.Tensor:
     source = source.flatten()
-    reduced_attributions = torch.zeros_like(source)
-    assert (
-        reduced_attributions.shape[0] == indices.shape[0]
-    ), f"Tensor shape {reduced_attributions.shape} does not match indices shape {indices.shape}"
-    reduced_attributions.index_add_(
-        0,
-        indices,
-        source,
+    reduced_attributions = torch.zeros(
+        indices.max() + 1, dtype=source.dtype, device=source.device
     )
-
-    # get the number of feature for each element in batch (batch is 1 anyway but this will work for multiple samples)
+    for i in range(reduced_attributions.shape[0]):
+        reduced_attributions[i] = source[indices == i].sum()
     n_features = (indices.max() + 1).item()
-
-    return reduced_attributions[:n_features], n_features
+    return reduced_attributions, n_features
 
 
 def _draw_perturbated_inputs(perturbed_inputs):

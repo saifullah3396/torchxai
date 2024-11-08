@@ -4,7 +4,6 @@ from typing import List, Tuple, Union
 
 import torch
 from torch.distributions import Categorical
-
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _reduce_tensor_with_indices,
@@ -62,20 +61,20 @@ def complexity_entropy(
         >>> # define a perturbation function for the input
 
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
-        >>> complexity_scores = complexity(attribution)
+        >>> complexity_entropy_scores = complexity(attribution)
     """
-    if is_multi_target:
-        isinstance(
-            attributions, list
-        ), "attributions must be a list of tensors or list of tuples of tensors"
-        complexity_score = [
-            complexity_entropy(a, return_dict=False) for a in attributions
-        ]
-        if return_dict:
-            return {"complexity_score": complexity_score}
-        return complexity_score
-
     with torch.no_grad():
+        if is_multi_target:
+            isinstance(
+                attributions, list
+            ), "attributions must be a list of tensors or list of tuples of tensors"
+            complexity_entropy_score = [
+                complexity_entropy(a, return_dict=False) for a in attributions
+            ]
+            if return_dict:
+                return {"complexity_entropy_score": complexity_entropy_score}
+            return complexity_entropy_score
+
         if not isinstance(attributions, tuple):
             attributions = (attributions,)
 
@@ -99,10 +98,10 @@ def complexity_entropy(
         attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise entropy of the fractional contribution
-        complexity_score = Categorical(probs=attributions).entropy()
+        complexity_entropy_score = Categorical(probs=attributions).entropy()
         if return_dict:
-            return {"complexity_score": complexity_score}
-        return complexity_score
+            return {"complexity_entropy_score": complexity_entropy_score}
+        return complexity_entropy_score
 
 
 def complexity_entropy_feature_grouped(
@@ -158,22 +157,24 @@ def complexity_entropy_feature_grouped(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> complexity_scores = complexity(attribution)
     """
-    if is_multi_target:
-        isinstance(
-            attributions, list
-        ), "attributions must be a list of tensors or list of tuples of tensors"
-        complexity_score = [
-            complexity_entropy_feature_grouped(a, return_dict=False)
-            for a in attributions
-        ]
-        if return_dict:
-            return {"complexity_score": complexity_score}
-        return complexity_score
+    with torch.no_grad():
+        if is_multi_target:
+            isinstance(
+                attributions, list
+            ), "attributions must be a list of tensors or list of tuples of tensors"
+            complexity_entropy_feature_grouped_score = [
+                complexity_entropy_feature_grouped(a, return_dict=False)
+                for a in attributions
+            ]
+            if return_dict:
+                return {
+                    "complexity_entropy_feature_grouped_score": complexity_entropy_feature_grouped_score
+                }
+            return complexity_entropy_feature_grouped_score
 
-    def eval_complexity_entropy_feature_grouped_single_sample(
-        attributions_single_sample, feature_mask_single_sample
-    ):
-        with torch.no_grad():
+        def eval_complexity_entropy_feature_grouped_single_sample(
+            attributions_single_sample, feature_mask_single_sample
+        ):
             if not isinstance(attributions_single_sample, tuple):
                 attributions_single_sample = (attributions_single_sample,)
 
@@ -222,23 +223,25 @@ def complexity_entropy_feature_grouped(
             )
             return Categorical(probs=reduced_attributions).entropy()
 
-    bsz = attributions[0].size(0)
-    complexity_entropy_batch = []
-    for sample_idx in range(bsz):
-        complexity_entropy_score = (
-            eval_complexity_entropy_feature_grouped_single_sample(
-                attributions_single_sample=tuple(
-                    attr[sample_idx].unsqueeze(0) for attr in attributions
-                ),
-                feature_mask_single_sample=(
-                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                    if feature_mask is not None
-                    else None
-                ),
+        bsz = attributions[0].size(0)
+        complexity_entropy_batch = []
+        for sample_idx in range(bsz):
+            complexity_entropy_score = (
+                eval_complexity_entropy_feature_grouped_single_sample(
+                    attributions_single_sample=tuple(
+                        attr[sample_idx].unsqueeze(0) for attr in attributions
+                    ),
+                    feature_mask_single_sample=(
+                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                        if feature_mask is not None
+                        else None
+                    ),
+                )
             )
-        )
-        complexity_entropy_batch.append(complexity_entropy_score)
-    complexity_entropy_batch = torch.tensor(complexity_entropy_batch)
-    if return_dict:
-        return {"complexity_score": complexity_entropy_batch}
-    return complexity_entropy_batch
+            complexity_entropy_batch.append(complexity_entropy_score)
+        complexity_entropy_batch = torch.tensor(complexity_entropy_batch)
+        if return_dict:
+            return {
+                "complexity_entropy_feature_grouped_score": complexity_entropy_batch
+            }
+        return complexity_entropy_batch

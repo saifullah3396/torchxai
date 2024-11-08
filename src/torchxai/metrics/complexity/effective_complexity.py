@@ -2,7 +2,6 @@
 
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
-import numpy as np
 import torch
 import tqdm
 from captum._utils.common import (
@@ -15,6 +14,7 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -38,9 +38,10 @@ def eval_effective_complexity_single_sample(
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
+    ignored_indices: int = None,
+    return_ratio: bool = False,
     show_progress: bool = False,
 ) -> Tensor:
-
     def _generate_perturbations(
         current_n_perturbed_features: int,
         current_feature_indices: int,
@@ -77,11 +78,13 @@ def eval_effective_complexity_single_sample(
             for input in inputs
         )
 
+        ignored_indices = [272, 273, 274, 547, 548, 549, 822, 823, 824]
         current_perturbation_mask = tuple()
         for mask, perturbation_mask in zip(feature_mask, global_perturbation_mask):
             current_perturbation_mask_per_input = []
             for feature_index in current_feature_indices:
-                perturbation_mask += (mask == feature_index).bool()
+                if feature_index not in ignored_indices:
+                    perturbation_mask += (mask == feature_index).bool()
                 current_perturbation_mask_per_input += [perturbation_mask.clone()]
             current_perturbation_mask += (
                 torch.cat(current_perturbation_mask_per_input),
@@ -171,6 +174,8 @@ def eval_effective_complexity_single_sample(
         return agg_tensors + tensors
 
     with torch.no_grad():
+        if ignored_indices is None:
+            ignored_indices = []
         bsz = inputs[0].size(0)
         assert bsz == 1, "Batch size must be 1 for faithfulness_estimate_single_sample"
 
@@ -202,7 +207,7 @@ def eval_effective_complexity_single_sample(
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
         reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions, indices=feature_mask_flattened.flatten()
+            attributions[0], indices=feature_mask_flattened[0].flatten()
         )
 
         # get the gathererd-attributions sorted in descending order of their importance
@@ -236,10 +241,20 @@ def eval_effective_complexity_single_sample(
 
         # compute effective complexity metric
         def compute_effective_complexity(
-            perturbed_fwd_diffs_relative_vars: np.ndarray,
+            perturbed_fwd_diffs_relative_vars: torch.Tensor,
         ):
-            # if the variance in output it less than a threshold, that means the
-            return torch.sum(perturbed_fwd_diffs_relative_vars > eps)
+            # if the variance in output it less than a threshold, that means the feature set is not important
+            # find top-k features that are important
+            N = len(perturbed_fwd_diffs_relative_vars)
+            top_k_features = N
+            for k in range(N, 0, -1):
+                if perturbed_fwd_diffs_relative_vars[k - 1] < eps:
+                    top_k_features = N - k
+                    break
+            if return_ratio:
+                return top_k_features / N
+            else:
+                return top_k_features
 
         # this final output is a tensor of output variances when features are perturbed sequentually in an
         # ascending order of their importance as 1-feature, 2-features, 3-features, ... k-features removed
@@ -248,11 +263,11 @@ def eval_effective_complexity_single_sample(
             perturbed_fwd_diffs_relative_vars=perturbed_fwd_diffs_relative_vars
         )
 
-    return (
-        effective_complexity_score,
-        perturbed_fwd_diffs_relative_vars,
-        torch.tensor(n_features),
-    )
+        return (
+            effective_complexity_score,
+            perturbed_fwd_diffs_relative_vars,
+            torch.tensor(n_features),
+        )
 
 
 def effective_complexity(
@@ -268,6 +283,8 @@ def effective_complexity(
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,
     eps: float = 1e-5,
+    ignored_indices: int = None,
+    return_ratio: bool = False,
     use_absolute_attributions: bool = True,
     is_multi_target: bool = False,
     show_progress: bool = False,
@@ -479,7 +496,14 @@ def effective_complexity(
                 features in each example (`C * H * W`) exceeds
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
-                in a sequeeffective_complexityd as zero. This is used to compute the effective complexity metric. Default: 1e-5
+                in a sequeeffective_complexityd as zero.
+        eps (float, optional): A small value to prevent division by zero. Default: 1e-5
+        ignored_indices (int, optional): A list of indices that are ignored in the effective complexity computation.
+                Default: None
+        return_ratio (bool, optional): A boolean flag that indicates whether the effective complexity is returned as a ratio
+                of the number of important features to the total number of features. Default: False
+        use_absolute_attributions (bool, optional): A boolean flag that indicates whether the attributions are
+                used in absolute values. Default: True
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs
@@ -557,6 +581,8 @@ def effective_complexity(
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 eps=eps,
                 use_absolute_attributions=use_absolute_attributions,
+                ignored_indices=ignored_indices,
+                return_ratio=return_ratio,
                 show_progress=show_progress,
                 return_intermediate_results=True,
                 return_dict=False,
@@ -657,6 +683,8 @@ def effective_complexity(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                ignored_indices=ignored_indices,
+                return_ratio=return_ratio,
                 eps=eps,
                 show_progress=show_progress,
             )

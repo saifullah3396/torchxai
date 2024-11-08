@@ -3,7 +3,6 @@
 from typing import List, Tuple, Union
 
 import torch
-
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _reduce_tensor_with_indices,
@@ -71,26 +70,26 @@ def complexity_sundararajan(
         >>> effective_complexity_scores = effective_complexity(attribution)
     """
 
-    if is_multi_target:
-        isinstance(
-            attributions, list
-        ), "attributions must be a list of tensors or list of tuples of tensors"
-        complexity_sundararajan_score = [
-            complexity_sundararajan(
-                a,
-                eps=eps,
-                normalize_attribution=normalize_attribution,
-                return_dict=False,
-            )
-            for a in attributions
-        ]
-        if return_dict:
-            return {
-                "complexity_sundararajan_score": complexity_sundararajan_score,
-            }
-        return complexity_sundararajan_score
-
     with torch.no_grad():
+        if is_multi_target:
+            isinstance(
+                attributions, list
+            ), "attributions must be a list of tensors or list of tuples of tensors"
+            complexity_sundararajan_score = [
+                complexity_sundararajan(
+                    a,
+                    eps=eps,
+                    normalize_attribution=normalize_attribution,
+                    return_dict=False,
+                )
+                for a in attributions
+            ]
+            if return_dict:
+                return {
+                    "complexity_sundararajan_score": complexity_sundararajan_score,
+                }
+            return complexity_sundararajan_score
+
         if not isinstance(attributions, tuple):
             attributions = (attributions,)
 
@@ -111,6 +110,8 @@ def complexity_sundararajan(
         complexity_sundararajan_score = torch.sum(
             attributions > eps, dim=1
         ) / attributions.size(1)
+        print("x", torch.sum(attributions > eps, dim=1))
+        print("y", attributions.size(1))
         if return_dict:
             return {"complexity_sundararajan_score": complexity_sundararajan_score}
         return complexity_sundararajan_score
@@ -179,29 +180,29 @@ def complexity_sundararajan_feature_grouped(
         >>> effective_complexity_scores = effective_complexity(attribution)
     """
 
-    if is_multi_target:
-        isinstance(
-            attributions, list
-        ), "attributions must be a list of tensors or list of tuples of tensors"
-        complexity_sundararajan_score = [
-            complexity_sundararajan_feature_grouped(
-                a,
-                eps=eps,
-                normalize_attribution=normalize_attribution,
-                return_dict=False,
-            )
-            for a in attributions
-        ]
-        if return_dict:
-            return {
-                "complexity_sundararajan_score": complexity_sundararajan_score,
-            }
-        return complexity_sundararajan_score
+    with torch.no_grad():
+        if is_multi_target:
+            isinstance(
+                attributions, list
+            ), "attributions must be a list of tensors or list of tuples of tensors"
+            complexity_sundararajan_score = [
+                complexity_sundararajan_feature_grouped(
+                    a,
+                    eps=eps,
+                    normalize_attribution=normalize_attribution,
+                    return_dict=False,
+                )
+                for a in attributions
+            ]
+            if return_dict:
+                return {
+                    "complexity_sundararajan_feature_grouped_score": complexity_sundararajan_score,
+                }
+            return complexity_sundararajan_score
 
-    def complexity_sundararajan_feature_grouped_single_sample(
-        attributions_single_sample, feature_mask_single_sample
-    ):
-        with torch.no_grad():
+        def complexity_sundararajan_feature_grouped_single_sample(
+            attributions_single_sample, feature_mask_single_sample
+        ):
             if not isinstance(attributions_single_sample, tuple):
                 attributions_single_sample = (attributions_single_sample,)
 
@@ -248,25 +249,27 @@ def complexity_sundararajan_feature_grouped(
             # compute batch-wise effective complexity of the attribution map
             return torch.sum(reduced_attributions > eps) / n_features
 
-    bsz = attributions[0].size(0)
-    complexity_sundararajan_score_batch = []
-    for sample_idx in range(bsz):
-        complexity_sundararajan_score = (
-            complexity_sundararajan_feature_grouped_single_sample(
-                attributions_single_sample=tuple(
-                    attr[sample_idx].unsqueeze(0) for attr in attributions
-                ),
-                feature_mask_single_sample=(
-                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                    if feature_mask is not None
-                    else None
-                ),
+        bsz = attributions[0].size(0)
+        complexity_sundararajan_score_batch = []
+        for sample_idx in range(bsz):
+            complexity_sundararajan_score = (
+                complexity_sundararajan_feature_grouped_single_sample(
+                    attributions_single_sample=tuple(
+                        attr[sample_idx].unsqueeze(0) for attr in attributions
+                    ),
+                    feature_mask_single_sample=(
+                        tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                        if feature_mask is not None
+                        else None
+                    ),
+                )
             )
+            complexity_sundararajan_score_batch.append(complexity_sundararajan_score)
+        complexity_sundararajan_score_batch = torch.tensor(
+            complexity_sundararajan_score_batch
         )
-        complexity_sundararajan_score_batch.append(complexity_sundararajan_score)
-    complexity_sundararajan_score_batch = torch.tensor(
-        complexity_sundararajan_score_batch
-    )
-    if return_dict:
-        return {"complexity_sundararajan_score": complexity_sundararajan_score_batch}
-    return complexity_sundararajan_score_batch
+        if return_dict:
+            return {
+                "complexity_sundararajan_feature_grouped_score": complexity_sundararajan_score_batch
+            }
+        return complexity_sundararajan_score_batch

@@ -13,7 +13,6 @@ from captum.attr._utils.common import (
 from captum.log import log_usage
 from torch import Tensor
 from torch.nn.modules import Module
-
 from torchxai.explainers._perturbation.feature_ablation import (
     MultiTargetFeatureAblation,
 )
@@ -285,5 +284,5 @@ class OcclusionExplainer(Explainer):
             sliding_window_shapes=self._sliding_window_shapes,
             strides=self._strides,
             perturbations_per_eval=self._internal_batch_size,
-            show_progress=False,
+            show_progress=True,
         )

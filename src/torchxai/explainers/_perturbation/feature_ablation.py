@@ -16,7 +16,6 @@ from captum.attr import Attribution, FeatureAblation
 from captum.attr._utils.common import _format_input_baseline
 from captum.log import log_usage
 from torch import Tensor, dtype
-
 from torchxai.explainers._utils import (
     _expand_feature_mask_to_target,
     _run_forward_multi_target,
@@ -442,7 +441,6 @@ class FeatureAblationExplainer(Explainer):
         """
         # Compute the attributions using Kernel SHAP
         feature_mask = _expand_feature_mask_to_target(feature_mask, inputs)
-
         return self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
@@ -450,5 +448,5 @@ class FeatureAblationExplainer(Explainer):
             feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             perturbations_per_eval=self._internal_batch_size,
-            show_progress=False,
+            show_progress=True,
         )

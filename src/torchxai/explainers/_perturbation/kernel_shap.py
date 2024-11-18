@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import itertools
-from typing import Any, Callable, Generator, Tuple, Union
+from typing import Any, Callable, Generator, List, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import _format_additional_forward_args
@@ -20,6 +20,42 @@ from torchxai.explainers._utils import (
     _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
+
+
+def kernel_shap_frozen_features_perturb_generator(
+    frozen_features: List[int],
+) -> Callable:
+    def wrapped(
+        original_inp: Union[Tensor, Tuple[Tensor, ...]], **kwargs
+    ) -> Generator[Tensor, None, None]:
+        assert (
+            "num_select_distribution" in kwargs and "num_interp_features" in kwargs
+        ), (
+            "num_select_distribution and num_interp_features are necessary"
+            " to use kernel_shap_perturb_func"
+        )
+        if isinstance(original_inp, Tensor):
+            device = original_inp.device
+        else:
+            device = original_inp[0].device
+        num_features = kwargs["num_interp_features"]
+        yield torch.ones(1, num_features, device=device, dtype=torch.long)
+        perturbed = torch.zeros(1, num_features, device=device, dtype=torch.long)
+        perturbed[0, frozen_features] = (
+            1  # freeze the features, useful for padding/cls/sep tokens in sequences
+        )
+        yield perturbed
+        while True:
+            num_selected_features = kwargs["num_select_distribution"].sample()
+            rand_vals = torch.randn(1, num_features)
+            threshold = torch.kthvalue(
+                rand_vals, num_features - num_selected_features
+            ).values.item()
+            perturbed = (rand_vals > threshold).to(device=device).long()
+            perturbed[0, frozen_features] = 1
+            yield perturbed
+
+    return wrapped
 
 
 class MultiTargetKernelShap(MultiTargetLime):
@@ -176,17 +212,6 @@ class KernelShapExplainer(Explainer):
             return MultiTargetKernelShap(self._model)
         return KernelShap(self._model)
 
-    def _init_explanation_fn(self) -> Attribution:
-        """
-        Initializes the explanation function.
-
-        Returns:
-            Attribution: The initialized explanation function.
-        """
-        if self._is_multi_target:
-            return MultiTargetKernelShap(self._model)
-        return KernelShap(self._model)
-
     def explain(
         self,
         inputs: TensorOrTupleOfTensorsGeneric,
@@ -194,6 +219,7 @@ class KernelShapExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
+        frozen_features: Optional[List[int]] = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the Kernel SHAP attributions for the given inputs.
@@ -214,6 +240,10 @@ class KernelShapExplainer(Explainer):
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
+        if frozen_features is not None:
+            self._explanation_fn.perturb_func = (
+                kernel_shap_frozen_features_perturb_generator(frozen_features)
+            )
         attributions = self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
@@ -222,7 +252,7 @@ class KernelShapExplainer(Explainer):
             additional_forward_args=additional_forward_args,
             n_samples=self._n_samples,
             perturbations_per_eval=self._internal_batch_size,
-            show_progress=False,
+            show_progress=True,
         )
 
         if self._weight_attributions and feature_mask is not None:

@@ -2,6 +2,7 @@ import typing
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
+import tqdm
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -21,7 +22,6 @@ from captum.attr import Attribution, DeepLift
 from captum.attr._utils.common import _format_callable_baseline
 from torch import Tensor
 from torch.nn import Module
-
 from torchxai.explainers._grad.deeplift import MultiTargetDeepLift
 from torchxai.explainers._utils import (
     _compute_gradients_sequential_autograd,
@@ -114,7 +114,10 @@ class DeepLiftShapBatched(DeepLift):
             num_examples = exp_inp[0].shape[0]
             agg_attributions = None
             delta = None
-            for batch_idx in range(0, num_examples, internal_batch_size):
+            for batch_idx in tqdm.tqdm(
+                range(0, num_examples, internal_batch_size),
+                desc="Computing DeepLiftShap attributions...",
+            ):
                 batch_attributions = super().attribute.__wrapped__(  # type: ignore
                     self,
                     tuple(

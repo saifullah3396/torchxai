@@ -2,7 +2,7 @@
 import itertools
 import typing
 import warnings
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import (
@@ -34,6 +34,31 @@ from torchxai.explainers._utils import (
     _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
+
+
+def frozen_features_perturb_func(frozen_features: Optional[List[int]]) -> Callable:
+    def wrapped(original_inp, **kwargs):
+        assert (
+            "num_interp_features" in kwargs
+        ), "Must provide num_interp_features to use default interpretable sampling function"
+        if isinstance(original_inp, Tensor):
+            device = original_inp.device
+        else:
+            device = original_inp[0].device
+
+        probs = torch.ones(1, kwargs["num_interp_features"]) * 0.5
+        perturbation = torch.bernoulli(probs).to(device=device).long()
+        if frozen_features is not None:
+            assert all(
+                feature_idx < kwargs["num_interp_features"]
+                for feature_idx in frozen_features
+            ), "Frozen features must be less than num_interp_features"
+            perturbation[0, frozen_features] = (
+                1  # freeze the features, useful for padding/cls/sep tokens in sequences
+            )
+        return perturbation
+
+    return wrapped
 
 
 class MultiTargetLime(MultiTargetLimeBase):
@@ -341,9 +366,13 @@ class LimeExplainer(Explainer):
         """
         if self._is_multi_target:
             return MultiTargetLime(
-                self._model, interpretable_model=SkLearnLasso(alpha=self._alpha)
+                self._model,
+                interpretable_model=SkLearnLasso(alpha=self._alpha),
             )
-        return Lime(self._model, interpretable_model=SkLearnLasso(alpha=self._alpha))
+        return Lime(
+            self._model,
+            interpretable_model=SkLearnLasso(alpha=self._alpha),
+        )
 
     def explain(
         self,
@@ -352,6 +381,7 @@ class LimeExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
+        frozen_features: Optional[List[int]] = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the LIME attributions for the given inputs.
@@ -372,6 +402,12 @@ class LimeExplainer(Explainer):
             additional_forward_args
         )
 
+        # patch the perturb function to freeze features
+        if frozen_features is not None:
+            self._explanation_fn.perturb_func = frozen_features_perturb_func(
+                frozen_features
+            )
+
         # Compute the attributions using LIME
         attributions = self._explanation_fn.attribute(
             inputs=inputs,
@@ -381,7 +417,7 @@ class LimeExplainer(Explainer):
             additional_forward_args=additional_forward_args,
             n_samples=self._n_samples,
             perturbations_per_eval=self._internal_batch_size,
-            show_progress=False,
+            show_progress=True,
         )
         if self._weight_attributions and feature_mask is not None:
             if self._is_multi_target:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import scipy
@@ -221,6 +221,7 @@ def eval_faithfulness_estimate_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    frozen_features: Optional[List[int]] = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_faithfulness_estimate_tensors(
@@ -238,9 +239,18 @@ def eval_faithfulness_estimate_single_sample(
             range(current_n_steps - current_n_perturbed_features, current_n_steps)
         ):
             # for each feature in the current step incrementally replace the baseline with the original sample
-            perturbation_mask = (
-                feature_mask == descending_attribution_indices[feature_idx]
-            )
+            if (
+                frozen_features is not None
+                and descending_attribution_indices[feature_idx] in frozen_features
+            ):
+                # freeze this feature
+                perturbation_mask = torch.zeros_like(
+                    feature_mask, device=inputs_perturbed.device
+                ).bool()
+            else:
+                perturbation_mask = (
+                    feature_mask == descending_attribution_indices[feature_idx]
+                )
             inputs_perturbed[perturbation_sample_idx][
                 perturbation_mask[0].expand_as(
                     inputs_perturbed[perturbation_sample_idx]
@@ -357,6 +367,7 @@ def faithfulness_estimate(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
+    frozen_features: Optional[List[int]] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
@@ -583,6 +594,7 @@ def faithfulness_estimate(
                 additional_forward_args=additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                frozen_features=frozen_features,
                 show_progress=show_progress,
                 return_dict=False,
                 return_intermediate_results=True,
@@ -684,6 +696,7 @@ def faithfulness_estimate(
                 else target
             ),
             max_features_processed_per_batch=max_features_processed_per_batch,
+            frozen_features=frozen_features,
             show_progress=show_progress,
         )
         faithfulness_estimate_batch.append(faithfulness_estimate_score)

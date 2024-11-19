@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import torch
@@ -36,6 +36,7 @@ def eval_monotonicity_single_sample_tupled_computation(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    frozen_features: Optional[List[int]] = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_monotonicity_tensors(
@@ -218,6 +219,7 @@ def eval_monotonicity_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    frozen_features: Optional[List[int]] = None,
     show_progress: bool = False,
 ) -> Tensor:
     def _next_monotonicity_tensors(
@@ -232,9 +234,18 @@ def eval_monotonicity_single_sample(
             current_n_steps - current_n_perturbed_features, current_n_steps
         ):
             # for each feature in the current step incrementally replace the baseline with the original sample
-            perturbation_mask = (
-                feature_mask == ascending_attribution_indices[feature_idx]
-            )
+            if (
+                frozen_features is not None
+                and ascending_attribution_indices[feature_idx] in frozen_features
+            ):
+                # freeze this feature
+                perturbation_mask = torch.zeros_like(
+                    feature_mask, device=inputs.device
+                ).bool()
+            else:
+                perturbation_mask = (
+                    feature_mask == ascending_attribution_indices[feature_idx]
+                )
             if len(inputs.shape) > len(perturbation_mask.shape):
                 perturbation_mask = perturbation_mask.unsqueeze(-1)
             global_perturbed_baselines[perturbation_mask.expand_as(inputs)] = inputs[

@@ -72,7 +72,7 @@ def test_infidelity_multi_target(metrics_runtime_test_configuration):
         runtime_config.max_examples_per_batch
     )
 
-    def perturb_fn(inputs, baselines=None):
+    def perturb_fn(inputs, baselines=None, **kwargs):
         is_input_tuple = isinstance(inputs, tuple)
         if not isinstance(inputs, tuple):
             inputs = (inputs,)

@@ -27,6 +27,8 @@ def _multi_target_infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
+    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    frozen_features: List[int] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     normalize: bool = False,
@@ -56,15 +58,30 @@ def _multi_target_infidelity(
                 inputs_pert = inputs_expanded
                 baselines_pert = baselines_expanded
             return (
-                perturb_func(inputs_pert, baselines_pert)
+                perturb_func(
+                    inputs=inputs_pert,
+                    feature_masks=feature_masks_expanded,
+                    frozen_features=frozen_features,
+                    baselines=baselines_pert,
+                )
                 if baselines_pert is not None
-                else perturb_func(inputs_pert)
+                else perturb_func(
+                    inputs=inputs_pert,
+                    feature_masks=feature_masks_expanded,
+                    frozen_features=frozen_features,
+                )
             )
 
         inputs_expanded = tuple(
             torch.repeat_interleave(input, current_n_perturb_samples, dim=0)
             for input in inputs
         )
+        feature_masks_expanded = None
+        if feature_masks is not None:
+            feature_masks_expanded = tuple(
+                torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
+                for feature_mask in feature_masks
+            )
 
         baselines_expanded = baselines
         if baselines is not None:

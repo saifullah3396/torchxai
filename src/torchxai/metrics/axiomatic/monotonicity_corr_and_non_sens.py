@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import scipy
@@ -40,6 +40,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
+    frozen_features: Optional[List[int]] = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
@@ -60,12 +61,12 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:
                 inputs_pert = inputs_expanded[0]
-                feature_mask_pert = feature_mask_expanded[0]
+                perturbation_masks = perturbation_masks_expanded[0]
             else:
                 inputs_pert = inputs_expanded
-                feature_mask_pert = feature_mask_expanded
+                perturbation_masks = perturbation_masks_expanded
             return perturb_func(
-                inputs=inputs_pert, perturbation_masks=feature_mask_pert
+                inputs=inputs_pert, perturbation_masks=perturbation_masks
             )
 
         # repeat each current_n_perturbed_features times
@@ -77,9 +78,19 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             for input in inputs
         )
 
-        feature_mask_expanded = tuple(
+        def feature_mask_to_perturbation_mask(mask, feature_index):
+            if frozen_features is not None and feature_index in frozen_features:
+                return torch.zeros_like(
+                    mask
+                )  # if the feature index is frozen, then the perturbation mask is zero
+            return mask == feature_index
+
+        perturbation_masks_expanded = tuple(
             torch.cat(
-                [(mask == feature_index) for feature_index in current_feature_indices]
+                [
+                    feature_mask_to_perturbation_mask(mask, feature_index)
+                    for feature_index in current_feature_indices
+                ]
             ).repeat_interleave(repeats=n_perturbations_per_feature, dim=0)
             for mask in feature_mask
         )
@@ -292,6 +303,7 @@ def monotonicity_corr_and_non_sens(
     max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     is_multi_target: bool = False,
+    frozen_features: Optional[List[int]] = None,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,
@@ -674,6 +686,7 @@ def monotonicity_corr_and_non_sens(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                frozen_features=frozen_features,
                 eps=eps,
                 show_progress=show_progress,
             )

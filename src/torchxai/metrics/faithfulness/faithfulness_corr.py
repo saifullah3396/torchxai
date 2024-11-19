@@ -41,6 +41,7 @@ def faithfulness_corr(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
+    frozen_features: Optional[List[int]] = None,
     perturbation_probability: float = 0.1,
     show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,
@@ -327,6 +328,7 @@ def faithfulness_corr(
             perturb_func=perturb_func,
             n_perturb_samples=n_perturb_samples,
             max_examples_per_batch=max_examples_per_batch,
+            frozen_features=frozen_features,
             perturbation_probability=perturbation_probability,
             show_progress=show_progress,
             set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
@@ -545,6 +547,7 @@ def faithfulness_corr(
             n_perturbations_per_sample=n_perturb_samples,
             feature_mask=feature_mask,
             perturbation_probability=perturbation_probability,
+            frozen_features=frozen_features,
             device=attributions[0][0].device,
         )
         bsz = inputs[0].size(0)

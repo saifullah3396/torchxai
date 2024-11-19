@@ -1,14 +1,42 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
+import torch
+from captum._utils.common import (
+    ExpansionTypes,
+    _expand_additional_forward_args,
+    _expand_target,
+    _format_additional_forward_args,
+    _format_baseline,
+    _format_tensor_into_tuples,
+    _run_forward,
+    safe_div,
+)
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
 
-from torchxai.metrics._utils.perturbation import default_infidelity_perturb_fn
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
+
+
+def default_infidelity_perturb_fn(noise_scale: float = 0.003):
+    def wrapped(
+        inputs,
+        baselines=None,
+        feature_masks=None,
+        frozen_features=None,
+    ):
+        noise = torch.randn_like(inputs) * noise_scale
+        if frozen_features is not None and feature_masks is not None:
+            for feature_idx in frozen_features:
+                noise[feature_masks == feature_idx] = 0
+
+        return noise, inputs - noise
+
+    return wrapped
 
 
 def infidelity(
@@ -18,7 +46,9 @@ def infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_infidelity_perturb_fn(),
+    feature_masks: TensorOrTupleOfTensorsGeneric = None,
+    frozen_features: List[int] = None,
+    perturb_func: Optional[Callable] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
     normalize: bool = True,
@@ -294,6 +324,9 @@ def infidelity(
         >>> # Computes infidelity score for saliency maps
         >>> infid = infidelity(net, perturb_fn, input, attribution)
     """
+    if perturb_func is None:
+        perturb_func = default_infidelity_perturb_fn()
+
     if is_multi_target:
         infidelity_score = _multi_target_infidelity(
             forward_func=forward_func,
@@ -303,6 +336,8 @@ def infidelity(
             baselines=baselines,
             additional_forward_args=additional_forward_args,
             targets_list=target,
+            feature_masks=feature_masks,
+            frozen_features=frozen_features,
             n_perturb_samples=n_perturb_samples,
             max_examples_per_batch=max_examples_per_batch,
             normalize=normalize,
@@ -311,21 +346,216 @@ def infidelity(
             return {"infidelity_score": infidelity_score}
         return infidelity_score
 
-    from captum.metrics import infidelity
+    def _generate_perturbations(
+        current_n_perturb_samples: int,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        r"""
+        The perturbations are generated for each example
+        `current_n_perturb_samples` times.
 
-    infidelity_score = infidelity(
-        forward_func=forward_func,
-        perturb_func=perturb_func,
-        inputs=inputs,
-        attributions=attributions,
-        baselines=baselines,
-        additional_forward_args=additional_forward_args,
-        target=target,
-        n_perturb_samples=n_perturb_samples,
-        max_examples_per_batch=max_examples_per_batch,
-        normalize=normalize,
-    )
+        For performance reasons we are not calling `perturb_func` on each example but
+        on a batch that contains `current_n_perturb_samples`
+        repeated instances per example.
+        """
+
+        def call_perturb_func():
+            r""" """
+            baselines_pert = None
+            inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
+            if len(inputs_expanded) == 1:
+                inputs_pert = inputs_expanded[0]
+                if baselines_expanded is not None:
+                    baselines_pert = cast(Tuple, baselines_expanded)[0]
+            else:
+                inputs_pert = inputs_expanded
+                baselines_pert = baselines_expanded
+
+            return (
+                perturb_func(
+                    inputs=inputs_pert,
+                    feature_masks=feature_masks_expanded,
+                    frozen_features=frozen_features,
+                    baselines=baselines_pert,
+                )
+                if baselines_pert is not None
+                else perturb_func(
+                    inputs=inputs_pert,
+                    feature_masks=feature_masks_expanded,
+                    frozen_features=frozen_features,
+                )
+            )
+
+        inputs_expanded = tuple(
+            torch.repeat_interleave(input, current_n_perturb_samples, dim=0)
+            for input in inputs
+        )
+
+        feature_masks_expanded = None
+        if feature_masks is not None:
+            feature_masks_expanded = tuple(
+                torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
+                for feature_mask in feature_masks
+            )
+
+        baselines_expanded = baselines
+        if baselines is not None:
+            baselines_expanded = tuple(
+                (
+                    baseline.repeat_interleave(current_n_perturb_samples, dim=0)
+                    if isinstance(baseline, torch.Tensor)
+                    and baseline.shape[0] == input.shape[0]
+                    and baseline.shape[0] > 1
+                    else baseline
+                )
+                for input, baseline in zip(inputs, cast(Tuple, baselines))
+            )
+
+        return call_perturb_func()
+
+    def _validate_inputs_and_perturbations(
+        inputs: Tuple[Tensor, ...],
+        inputs_perturbed: Tuple[Tensor, ...],
+        perturbations: Tuple[Tensor, ...],
+    ) -> None:
+        # asserts the sizes of the perturbations and inputs
+        assert len(perturbations) == len(inputs), (
+            """The number of perturbed
+            inputs and corresponding perturbations must have the same number of
+            elements. Found number of inputs is: {} and perturbations:
+            {}"""
+        ).format(len(perturbations), len(inputs))
+
+        # asserts the shapes of the perturbations and perturbed inputs
+        for perturb, input_perturbed in zip(perturbations, inputs_perturbed):
+            assert perturb[0].shape == input_perturbed[0].shape, (
+                """Perturbed input
+                and corresponding perturbation must have the same shape and
+                dimensionality. Found perturbation shape is: {} and the input shape
+                is: {}"""
+            ).format(perturb[0].shape, input_perturbed[0].shape)
+
+    def _next_infidelity_tensors(
+        current_n_perturb_samples: int,
+    ) -> Union[Tuple[Tensor], Tuple[Tensor, Tensor, Tensor]]:
+        perturbations, inputs_perturbed = _generate_perturbations(
+            current_n_perturb_samples
+        )
+
+        perturbations = _format_tensor_into_tuples(perturbations)
+        inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
+
+        _validate_inputs_and_perturbations(
+            cast(Tuple[Tensor, ...], inputs),
+            cast(Tuple[Tensor, ...], inputs_perturbed),
+            cast(Tuple[Tensor, ...], perturbations),
+        )
+
+        targets_expanded = _expand_target(
+            target,
+            current_n_perturb_samples,
+            expansion_type=ExpansionTypes.repeat_interleave,
+        )
+        additional_forward_args_expanded = _expand_additional_forward_args(
+            additional_forward_args,
+            current_n_perturb_samples,
+            expansion_type=ExpansionTypes.repeat_interleave,
+        )
+
+        inputs_perturbed_fwd = _run_forward(
+            forward_func,
+            inputs_perturbed,
+            targets_expanded,
+            additional_forward_args_expanded,
+        )
+        inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
+        inputs_fwd = torch.repeat_interleave(
+            inputs_fwd, current_n_perturb_samples, dim=0
+        )
+        perturbed_fwd_diffs = inputs_fwd - inputs_perturbed_fwd
+        attributions_expanded = tuple(
+            torch.repeat_interleave(attribution, current_n_perturb_samples, dim=0)
+            for attribution in attributions
+        )
+
+        attributions_times_perturb = tuple(
+            (attribution_expanded * perturbation).view(attribution_expanded.size(0), -1)
+            for attribution_expanded, perturbation in zip(
+                attributions_expanded, perturbations
+            )
+        )
+
+        attr_times_perturb_sums = sum(
+            torch.sum(attribution_times_perturb, dim=1)
+            for attribution_times_perturb in attributions_times_perturb
+        )
+        attr_times_perturb_sums = cast(Tensor, attr_times_perturb_sums)
+
+        # reshape as Tensor(bsz, current_n_perturb_samples)
+        attr_times_perturb_sums = attr_times_perturb_sums.view(bsz, -1)
+        perturbed_fwd_diffs = perturbed_fwd_diffs.view(bsz, -1)
+
+        if normalize:
+            # in order to normalize, we have to aggregate the following tensors
+            # to calculate MSE in its polynomial expansion:
+            # (a-b)^2 = a^2 - 2ab + b^2
+            return (
+                attr_times_perturb_sums.pow(2).sum(-1),
+                (attr_times_perturb_sums * perturbed_fwd_diffs).sum(-1),
+                perturbed_fwd_diffs.pow(2).sum(-1),
+            )
+        else:
+            # returns (a-b)^2 if no need to normalize
+            return ((attr_times_perturb_sums - perturbed_fwd_diffs).pow(2).sum(-1),)
+
+    def _sum_infidelity_tensors(agg_tensors, tensors):
+        return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
+
+    # perform argument formattings
+    inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+    if baselines is not None:
+        baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
+    additional_forward_args = _format_additional_forward_args(additional_forward_args)
+    attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+
+    # Make sure that inputs and corresponding attributions have matching sizes.
+    assert len(inputs) == len(attributions), (
+        """The number of tensors in the inputs and
+        attributions must match. Found number of tensors in the inputs is: {} and in the
+        attributions: {}"""
+    ).format(len(inputs), len(attributions))
+    for inp, attr in zip(inputs, attributions):
+        assert inp.shape == attr.shape, (
+            """Inputs and attributions must have
+        matching shapes. One of the input tensor's shape is {} and the
+        attribution tensor's shape is: {}"""
+        ).format(inp.shape, attr.shape)
+
+    bsz = inputs[0].size(0)
+    with torch.no_grad():
+        # if not normalize, directly return aggrgated MSE ((a-b)^2,)
+        # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)
+        agg_tensors = _divide_and_aggregate_metrics(
+            cast(Tuple[Tensor, ...], inputs),
+            n_perturb_samples,
+            _next_infidelity_tensors,
+            agg_func=_sum_infidelity_tensors,
+            max_examples_per_batch=max_examples_per_batch,
+        )
+
+    if normalize:
+        beta_num = agg_tensors[1]
+        beta_denorm = agg_tensors[0]
+
+        beta = safe_div(beta_num, beta_denorm)
+
+        infidelity_values = (
+            beta**2 * agg_tensors[0] - 2 * beta * agg_tensors[1] + agg_tensors[2]
+        )
+    else:
+        infidelity_values = agg_tensors[0]
+
+    infidelity_values /= n_perturb_samples
 
     if return_dict:
-        return {"infidelity_score": infidelity_score}
-    return infidelity_score
+        return {"infidelity_score": infidelity_values}
+    return infidelity_values

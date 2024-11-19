@@ -3,6 +3,7 @@
 from typing import List, Tuple, Union
 
 import torch
+
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _reduce_tensor_with_indices,
@@ -110,8 +111,6 @@ def complexity_sundararajan(
         complexity_sundararajan_score = torch.sum(
             attributions > eps, dim=1
         ) / attributions.size(1)
-        print("x", torch.sum(attributions > eps, dim=1))
-        print("y", attributions.size(1))
         if return_dict:
             return {"complexity_sundararajan_score": complexity_sundararajan_score}
         return complexity_sundararajan_score

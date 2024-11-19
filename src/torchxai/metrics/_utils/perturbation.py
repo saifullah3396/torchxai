@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -20,14 +20,10 @@ def default_zero_baseline_func():
         if not isinstance(perturbation_masks, tuple):
             perturbation_masks = (perturbation_masks,)
         assert perturbation_masks[0].dtype == torch.bool
-        zero_baselines = tuple(
-            torch.zeros_like(x, device=x.device).float() for x in inputs
+        perturbation_masks = tuple(
+            mask.expand_as(input) for mask, input in zip(perturbation_masks, inputs)
         )
-        for input, mask, noisy_baseline in zip(
-            inputs, perturbation_masks, zero_baselines
-        ):
-            input[mask.expand_as(input)] = noisy_baseline[mask.expand_as(input)]
-        return inputs
+        return tuple(~mask * input for input, mask in zip(inputs, perturbation_masks))
 
     return wrapped
 
@@ -46,12 +42,13 @@ def default_fixed_baseline_perturb_func():
             baselines = (baselines,)
         assert perturbation_masks[0].dtype == torch.bool
 
-        for input, mask, baseline in zip(inputs, perturbation_masks, baselines):
-            if len(input.shape) > len(mask.shape):
-                mask = mask.unsqueeze(-1)
-
-            input[mask.expand_as(input)] = baseline[mask.expand_as(input)]
-        return inputs
+        perturbation_masks = tuple(
+            mask.expand_as(input) for mask, input in zip(perturbation_masks, inputs)
+        )
+        return tuple(
+            (~mask * input + mask * baseline)
+            for input, mask, baseline in zip(inputs, perturbation_masks, baselines)
+        )
 
     return wrapped
 
@@ -75,13 +72,16 @@ def default_random_perturb_func(noise_scale: float = 0.02):
             ).float()
             for x in inputs
         )
-
-        for input, mask, baseline in zip(inputs, perturbation_masks, random_baselines):
-            if len(input.shape) > len(mask.shape):
-                mask = mask.unsqueeze(-1)
-
-            input[mask.expand_as(input)] = baseline[mask.expand_as(input)]
-        return inputs
+        perturbation_masks = tuple(
+            mask.expand_as(input) for mask, input in zip(perturbation_masks, inputs)
+        )
+        perturbed_inputs = tuple(
+            (~mask * input + mask * baseline)
+            for input, mask, baseline in zip(
+                inputs, perturbation_masks, random_baselines
+            )
+        )
+        return perturbed_inputs
 
     return wrapped
 
@@ -98,6 +98,7 @@ def _generate_random_perturbation_masks(
     n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
     perturbation_probability: float = 0.1,
+    frozen_features: Optional[List[int]] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
     """
@@ -135,12 +136,18 @@ def _generate_random_perturbation_masks(
                 # here we generate a single random perturbation mask for the sample. This would be of shape
                 # (channel, height, width) or (seq_length, feature_dim)
                 # we randomly drop features with probability perturbation_probability
-                # if total feature gorups are features_in_sample this will essentially return a mask
+                # if total feature groups are features_in_sample this will essentially return a mask
                 # with features_in_sample * perturbation_probability features dropped
                 feature_drop_mask = (
                     torch.rand(len(features_in_sample), device=device)
                     < perturbation_probability
                 )
+
+                # freeze some features if required
+                if frozen_features is not None:
+                    for frozen_idx in frozen_features:
+                        if frozen_idx in features_in_sample:
+                            feature_drop_mask[features_in_sample == frozen_idx] = False
 
                 # here we take the indices of the feature groups that are dropped
                 # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
@@ -170,6 +177,7 @@ def _generate_random_perturbation_masks_with_fixed_n(
     n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
     n_features_perturbed: Union[int, float] = 1,
+    frozen_features: Optional[List[int]] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
     """
@@ -206,6 +214,13 @@ def _generate_random_perturbation_masks_with_fixed_n(
             feature_drop_mask = torch.randperm(len(features_in_sample), device=device)[
                 :n_features_perturbed
             ]
+
+            # freeze some features if required
+            if frozen_features is not None:
+                for frozen_idx in frozen_features:
+                    if frozen_idx in features_in_sample:
+                        feature_drop_mask[features_in_sample == frozen_idx] = False
+
             # here we take the indices of the feature groups that are dropped
             # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
             # the features_in_sample will be [0, 1, 2] and if the feature_drop_mask is [True, False, True]

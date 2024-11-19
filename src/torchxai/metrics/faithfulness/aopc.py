@@ -29,14 +29,6 @@ from torchxai.metrics._utils.common import (
 )
 
 
-def perturb_input(input, baseline, feature_mask, indices, feature_idx):
-    # for each feature in the current step incrementally replace the baseline with the original sample
-    perturbation_mask = (feature_mask == indices[feature_idx]).expand_as(input)
-    input[perturbation_mask] = baseline[
-        perturbation_mask
-    ]  # input[0] here since batch size is 1
-
-
 def compute_aopc_scores(
     inputs_perturbed_fwds: torch.Tensor, input_fwds: torch.Tensor
 ) -> torch.Tensor:
@@ -123,6 +115,7 @@ def eval_aopcs_single_sample(
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
+    frozen_features: Optional[int] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
 ) -> Tensor:
@@ -137,8 +130,8 @@ def eval_aopcs_single_sample(
         for feature_idx in range(
             current_n_steps - current_n_perturbed_features, current_n_steps
         ):
-            # make a global perturbed input tensor for each perturbation type, ascending, descending and random
-            for input, indices in zip(
+            # update global perturbed input tensor for each perturbation type, ascending, descending and random
+            for global_perturbed_inputs, indices in zip(
                 [
                     global_perturbed_inputs_desc,  # this order is maintained in outputs
                     global_perturbed_inputs_asc,  # this order is maintained in outputs
@@ -150,17 +143,22 @@ def eval_aopcs_single_sample(
                     *rand_attribution_indices,  # this order is maintained in outputs
                 ],
             ):
-                perturb_input(
-                    input=input,
-                    baseline=baselines,
-                    feature_mask=feature_mask,
-                    indices=indices,
-                    feature_idx=feature_idx,
-                )
-                perturbed_inputs.append(input.clone())
-
+                if (
+                    frozen_features is not None
+                    and indices[feature_idx] in frozen_features
+                ):
+                    perturbation_masks = torch.zeros_like(
+                        global_perturbed_inputs, device=inputs.device
+                    ).bool()
+                else:
+                    perturbation_masks = (
+                        feature_mask == indices[feature_idx]
+                    ).expand_as(global_perturbed_inputs)
+                global_perturbed_inputs[perturbation_masks] = baselines[
+                    perturbation_masks
+                ]  # input[0] here since batch size is 1
+                perturbed_inputs.append(global_perturbed_inputs.clone())
         perturbed_inputs = torch.cat(perturbed_inputs)
-
         targets_expanded = _expand_target(
             target,
             current_n_perturbed_features * (2 + n_random_perms),
@@ -299,6 +297,7 @@ def aopc(
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
+    frozen_features: Optional[int] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
     is_multi_target: bool = False,
@@ -634,6 +633,7 @@ def aopc(
                 else target
             ),
             max_features_processed_per_batch=max_features_processed_per_batch,
+            frozen_features=frozen_features,
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,

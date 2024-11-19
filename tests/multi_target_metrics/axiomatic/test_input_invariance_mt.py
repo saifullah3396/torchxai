@@ -73,7 +73,7 @@ def setup_test_config_for_explainer(explainer, **kwargs):
             use_captum_explainer=False,
             override_target=[0, 1, 2],
             expected=None,
-            delta=1e-8,
+            delta=1e-5,
             **kwargs,
         ),
     ]

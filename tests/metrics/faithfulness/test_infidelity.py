@@ -195,7 +195,7 @@ def test_infidelity(metrics_runtime_test_configuration):
         or len(runtime_config.expected) == 1
     )
 
-    def perturb_fn(inputs, baselines=None):
+    def perturb_fn(inputs, baselines=None, feature_masks=None, frozen_features=None):
         is_input_tuple = isinstance(inputs, tuple)
         if not isinstance(inputs, tuple):
             inputs = (inputs,)

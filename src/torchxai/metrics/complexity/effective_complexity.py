@@ -37,6 +37,7 @@ def eval_effective_complexity_single_sample(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
+    frozen_features: Optional[List[int]] = None,
     eps: float = 1e-5,
     ignored_indices: int = None,
     return_ratio: bool = False,
@@ -78,14 +79,17 @@ def eval_effective_complexity_single_sample(
             for input in inputs
         )
 
-        ignored_indices = [272, 273, 274, 547, 548, 549, 822, 823, 824]
         current_perturbation_mask = tuple()
-        for mask, perturbation_mask in zip(feature_mask, global_perturbation_mask):
+        for mask, perturbation_mask in zip(
+            feature_mask, global_perturbation_mask
+        ):  # this is input types
             current_perturbation_mask_per_input = []
             for feature_index in current_feature_indices:
-                if feature_index not in ignored_indices:
+                if frozen_features is None or feature_index not in frozen_features:
                     perturbation_mask += (mask == feature_index).bool()
-                current_perturbation_mask_per_input += [perturbation_mask.clone()]
+                current_perturbation_mask_per_input += [
+                    perturbation_mask.clone()
+                ]  # this is batch-wise concatenation
             current_perturbation_mask += (
                 torch.cat(current_perturbation_mask_per_input),
             )
@@ -282,6 +286,7 @@ def effective_complexity(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,
+    frozen_features: Optional[List[int]] = None,
     eps: float = 1e-5,
     ignored_indices: int = None,
     return_ratio: bool = False,
@@ -579,6 +584,7 @@ def effective_complexity(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                frozen_features=frozen_features,
                 eps=eps,
                 use_absolute_attributions=use_absolute_attributions,
                 ignored_indices=ignored_indices,

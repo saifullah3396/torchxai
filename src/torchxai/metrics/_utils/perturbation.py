@@ -191,13 +191,11 @@ def _generate_random_perturbation_masks_with_fixed_n(
 
     # get batch size
     batch_size = feature_mask[0].shape[0]
-    perturbation_mask_shape = feature_mask[0].shape[1:]
-
     perturbation_masks = []
     for sample_idx in range(batch_size):
         feature_masks_per_sample = [x[sample_idx] for x in feature_mask]
         features_in_sample = torch.unique(
-            torch.stack(feature_masks_per_sample).flatten()
+            torch.cat(tuple(x.flatten() for x in feature_masks_per_sample))
         )
         perturbation_masks_per_sample = []
         for _ in range(n_perturbations_per_sample):
@@ -215,17 +213,19 @@ def _generate_random_perturbation_masks_with_fixed_n(
                 :n_features_perturbed
             ]
 
-            # freeze some features if required
-            if frozen_features is not None:
-                for frozen_idx in frozen_features[sample_idx]:
-                    if frozen_idx in features_in_sample:
-                        feature_drop_mask[features_in_sample == frozen_idx] = False
-
             # here we take the indices of the feature groups that are dropped
             # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
             # the features_in_sample will be [0, 1, 2] and if the feature_drop_mask is [True, False, True]
             # the dropped_feature_indices will be [0, 2], meaning we need to drop 0 and 2 feature groups
             dropped_feature_indices = features_in_sample[feature_drop_mask]
+
+            # freeze some features if required
+            if frozen_features is not None:
+                for frozen_idx in frozen_features[sample_idx]:
+                    if frozen_idx in dropped_feature_indices:
+                        dropped_feature_indices = dropped_feature_indices[
+                            dropped_feature_indices != frozen_idx
+                        ]
 
             perturbation_masks_per_feature_type = tuple()
             for feature_masks_per_sample_per_type in feature_masks_per_sample:
@@ -233,8 +233,8 @@ def _generate_random_perturbation_masks_with_fixed_n(
                 # (n_perturbations_per_sample, channel, height, width) or (n_perturbations_per_sample, seq_length, feature_dim)
                 # where sample shape is (channel, height, width) or (seq_length, feature_dim)
                 # since we wish to generate n_perturbations_per_sample random perturabtions for each sample
-                mask = torch.zeros(
-                    (*perturbation_mask_shape,),
+                mask = torch.zeros_like(
+                    feature_masks_per_sample_per_type,
                     dtype=torch.bool,
                     device=device,
                 )

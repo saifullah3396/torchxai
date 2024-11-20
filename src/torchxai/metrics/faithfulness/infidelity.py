@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
@@ -370,20 +371,18 @@ def infidelity(
                 inputs_pert = inputs_expanded
                 baselines_pert = baselines_expanded
 
-            return (
-                perturb_func(
-                    inputs=inputs_pert,
-                    feature_masks=feature_masks_expanded,
-                    frozen_features=frozen_features,
-                    baselines=baselines_pert,
-                )
-                if baselines_pert is not None
-                else perturb_func(
-                    inputs=inputs_pert,
-                    feature_masks=feature_masks_expanded,
-                    frozen_features=frozen_features,
-                )
+            valid_args = inspect.signature(perturb_func).parameters.keys()
+            perturb_kwargs = dict(
+                inputs=inputs_pert,
             )
+            if "baselines" in valid_args:
+                perturb_kwargs["baselines"] = baselines_pert
+            if "feature_masks" in valid_args:
+                perturb_kwargs["feature_masks"] = feature_masks_expanded
+            if "frozen_features" in valid_args:
+                perturb_kwargs["frozen_features"] = frozen_features
+
+            return perturb_func(**perturb_kwargs)
 
         inputs_expanded = tuple(
             torch.repeat_interleave(input, current_n_perturb_samples, dim=0)
@@ -404,7 +403,6 @@ def infidelity(
                     baseline.repeat_interleave(current_n_perturb_samples, dim=0)
                     if isinstance(baseline, torch.Tensor)
                     and baseline.shape[0] == input.shape[0]
-                    and baseline.shape[0] > 1
                     else baseline
                 )
                 for input, baseline in zip(inputs, cast(Tuple, baselines))
@@ -443,7 +441,7 @@ def infidelity(
 
         perturbations = _format_tensor_into_tuples(perturbations)
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
-
+        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
         _validate_inputs_and_perturbations(
             cast(Tuple[Tensor, ...], inputs),
             cast(Tuple[Tensor, ...], inputs_perturbed),

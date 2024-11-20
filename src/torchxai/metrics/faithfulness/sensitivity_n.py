@@ -15,6 +15,7 @@ from torchxai.metrics._utils.common import (
 from torchxai.metrics._utils.perturbation import (
     _generate_random_perturbation_masks_with_fixed_n,
 )
+from torchxai.metrics.faithfulness.infidelity import infidelity
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
@@ -341,16 +342,16 @@ def sensitivity_n(
 
         # perturb the inputs in place
         inputs_perturbed = tuple(input.clone() for input in inputs)
-        expanded_perturbation_masks = []
         for input_perturbed, mask, baseline in zip(
             inputs_perturbed, perturbation_masks, baselines
         ):
-            if len(input_perturbed.shape) != len(mask.shape):
-                mask = mask.unsqueeze(-1)
-            expanded_mask = mask.expand_as(input_perturbed)
-            input_perturbed[expanded_mask] = baseline[expanded_mask]
-            expanded_perturbation_masks.append(expanded_mask)
-        return tuple(expanded_perturbation_masks), inputs_perturbed
+            input_perturbed[mask] = baseline[mask]
+        return perturbation_masks, tuple(
+            input_perturbed * ~perturbation_mask + perturbation_mask * baseline
+            for input_perturbed, perturbation_mask, baseline in zip(
+                inputs_perturbed, perturbation_masks, baselines
+            )
+        )
 
     if is_multi_target:
         sensitivity_n_score = _multi_target_infidelity(
@@ -368,8 +369,6 @@ def sensitivity_n(
         if return_dict:
             return {"sensitivity_n_score": sensitivity_n_score}
         return sensitivity_n_score
-
-    from captum.metrics import infidelity
 
     sensitivity_n_score = infidelity(
         forward_func=forward_func,

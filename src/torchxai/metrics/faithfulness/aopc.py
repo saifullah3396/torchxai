@@ -113,11 +113,13 @@ def eval_aopcs_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
-    frozen_features: Optional[int] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
+    show_progress: bool = False,
 ) -> Tensor:
     def _next_aopc_tensors(
         current_n_perturbed_features: int,
@@ -158,6 +160,7 @@ def eval_aopcs_single_sample(
                     perturbation_masks
                 ]  # input[0] here since batch size is 1
                 perturbed_inputs.append(global_perturbed_inputs.clone())
+
         perturbed_inputs = torch.cat(perturbed_inputs)
         targets_expanded = _expand_target(
             target,
@@ -174,6 +177,7 @@ def eval_aopcs_single_sample(
         perturbed_inputs = _split_tensors_to_tuple_tensors(
             perturbed_inputs, inputs_shape
         )
+        # _draw_perturbated_inputs_sequences_images(perturbed_inputs)
         inputs_perturbed_fwd = _run_forward(
             forward_func,
             # the inputs are [batch_size, feature_size, feature_dims] so we need to split them by feature size
@@ -235,6 +239,10 @@ def eval_aopcs_single_sample(
             attributions[0], indices=feature_mask[0].flatten()
         )
 
+        # take absolute values of attributions if required
+        if use_absolute_attributions:
+            reduced_attributions = reduced_attributions.abs()
+
         # get the gathererd-attributions sorted in ascending order of their importance
         ascending_attribution_indices = torch.argsort(reduced_attributions)[
             :total_features_perturbed
@@ -278,13 +286,14 @@ def eval_aopcs_single_sample(
                 metric_func=_next_aopc_tensors,
                 agg_func=_cat_aopc_tensors,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                show_progress=show_progress,
             )
         )
         aopc_scores = compute_aopc_scores_vectorized(
             inputs_perturbed_fwds_agg.T, inputs_fwd
         )
 
-    return aopc_scores
+    return aopc_scores, inputs_perturbed_fwds_agg, inputs_fwd
 
 
 def aopc(
@@ -295,13 +304,15 @@ def aopc(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
-    frozen_features: Optional[int] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
+    return_intermediate_results: bool = False,
     return_dict: bool = False,
 ) -> Any:
     """
@@ -457,6 +468,8 @@ def aopc(
                   target for the corresponding example.
 
                 Default: None
+        use_absolute_attributions (bool, optional): If True, the absolute value of the attributions
+                is used in the computation of the AOPC scores. Default: False
         max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
@@ -545,6 +558,7 @@ def aopc(
                 feature_mask=feature_mask,
                 additional_forward_args=additional_forward_args,
                 target=target,
+                use_absolute_attributions=use_absolute_attributions,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 total_features_perturbed=total_features_perturbed,
                 n_random_perms=n_random_perms,
@@ -600,8 +614,10 @@ def aopc(
 
     bsz = inputs[0].size(0)
     aopc_batch = []
+    inputs_perturbed_fwds_agg_batch = []
+    inputs_fwd_batch = []
     for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-        aopc_scores = eval_aopcs_single_sample(
+        aopc_scores, inputs_perturbed_fwds_agg, inputs_fwd = eval_aopcs_single_sample(
             forward_func=forward_func,
             inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
             attributions=tuple(attr[sample_idx].unsqueeze(0) for attr in attributions),
@@ -632,28 +648,54 @@ def aopc(
                 if isinstance(target, (list, torch.Tensor))
                 else target
             ),
+            use_absolute_attributions=use_absolute_attributions,
             max_features_processed_per_batch=max_features_processed_per_batch,
-            frozen_features=frozen_features,
+            frozen_features=frozen_features[sample_idx],
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,
+            show_progress=show_progress,
         )
         aopc_batch.append(aopc_scores)
+        inputs_perturbed_fwds_agg_batch.append(inputs_perturbed_fwds_agg)
+        inputs_fwd_batch.append(inputs_fwd)
 
     def _convert_to_tensor_if_possible(list_of_tensors):
         if all([x.shape == list_of_tensors[0].shape for x in list_of_tensors]):
             return torch.stack(list_of_tensors)
         return list_of_tensors
 
-    if return_dict:
-        return dict(
-            desc=_convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
-            asc=_convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
-            rand=_convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
-        )  # descending, ascending, random
+    if return_intermediate_results:
+        if return_dict:
+            return dict(
+                desc=_convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+                asc=_convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+                rand=_convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in aopc_batch]
+                ),
+                inputs_perturbed_fwds_agg_batch=inputs_perturbed_fwds_agg_batch,
+                inputs_fwd_batch=inputs_fwd_batch,
+            )  # descending, ascending, random
+        else:
+            return (
+                _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+                _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+                _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
+                inputs_perturbed_fwds_agg_batch,
+                inputs_fwd_batch,
+            )
     else:
-        return (
-            _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
-            _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
-            _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
-        )
+        if return_dict:
+            return dict(
+                desc=_convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+                asc=_convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+                rand=_convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in aopc_batch]
+                ),
+            )  # descending, ascending, random
+        else:
+            return (
+                _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
+                _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
+                _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
+            )

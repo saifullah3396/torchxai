@@ -23,7 +23,7 @@ from torchxai.metrics._utils.common import (
 )
 from torchxai.metrics._utils.perturbation import (
     _generate_random_perturbation_masks,
-    default_random_perturb_func,
+    default_fixed_baseline_perturb_func,
 )
 from torchxai.metrics.faithfulness.multi_target.faithfulness_corr import (
     _multi_target_faithfulness_corr,
@@ -38,7 +38,7 @@ def faithfulness_corr(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
     frozen_features: Optional[torch.Tensor] = None,
@@ -76,9 +76,10 @@ def faithfulness_corr(
     For each perturbation we generate a random perturbation mask that selects a subset of features from the input tensor.
     We then perturb the input tensor by replacing the selected features with the corresponding baseline values.
     The subset of features to be perturbed is defined by the `feature_mask` parameter. If `feature_mask` is not provided,
+    then by default a feature mask is generated for all available features in the input tensor.
     If there are feature groups defined by the feature mask, then each individual feature group is perturbed together.
     This is done by the _generate_random_perturbation_masks function, which at the start of the function generates
-    all the masks .
+    all the random masks sequence.
 
     References:
         1) Umang Bhatt et al.: "Evaluating and aggregating feature-based model
@@ -443,6 +444,7 @@ def faithfulness_corr(
         )
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         perturbation_masks = _format_tensor_into_tuples(perturbation_masks)
+        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
 
         _validate_inputs_and_perturbations(
             cast(Tuple[Tensor, ...], inputs),

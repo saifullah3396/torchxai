@@ -39,7 +39,6 @@ def eval_effective_complexity_single_sample(
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[torch.Tensor] = None,
     eps: float = 1e-5,
-    ignored_indices: int = None,
     return_ratio: bool = False,
     show_progress: bool = False,
 ) -> Tensor:
@@ -178,8 +177,6 @@ def eval_effective_complexity_single_sample(
         return agg_tensors + tensors
 
     with torch.no_grad():
-        if ignored_indices is None:
-            ignored_indices = []
         bsz = inputs[0].size(0)
         assert bsz == 1, "Batch size must be 1 for faithfulness_estimate_single_sample"
 
@@ -288,7 +285,6 @@ def effective_complexity(
     max_features_processed_per_batch: Optional[int] = None,
     frozen_features: Optional[torch.Tensor] = None,
     eps: float = 1e-5,
-    ignored_indices: int = None,
     return_ratio: bool = False,
     use_absolute_attributions: bool = True,
     is_multi_target: bool = False,
@@ -503,8 +499,6 @@ def effective_complexity(
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequeeffective_complexityd as zero.
         eps (float, optional): A small value to prevent division by zero. Default: 1e-5
-        ignored_indices (int, optional): A list of indices that are ignored in the effective complexity computation.
-                Default: None
         return_ratio (bool, optional): A boolean flag that indicates whether the effective complexity is returned as a ratio
                 of the number of important features to the total number of features. Default: False
         use_absolute_attributions (bool, optional): A boolean flag that indicates whether the attributions are
@@ -584,10 +578,9 @@ def effective_complexity(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                frozen_features=frozen_features,
+                frozen_features=frozen_features[sample_idx],
                 eps=eps,
                 use_absolute_attributions=use_absolute_attributions,
-                ignored_indices=ignored_indices,
                 return_ratio=return_ratio,
                 show_progress=show_progress,
                 return_intermediate_results=True,
@@ -689,7 +682,6 @@ def effective_complexity(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                ignored_indices=ignored_indices,
                 return_ratio=return_ratio,
                 eps=eps,
                 show_progress=show_progress,

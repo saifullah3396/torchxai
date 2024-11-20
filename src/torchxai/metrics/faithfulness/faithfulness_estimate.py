@@ -245,8 +245,8 @@ def eval_faithfulness_estimate_single_sample(
             ):
                 # freeze this feature
                 perturbation_mask = torch.zeros_like(
-                    feature_mask, device=inputs_perturbed.device
-                ).bool()
+                    feature_mask, device=feature_mask.device, dtype=torch.bool
+                )
             else:
                 perturbation_mask = (
                     feature_mask == descending_attribution_indices[feature_idx]
@@ -271,10 +271,14 @@ def eval_faithfulness_estimate_single_sample(
             current_n_perturbed_features,
             expansion_type=ExpansionTypes.repeat_interleave,
         )
+        inputs_perturbed = _split_tensors_to_tuple_tensors(
+            inputs_perturbed, inputs_shape
+        )
+        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
         inputs_perturbed_fwd = _run_forward(
             forward_func,
             # the inputs are [batch_size, feature_size, feature_dims] so we need to split them by feature size
-            _split_tensors_to_tuple_tensors(inputs_perturbed, inputs_shape),
+            inputs_perturbed,
             targets_expanded,
             additional_forward_args_expanded,
         )
@@ -696,7 +700,7 @@ def faithfulness_estimate(
                 else target
             ),
             max_features_processed_per_batch=max_features_processed_per_batch,
-            frozen_features=frozen_features,
+            frozen_features=frozen_features[sample_idx],
             show_progress=show_progress,
         )
         faithfulness_estimate_batch.append(faithfulness_estimate_score)

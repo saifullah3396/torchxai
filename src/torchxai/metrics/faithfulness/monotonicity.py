@@ -240,8 +240,8 @@ def eval_monotonicity_single_sample(
             ):
                 # freeze this feature
                 perturbation_mask = torch.zeros_like(
-                    feature_mask, device=inputs.device
-                ).bool()
+                    feature_mask, device=feature_mask.device, dtype=torch.bool
+                )
             else:
                 perturbation_mask = (
                     feature_mask == ascending_attribution_indices[feature_idx]
@@ -694,12 +694,11 @@ def monotonicity(
 
         if return_intermediate_results:
             if return_dict:
-                {
+                return {
                     "monotonicity_score": monotonicity_batch,
                     "asc_baseline_perturbed_fwds_batch": asc_baseline_perturbed_fwds_batch,
                 }
-            else:
-                return monotonicity_batch, asc_baseline_perturbed_fwds_batch
+            return monotonicity_batch, asc_baseline_perturbed_fwds_batch
         else:
             if return_dict:
                 return {"monotonicity_score": monotonicity_batch}

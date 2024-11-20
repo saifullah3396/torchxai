@@ -113,9 +113,9 @@ def _generate_random_perturbation_masks(
     perturbation_masks = tuple()
     for feature_mask_per_type in feature_mask:  # unpack the tuples of feature types
         perturbations_per_input_type = []
-        for (
-            feature_mask_per_sample
-        ) in feature_mask_per_type:  # unpack the samples in a batch
+        for sample_idx, feature_mask_per_sample in enumerate(
+            feature_mask_per_type
+        ):  # unpack the samples in a batch
             # feature_mask_per_sample could be a tensor of shape (channel, height, width) or (seq_length, feature_dim)
             # find the total number of unique feature groups in the sample
             features_in_sample = torch.unique(feature_mask_per_sample)
@@ -145,7 +145,7 @@ def _generate_random_perturbation_masks(
 
                 # freeze some features if required
                 if frozen_features is not None:
-                    for frozen_idx in frozen_features:
+                    for frozen_idx in frozen_features[sample_idx]:
                         if frozen_idx in features_in_sample:
                             feature_drop_mask[features_in_sample == frozen_idx] = False
 
@@ -217,7 +217,7 @@ def _generate_random_perturbation_masks_with_fixed_n(
 
             # freeze some features if required
             if frozen_features is not None:
-                for frozen_idx in frozen_features:
+                for frozen_idx in frozen_features[sample_idx]:
                     if frozen_idx in features_in_sample:
                         feature_drop_mask[features_in_sample == frozen_idx] = False
 

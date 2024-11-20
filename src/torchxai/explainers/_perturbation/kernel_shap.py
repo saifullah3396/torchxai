@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import itertools
-from typing import Any, Callable, Generator, List, Optional, Tuple, Union
+from typing import Any, Callable, Generator, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import _format_additional_forward_args
@@ -92,7 +92,7 @@ class KernelShap(Lime):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -167,7 +167,7 @@ class MultiTargetKernelShap(MultiTargetLime):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -262,7 +262,7 @@ class KernelShapExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the Kernel SHAP attributions for the given inputs.

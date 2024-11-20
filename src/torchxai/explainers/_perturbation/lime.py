@@ -3,7 +3,7 @@ import itertools
 import math
 import typing
 import warnings
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import (
@@ -24,7 +24,6 @@ from captum.attr._core.lime import (
     construct_feature_mask,
     default_from_interp_rep_transform,
     default_perturb_func,
-    get_exp_kernel_similarity_function,
 )
 from captum.attr._utils.batching import _batch_example_iterator
 from captum.attr._utils.common import _format_input_baseline
@@ -33,7 +32,7 @@ from torch import Tensor
 from torch.nn import Module
 import typing
 import warnings
-from typing import Any, Callable, List, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import (
@@ -41,6 +40,7 @@ from captum._utils.common import (
     _is_tuple,
     _reduce_list,
     _run_forward,
+    _flatten_tensor_or_tuple,
 )
 from captum._utils.models.linear_model import SkLearnLasso
 from captum._utils.models.model import Model
@@ -64,6 +64,24 @@ from torchxai.explainers._utils import (
 )
 from torchxai.explainers.explainer import Explainer
 from torch.nn import CosineSimilarity
+
+
+def get_exp_kernel_similarity_function(
+    distance_mode: str = "cosine", kernel_width: float = 1.0
+) -> Callable:
+    def default_exp_kernel(original_inp, perturbed_inp, __, **kwargs):
+        flattened_original_inp = _flatten_tensor_or_tuple(original_inp).float()
+        flattened_perturbed_inp = _flatten_tensor_or_tuple(perturbed_inp).float()
+        if distance_mode == "cosine":
+            cos_sim = CosineSimilarity(dim=0)
+            distance = 1 - cos_sim(flattened_original_inp, flattened_perturbed_inp)
+        elif distance_mode == "euclidean":
+            distance = torch.norm(flattened_original_inp - flattened_perturbed_inp)
+        else:
+            raise ValueError("distance_mode must be either cosine or euclidean.")
+        return math.exp(-1 * (distance**2) / (2 * (kernel_width**2)))
+
+    return default_exp_kernel
 
 
 def get_exp_kernel_similarity_function_with_interpretable_inps(
@@ -146,7 +164,7 @@ class Lime(LimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -172,7 +190,7 @@ class Lime(LimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
         **kwargs,
@@ -372,7 +390,7 @@ class MultiTargetLime(MultiTargetLimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -398,7 +416,7 @@ class MultiTargetLime(MultiTargetLimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
         **kwargs,
@@ -666,7 +684,7 @@ class LimeExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
-        frozen_features: Optional[List[int]] = None,
+        frozen_features: Optional[torch.Tensor] = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the LIME attributions for the given inputs.

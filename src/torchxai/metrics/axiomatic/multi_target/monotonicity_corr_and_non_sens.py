@@ -37,7 +37,7 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
     targets_list: List[TargetType] = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
-    frozen_features: Optional[List[int]] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
@@ -340,7 +340,7 @@ def _multi_target_monotonicity_corr_and_non_sens(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
-    frozen_features: Optional[List[int]] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:

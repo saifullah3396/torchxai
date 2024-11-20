@@ -1,3 +1,4 @@
+import math
 from typing import Tuple
 
 import torch
@@ -207,5 +208,36 @@ def _draw_perturbated_inputs_with_splits(perturbed_inputs, inputs_shape):
             cmap="viridis",
         )
         ax.set_axis_off()
+    plt.tight_layout()
+    plt.show()
+
+
+def _draw_perturbated_inputs_sequences_images(perturbed_inputs):
+    import matplotlib.pyplot as plt
+
+    # Create subplots for each split input
+    fig, axes = plt.subplots(ncols=1, nrows=len(perturbed_inputs), figsize=(10, 10))
+    for idx, splitted_perturbed_input in enumerate(perturbed_inputs):
+        if len(splitted_perturbed_input.shape) == 3:
+            ax = fig.add_subplot(axes[idx])  # Second row, each column
+            ax.matshow(
+                splitted_perturbed_input[:, :, 0].cpu().numpy(),
+                cmap="viridis",
+            )
+            ax.set_axis_off()
+        elif len(splitted_perturbed_input.shape) == 4:
+            from torchvision.utils import make_grid
+
+            splitted_perturbed_input = splitted_perturbed_input * 0.5 + 0.5
+
+            combined_image = make_grid(
+                splitted_perturbed_input.detach().cpu(),
+                nrow=int(math.sqrt(splitted_perturbed_input.shape[0])),
+            )
+            ax = fig.add_subplot(axes[idx])
+            ax.imshow(
+                combined_image.permute(1, 2, 0).numpy(),
+                cmap="viridis",
+            )
     plt.tight_layout()
     plt.show()

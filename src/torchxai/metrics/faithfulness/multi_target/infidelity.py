@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -27,8 +27,8 @@ def _multi_target_infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
-    frozen_features: List[int] = None,
+    feature_masks: Optional[TensorOrTupleOfTensorsGeneric] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     normalize: bool = False,

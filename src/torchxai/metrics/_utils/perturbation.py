@@ -87,9 +87,29 @@ def default_random_perturb_func(noise_scale: float = 0.02):
 
 
 def default_infidelity_perturb_fn(noise_scale: float = 0.003):
-    def wrapped(inputs, baselines=None):
-        noise = torch.randn_like(inputs) * noise_scale
-        return noise, inputs - noise
+    def wrapped(
+        inputs,
+        baselines=None,
+        feature_masks=None,
+        frozen_features=None,
+    ):
+        if not isinstance(inputs, tuple):
+            inputs = (inputs,)
+        noise = tuple(torch.randn_like(x) * noise_scale for x in inputs)
+        if frozen_features is not None and feature_masks is not None:
+            for n_batch, feature_mask_batch in zip(
+                noise, feature_masks
+            ):  # for each feature type
+                for n_sample, feature_mask_sample, frozen_features_sample in zip(
+                    n_batch,
+                    feature_mask_batch,
+                    frozen_features,  # for each sample in batch
+                ):
+                    for (
+                        feature_idx
+                    ) in frozen_features_sample:  # for each frozen feature
+                        n_sample[feature_mask_sample == feature_idx] = 0
+        return noise, tuple(x - n for x, n in zip(inputs, noise))
 
     return wrapped
 

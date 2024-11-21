@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import inspect
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from typing import Any, Callable, Optional, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -23,23 +23,6 @@ from torchxai.metrics.faithfulness.multi_target.infidelity import (
 )
 
 
-def default_infidelity_perturb_fn(noise_scale: float = 0.003):
-    def wrapped(
-        inputs,
-        baselines=None,
-        feature_masks=None,
-        frozen_features=None,
-    ):
-        noise = torch.randn_like(inputs) * noise_scale
-        if frozen_features is not None and feature_masks is not None:
-            for feature_idx in frozen_features:
-                noise[feature_masks == feature_idx] = 0
-
-        return noise, inputs - noise
-
-    return wrapped
-
-
 def infidelity(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -47,8 +30,8 @@ def infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    feature_masks: TensorOrTupleOfTensorsGeneric = None,
-    frozen_features: List[int] = None,
+    feature_mask: Optional[TensorOrTupleOfTensorsGeneric] = None,
+    frozen_features: Optional[torch.Tensor] = None,
     perturb_func: Optional[Callable] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
@@ -337,7 +320,7 @@ def infidelity(
             baselines=baselines,
             additional_forward_args=additional_forward_args,
             targets_list=target,
-            feature_masks=feature_masks,
+            feature_mask=feature_mask,
             frozen_features=frozen_features,
             n_perturb_samples=n_perturb_samples,
             max_examples_per_batch=max_examples_per_batch,
@@ -378,10 +361,9 @@ def infidelity(
             if "baselines" in valid_args:
                 perturb_kwargs["baselines"] = baselines_pert
             if "feature_masks" in valid_args:
-                perturb_kwargs["feature_masks"] = feature_masks_expanded
+                perturb_kwargs["feature_masks"] = feature_mask_expanded
             if "frozen_features" in valid_args:
-                perturb_kwargs["frozen_features"] = frozen_features
-
+                perturb_kwargs["frozen_features"] = frozen_features_expanded
             return perturb_func(**perturb_kwargs)
 
         inputs_expanded = tuple(
@@ -389,11 +371,15 @@ def infidelity(
             for input in inputs
         )
 
-        feature_masks_expanded = None
-        if feature_masks is not None:
-            feature_masks_expanded = tuple(
+        feature_mask_expanded = None
+        frozen_features_expanded = None
+        if feature_mask is not None:
+            feature_mask_expanded = tuple(
                 torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
-                for feature_mask in feature_masks
+                for feature_mask in feature_mask
+            )
+            frozen_features_expanded = torch.repeat_interleave(
+                frozen_features, current_n_perturb_samples, dim=0
             )
 
         baselines_expanded = baselines

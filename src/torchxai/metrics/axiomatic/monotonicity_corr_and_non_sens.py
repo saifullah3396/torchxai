@@ -703,12 +703,12 @@ def monotonicity_corr_and_non_sens(
         monotonicity_corr_batch = torch.tensor(monotonicity_corr_batch)
         non_sens_batch = torch.tensor(non_sens_batch)
         n_features_batch = torch.tensor(n_features_batch)
-        perturbed_fwd_diffs_relative_vars_batch = torch.tensor(
-            perturbed_fwd_diffs_relative_vars_batch
-        )
-        feature_group_attribution_scores_batch = torch.tensor(
-            feature_group_attribution_scores_batch
-        )
+        perturbed_fwd_diffs_relative_vars_batch = [
+            torch.tensor(x) for x in perturbed_fwd_diffs_relative_vars_batch
+        ]
+        feature_group_attribution_scores_batch = [
+            torch.tensor(x) for x in feature_group_attribution_scores_batch
+        ]
 
         if return_intermediate_results:
             if return_dict:

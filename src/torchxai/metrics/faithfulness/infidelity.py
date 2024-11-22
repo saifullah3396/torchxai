@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import inspect
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -31,7 +31,7 @@ def infidelity(
     additional_forward_args: Any = None,
     target: TargetType = None,
     feature_mask: Optional[TensorOrTupleOfTensorsGeneric] = None,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     perturb_func: Optional[Callable] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,

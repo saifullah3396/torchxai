@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
@@ -116,7 +116,7 @@ def eval_aopcs_single_sample(
     use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
     show_progress: bool = False,
@@ -307,7 +307,7 @@ def aopc(
     use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
     is_multi_target: bool = False,

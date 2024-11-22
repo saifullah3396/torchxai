@@ -38,7 +38,7 @@ def _multi_target_faithfulness_corr(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     perturbation_probability: float = 0.1,
     show_progress: bool = False,
     set_same_perturbation_mask_for_batch: bool = False,

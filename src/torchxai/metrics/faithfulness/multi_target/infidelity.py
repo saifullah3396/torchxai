@@ -28,7 +28,7 @@ def _multi_target_infidelity(
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
     feature_masks: Optional[TensorOrTupleOfTensorsGeneric] = None,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     normalize: bool = False,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import torch
@@ -118,7 +118,7 @@ def _generate_random_perturbation_masks(
     n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
     perturbation_probability: float = 0.1,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
     """
@@ -197,7 +197,7 @@ def _generate_random_perturbation_masks_with_fixed_n(
     n_perturbations_per_sample: int,
     feature_mask: Tuple[torch.Tensor, ...],
     n_features_perturbed: Union[int, float] = 1,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     device: torch.device = torch.device("cpu"),
 ) -> Tuple[torch.Tensor, ...]:
     """

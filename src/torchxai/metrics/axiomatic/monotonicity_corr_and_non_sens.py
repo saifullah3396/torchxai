@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, Optional, Tuple, Union, cast
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import scipy
@@ -40,7 +40,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
@@ -303,7 +303,7 @@ def monotonicity_corr_and_non_sens(
     max_features_processed_per_batch: int = None,
     eps: float = 1e-5,
     is_multi_target: bool = False,
-    frozen_features: Optional[torch.Tensor] = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,

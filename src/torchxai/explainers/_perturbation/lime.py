@@ -3,7 +3,7 @@ import itertools
 import math
 import typing
 import warnings
-from typing import Any, Callable, Optional, Tuple, Union
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import (
@@ -121,7 +121,7 @@ def frozen_features_perturb_func(original_inp, **kwargs):
                 0
             ]  # this will always have a batch size of 1
         ), "Frozen features must be less than num_interp_features"
-        perturbation[0, frozen_features.squeeze()] = (
+        perturbation[0, frozen_features] = (
             1  # freeze the features, useful for padding/cls/sep tokens in sequences
         )
     return perturbation
@@ -164,7 +164,7 @@ class Lime(LimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[torch.Tensor] = None,
+        frozen_features: Optional[List[torch.Tensor]] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -190,7 +190,7 @@ class Lime(LimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[torch.Tensor] = None,
+        frozen_features: Optional[List[torch.Tensor]] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
         **kwargs,
@@ -390,7 +390,7 @@ class MultiTargetLime(MultiTargetLimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[torch.Tensor] = None,
+        frozen_features: Optional[List[torch.Tensor]] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
     ) -> TensorOrTupleOfTensorsGeneric:
@@ -416,7 +416,7 @@ class MultiTargetLime(MultiTargetLimeBase):
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         n_samples: int = 25,
         perturbations_per_eval: int = 1,
-        frozen_features: Optional[torch.Tensor] = None,
+        frozen_features: Optional[List[torch.Tensor]] = None,
         return_input_shape: bool = True,
         show_progress: bool = False,
         **kwargs,
@@ -644,7 +644,7 @@ class LimeExplainer(Explainer):
         n_samples: int = 100,
         alpha: float = 0.01,
         weight_attributions: bool = True,
-        similarity_func=get_exp_kernel_similarity_function(),
+        similarity_func=get_exp_kernel_similarity_function_with_interpretable_inps(),
     ) -> None:
         """
         Initialize the LimeExplainer with the model, number of samples, and perturbations per evaluation.
@@ -684,7 +684,7 @@ class LimeExplainer(Explainer):
         baselines: BaselineType = None,
         feature_mask: Union[None, Tensor, Tuple[Tensor, ...]] = None,
         additional_forward_args: Any = None,
-        frozen_features: Optional[torch.Tensor] = None,
+        frozen_features: Optional[List[torch.Tensor]] = None,
     ) -> TensorOrTupleOfTensorsGeneric:
         """
         Compute the LIME attributions for the given inputs.

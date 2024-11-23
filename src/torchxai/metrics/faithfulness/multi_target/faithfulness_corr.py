@@ -272,9 +272,8 @@ def _multi_target_faithfulness_corr(
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations_per_sample=n_perturb_samples,
             feature_mask=feature_mask,
-            perturbation_probability=perturbation_probability,
+            percent_features_perturbed=perturbation_probability,
             frozen_features=frozen_features,
-            device=inputs[0].device,
         )
         bsz = inputs[0].size(0)
 

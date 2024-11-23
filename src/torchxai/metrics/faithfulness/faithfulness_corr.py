@@ -44,7 +44,6 @@ def faithfulness_corr(
     frozen_features: Optional[List[torch.Tensor]] = None,
     perturbation_probability: float = 0.1,
     show_progress: bool = False,
-    set_same_perturbation_mask_for_batch: bool = False,
     is_multi_target: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,
@@ -279,10 +278,6 @@ def faithfulness_corr(
             how many features in the input are perturbed in each perturbation of the input.
             Default: 0.1
         show_progress (bool, optional): Displays the progress of the metric computation.
-        set_same_perturbation_mask_for_batch (bool): This is only a flag for debugging/tests where we can check if
-            multiple runs are consistent for same inputs repeated in a batch. If set to True, the same perturbation
-            mask is used for all examples in the batch. This is useful for debugging and testing purposes.
-            Default: False
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs
@@ -336,7 +331,6 @@ def faithfulness_corr(
             frozen_features=frozen_features,
             perturbation_probability=perturbation_probability,
             show_progress=show_progress,
-            set_same_perturbation_mask_for_batch=set_same_perturbation_mask_for_batch,
         )
 
         if return_intermediate_results:
@@ -551,20 +545,10 @@ def faithfulness_corr(
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations_per_sample=n_perturb_samples,
             feature_mask=feature_mask,
-            perturbation_probability=perturbation_probability,
+            percent_features_perturbed=perturbation_probability,
             frozen_features=frozen_features,
-            device=attributions[0][0].device,
         )
         bsz = inputs[0].size(0)
-
-        # this is only a flag for debugging/tests where we can check if multiple runs are consistent for same inputs repeated
-        # in a batch
-        if set_same_perturbation_mask_for_batch:
-            for x in global_perturbation_masks:
-                for batch_idx in range(len(x)):
-                    if batch_idx == 0:
-                        continue
-                    x[batch_idx] = x[0]
 
         # if not normalize, directly return aggrgated MSE ((a-b)^2,)
         # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)
@@ -578,7 +562,6 @@ def faithfulness_corr(
         )
         perturbed_fwd_diffs = agg_tensors[0].detach().cpu()
         attributions_expanded_perturbed_sum = agg_tensors[1].detach().cpu()
-
         faithfulness_corr_scores = torch.tensor(
             [
                 scipy.stats.pearsonr(x, y)[0]

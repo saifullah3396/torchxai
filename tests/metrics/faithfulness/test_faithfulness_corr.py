@@ -31,7 +31,6 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     n_perturb_samples: int = 10
     max_examples_per_batch: int = None
     perturbation_probability: float = 0.5
-    set_same_perturbation_mask_for_batch: bool = False
     assert_across_runs: bool = True
     set_fixed_baseline_of_type: bool = False
     device: str = "cpu"
@@ -44,7 +43,7 @@ test_configurations = [
         expected=[
             # slight differences across runs expected due to difference in per-batch randomness
             torch.tensor([x])
-            for x in [0.9433, 0.9429, 0.9433, 0.9537, 0.9538, 0.9537]
+            for x in [1] * 6
         ],
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
@@ -61,7 +60,7 @@ test_configurations = [
         test_name="zero_baseline_fn",
         target_fixture="basic_model_single_input_config",
         expected=torch.tensor(
-            [0.9429]
+            [1]
         ),  # slight differences across runs not expected as zero baseline is used
         perturb_func=default_zero_baseline_func(),
         n_perturb_samples=[
@@ -76,7 +75,7 @@ test_configurations = [
         test_name="fixed_zero_baseline",
         target_fixture="basic_model_single_input_config",
         expected=torch.tensor(
-            [0.9429]
+            [1]
         ),  # slight differences across runs not expected as zero baseline is used
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="zero",
@@ -92,7 +91,7 @@ test_configurations = [
         test_name="fixed_random_baseline",
         target_fixture="basic_model_single_input_config",
         expected=torch.tensor(
-            [0.9563]
+            [1]
         ),  # slight differences across runs not expected as zero baseline is used
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="random",
@@ -108,24 +107,12 @@ test_configurations = [
         test_name="random_baseline_fn",
         target_fixture="basic_model_batch_input_config",
         expected=[
-            torch.tensor(
-                [0.9129, 0.9520, 0.9498]
-            ),  # 10 perturbations per example, run 1
-            torch.tensor(
-                [0.9129, 0.9520, 0.9498]
-            ),  # 10 perturbations per example, run 2
-            torch.tensor(
-                [0.9129, 0.9518, 0.9506]
-            ),  # 10 perturbations per example, run 3
-            torch.tensor(
-                [0.9551, 0.9517, 0.9485]
-            ),  # 100 perturbations per example, run 4
-            torch.tensor(
-                [0.9551, 0.9517, 0.9485]
-            ),  # 100 perturbations per example, run 5
-            torch.tensor(
-                [0.9551, 0.9517, 0.9483]
-            ),  # 100 perturbations per example, run 6
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 1
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 2
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 3
+            torch.tensor([1] * 3),  # 100 perturbations per example, run 4
+            torch.tensor([1] * 3),  # 100 perturbations per example, run 5
+            torch.tensor([1] * 3),  # 100 perturbations per example, run 6
         ],  # slight differences expected due to difference in per-batch randomness with different max_examples_per_batch
         n_perturb_samples=[
             10,
@@ -139,45 +126,14 @@ test_configurations = [
         assert_across_runs=False,
     ),
     MetricTestRuntimeConfig_(
-        test_name="random_baseline_fn_same_perturbation_mask_across_batch",
-        target_fixture="basic_model_batch_input_config",
-        expected=[
-            # since set_same_perturbation_mask_for_batch, the perturbation mask will be the same across batch and
-            # so all inputs which have same values should return the same outputs
-            torch.tensor(
-                [0.9129, 0.9129, 0.9129]
-            ),  # 10 perturbations per example, run 1
-            torch.tensor(
-                [0.9129, 0.9129, 0.9129]
-            ),  # 10 perturbations per example, run 2
-            torch.tensor(
-                [0.9129, 0.9129, 0.9129]
-            ),  # 10 perturbations per example, run 3
-        ],
-        n_perturb_samples=[
-            10,
-            10,
-            10,
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=True,
-        set_same_perturbation_mask_for_batch=True,
-    ),
-    MetricTestRuntimeConfig_(
         test_name="zero_baseline_fn",
         target_fixture="basic_model_batch_input_config",
         expected=[
             # since zero_baseline is set it will override random baseline in default_random_perturb_func,
             # so the outputs should be same across runs
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 1
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 2
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 3
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 1
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 2
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 3
         ],
         n_perturb_samples=[
             10,
@@ -194,15 +150,9 @@ test_configurations = [
         expected=[
             # since zero_baseline is set it will override random baseline in default_random_perturb_func,
             # so the outputs should be same across runs
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 1
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 2
-            torch.tensor(
-                [0.9129, 0.9517, 0.9495]
-            ),  # 10 perturbations per example, run 3
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 1
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 2
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 3
         ],
         n_perturb_samples=[
             10,
@@ -220,15 +170,9 @@ test_configurations = [
         expected=[
             # since zero_baseline is set it will override random baseline in default_random_perturb_func,
             # so the outputs should be same across runs
-            torch.tensor(
-                [0.9129, 0.9561, 0.9706]
-            ),  # 10 perturbations per example, run 1
-            torch.tensor(
-                [0.9129, 0.9561, 0.9706]
-            ),  # 10 perturbations per example, run 2
-            torch.tensor(
-                [0.9129, 0.9561, 0.9706]
-            ),  # 10 perturbations per example, run 3
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 1
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 2
+            torch.tensor([1] * 3),  # 10 perturbations per example, run 3
         ],
         n_perturb_samples=[
             10,
@@ -246,6 +190,7 @@ test_configurations = [
         expected=torch.tensor([torch.nan]),
         n_perturb_samples=[10, 10, 10],
         max_examples_per_batch=[5, 1, 40],
+        assert_across_runs=False,
     ),
     MetricTestRuntimeConfig_(
         test_name="random_baseline_fn",
@@ -256,70 +201,70 @@ test_configurations = [
             for x in [
                 # faithfulness is very sensitive to perturbations, even for same inputs the faithfulness can vary a lot
                 [
-                    0.8897,
-                    0.8151,
-                    0.8823,
-                    0.8943,
-                    0.8021,
-                    0.8323,
-                    0.9283,
-                    0.9047,
-                    0.9337,
-                    0.9381,
-                    0.8780,
-                    0.7656,
-                    0.9322,
-                    0.8673,
-                    0.9053,
-                    0.9184,
-                    0.9401,
-                    0.8492,
-                    0.7850,
-                    0.9526,
+                    0.7584,
+                    0.8742,
+                    0.9037,
+                    0.6730,
+                    0.8268,
+                    0.8161,
+                    0.9190,
+                    0.7511,
+                    0.7949,
+                    0.5883,
+                    0.9437,
+                    0.8071,
+                    0.7533,
+                    0.8241,
+                    0.8611,
+                    0.5858,
+                    0.7429,
+                    0.7284,
+                    0.8357,
+                    0.8618,
                 ],
                 [
-                    0.8897,
-                    0.8151,
-                    0.8823,
-                    0.8943,
-                    0.8021,
-                    0.8323,
-                    0.9283,
-                    0.9047,
-                    0.9337,
-                    0.9381,
-                    0.8780,
-                    0.7656,
-                    0.9322,
-                    0.8673,
-                    0.9053,
-                    0.9184,
-                    0.9401,
-                    0.8492,
-                    0.7850,
-                    0.9526,
+                    0.7584,
+                    0.8742,
+                    0.9037,
+                    0.6730,
+                    0.8268,
+                    0.8161,
+                    0.9190,
+                    0.7511,
+                    0.7949,
+                    0.5883,
+                    0.9437,
+                    0.8071,
+                    0.7533,
+                    0.8241,
+                    0.8611,
+                    0.5858,
+                    0.7429,
+                    0.7284,
+                    0.8357,
+                    0.8618,
                 ],
                 [
-                    0.8897,
-                    0.8150,
-                    0.8824,
-                    0.8943,
-                    0.8019,
-                    0.8326,
-                    0.9282,
-                    0.9047,
-                    0.9341,
-                    0.9380,
-                    0.8780,
-                    0.7646,
-                    0.9324,
-                    0.8668,
-                    0.9051,
-                    0.9185,
-                    0.9403,
-                    0.8491,
-                    0.7854,
-                    0.9526,
+                    0.7576,
+                    0.8741,
+                    0.9036,
+                    0.6738,
+                    0.8272,
+                    0.8155,
+                    0.9192,
+                    0.7512,
+                    0.7959,
+                    0.5886,
+                    0.9440,
+                    0.8071,
+                    0.7534,
+                    0.8248,
+                    0.8611,
+                    0.5847,
+                    0.7426,
+                    0.7277,
+                    0.8353,
+                    0.8621,
                 ],
             ]
         ],
@@ -329,90 +274,6 @@ test_configurations = [
             10,  # 10 perturbations per example, run 3
         ],
         max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="random_baseline_fn_same_perturbation_mask_across_batch",
-        target_fixture="classification_convnet_model_with_multiple_targets_config",
-        expected=[
-            # slight differences across runs expected due to difference in per-batch randomness
-            torch.tensor(x)
-            for x in [
-                [
-                    0.8897,
-                    0.8900,
-                    0.8897,
-                    0.8900,
-                    0.8898,
-                    0.8902,
-                    0.8898,
-                    0.8900,
-                    0.8894,
-                    0.8900,
-                    0.8902,
-                    0.8904,
-                    0.8902,
-                    0.8902,
-                    0.8900,
-                    0.8899,
-                    0.8904,
-                    0.8901,
-                    0.8900,
-                    0.8899,
-                ],
-                [
-                    0.8897,
-                    0.8900,
-                    0.8897,
-                    0.8900,
-                    0.8898,
-                    0.8902,
-                    0.8898,
-                    0.8900,
-                    0.8894,
-                    0.8900,
-                    0.8902,
-                    0.8904,
-                    0.8902,
-                    0.8902,
-                    0.8900,
-                    0.8899,
-                    0.8904,
-                    0.8901,
-                    0.8900,
-                    0.8899,
-                ],
-                [
-                    0.8897,
-                    0.8897,
-                    0.8897,
-                    0.8900,
-                    0.8893,
-                    0.8902,
-                    0.8900,
-                    0.8905,
-                    0.8900,
-                    0.8898,
-                    0.8899,
-                    0.8899,
-                    0.8902,
-                    0.8900,
-                    0.8902,
-                    0.8903,
-                    0.8900,
-                    0.8901,
-                    0.8900,
-                    0.8899,
-                ],
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=True,
         assert_across_runs=False,
     ),
     MetricTestRuntimeConfig_(
@@ -426,26 +287,26 @@ test_configurations = [
                 *(
                     [
                         [
-                            0.8899,
-                            0.8150,
-                            0.8825,
-                            0.8942,
-                            0.8024,
-                            0.8322,
-                            0.9283,
-                            0.9047,
-                            0.9342,
-                            0.9381,
-                            0.8780,
-                            0.7649,
-                            0.9321,
-                            0.8665,
-                            0.9050,
-                            0.9185,
-                            0.9402,
-                            0.8490,
-                            0.7852,
-                            0.9527,
+                            0.7573,
+                            0.8742,
+                            0.9037,
+                            0.6731,
+                            0.8267,
+                            0.8163,
+                            0.9190,
+                            0.7509,
+                            0.7954,
+                            0.5885,
+                            0.9440,
+                            0.8069,
+                            0.7534,
+                            0.8238,
+                            0.8618,
+                            0.5863,
+                            0.7432,
+                            0.7280,
+                            0.8357,
+                            0.8618,
                         ]
                     ]
                     * 3
@@ -458,30 +319,6 @@ test_configurations = [
             10,  # 10 perturbations per example, run 3
         ],
         max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=False,
-        assert_across_runs=False,
-        perturb_func=default_zero_baseline_func(),
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="zero_baseline_fn_with_same_perturbation_mask_across_batch",
-        # when mask is false the outputs should be same across batch and same across runs
-        target_fixture="classification_convnet_model_with_multiple_targets_config",
-        expected=[
-            # slight differences across runs expected due to difference in per-batch randomness
-            torch.tensor(x)
-            for x in [
-                [0.8899] * 20,
-                [0.8899] * 20,
-                [0.8899] * 20,
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=True,
         assert_across_runs=False,
         perturb_func=default_zero_baseline_func(),
     ),
@@ -496,26 +333,26 @@ test_configurations = [
                 *(
                     [
                         [
-                            0.8899,
-                            0.8150,
-                            0.8825,
-                            0.8942,
-                            0.8024,
-                            0.8322,
-                            0.9283,
-                            0.9047,
-                            0.9342,
-                            0.9381,
-                            0.8780,
-                            0.7649,
-                            0.9321,
-                            0.8665,
-                            0.9050,
-                            0.9185,
-                            0.9402,
-                            0.8490,
-                            0.7852,
-                            0.9527,
+                            0.7573,
+                            0.8742,
+                            0.9037,
+                            0.6731,
+                            0.8267,
+                            0.8163,
+                            0.9190,
+                            0.7509,
+                            0.7954,
+                            0.5885,
+                            0.9440,
+                            0.8069,
+                            0.7534,
+                            0.8238,
+                            0.8618,
+                            0.5863,
+                            0.7432,
+                            0.7280,
+                            0.8357,
+                            0.8618,
                         ]
                     ]
                     * 3
@@ -528,31 +365,6 @@ test_configurations = [
             10,  # 10 perturbations per example, run 3
         ],
         max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=False,
-        assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="zero",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_zero_baseline_with_same_perturbation_mask_across_batch",
-        # when mask is false the outputs should be same across batch and same across runs
-        target_fixture="classification_convnet_model_with_multiple_targets_config",
-        expected=[
-            # slight differences across runs expected due to difference in per-batch randomness
-            torch.tensor(x)
-            for x in [
-                [0.8899] * 20,
-                [0.8899] * 20,
-                [0.8899] * 20,
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=True,
         assert_across_runs=False,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="zero",
@@ -568,26 +380,26 @@ test_configurations = [
                 *(
                     [
                         [
-                            0.8906,
-                            0.8303,
-                            0.8923,
-                            0.9056,
-                            0.8458,
-                            0.8717,
-                            0.9202,
-                            0.9080,
-                            0.9587,
-                            0.9404,
-                            0.8912,
-                            0.7828,
-                            0.9460,
-                            0.8864,
-                            0.9263,
-                            0.9083,
-                            0.9452,
-                            0.8788,
-                            0.8225,
-                            0.9570,
+                            0.7939,
+                            0.8840,
+                            0.9196,
+                            0.7278,
+                            0.8301,
+                            0.8442,
+                            0.9171,
+                            0.7802,
+                            0.7938,
+                            0.5919,
+                            0.9441,
+                            0.8128,
+                            0.7909,
+                            0.7823,
+                            0.8444,
+                            0.6592,
+                            0.8319,
+                            0.7791,
+                            0.8630,
+                            0.8800,
                         ]
                     ]
                     * 3
@@ -600,56 +412,6 @@ test_configurations = [
             10,  # 10 perturbations per example, run 3
         ],
         max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=False,
-        assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="random",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_random_baseline_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_convnet_model_with_multiple_targets_config",
-        expected=[
-            # with fixed random baseline and same perturbation masks, the outputs are still different across batch since
-            # random baeline is different for each sample, so the outputs should be different across batch
-            # but same across runs
-            torch.tensor(x)
-            for x in [
-                *(
-                    [
-                        [
-                            0.8906,
-                            0.8973,
-                            0.9005,
-                            0.8963,
-                            0.9010,
-                            0.9021,
-                            0.8912,
-                            0.9083,
-                            0.9077,
-                            0.9029,
-                            0.8913,
-                            0.8976,
-                            0.9066,
-                            0.9086,
-                            0.9061,
-                            0.9061,
-                            0.9033,
-                            0.9148,
-                            0.9098,
-                            0.8972,
-                        ]
-                    ]
-                    * 3
-                ),
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        set_same_perturbation_mask_for_batch=True,
         assert_across_runs=False,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="random",
@@ -660,9 +422,9 @@ test_configurations = [
         expected=[
             torch.tensor(x)
             for x in [
-                [0.9980, 1.0000, 1.0000, 1.0000],
-                [0.9980, 1.0000, 1.0000, 1.0000],
-                [0.9980, 1.0000, 1.0000, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
             ]
         ],
         n_perturb_samples=[
@@ -672,31 +434,11 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="random_baseline_fn_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=[
-            torch.tensor(x)
-            for x in [
-                [0.9980, 1.0000, 1.0000, 1.0000],
-                [0.9980, 1.0000, 1.0000, 1.0000],
-                [0.9980, 1.0000, 1.0000, 1.0000],
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
     ),
     MetricTestRuntimeConfig_(
         test_name="zero_baseline_fn",
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9980, 1.0000, 1.0000, 1.0000]),
+        expected=torch.tensor([0.9973, 1.0000, 1.0000, 1.0000]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -704,26 +446,12 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_zero_baseline_func(),
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="zero_baseline_fn_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9978, 1.0000, 1.0000, 1.0000]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_zero_baseline_func(),
     ),
     MetricTestRuntimeConfig_(
         test_name="fixed_zero_baseline",
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9980, 1.0000, 1.0000, 1.0000]),
+        expected=torch.tensor([0.9973, 1.0000, 1.0000, 1.0000]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -731,28 +459,13 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="zero",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_zero_baseline_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9978, 1.0000, 1.0000, 1.0000]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="zero",
     ),
     MetricTestRuntimeConfig_(
         test_name="fixed_random_baseline",
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9299, 1.0000, 1.0000, 1.0000]),
+        expected=torch.tensor([0.9960, 0.9991, 0.9922, 0.9987]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -760,21 +473,6 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="random",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_random_baseline_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_tuple_targets_config",
-        expected=torch.tensor([0.9299, 1.0000, 1.0000, 1.0000]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="random",
     ),
@@ -785,9 +483,9 @@ test_configurations = [
         expected=[
             torch.tensor(x)
             for x in [
-                [0.9219, 0.9996, 0.9999, 1.0000],
-                [0.9219, 0.9996, 0.9999, 1.0000],
-                [0.9205, 0.9996, 0.9999, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
+                [0.9971, 1.0000, 0.9999, 1.0000],
             ]
         ],
         n_perturb_samples=[
@@ -797,31 +495,11 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="random_baseline_fn_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=[
-            torch.tensor(x)
-            for x in [
-                [0.9219, 0.9983, 0.9997, 0.9999],
-                [0.9219, 0.9983, 0.9997, 0.9999],
-                [0.9205, 0.9981, 0.9998, 0.9999],
-            ]
-        ],
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
     ),
     MetricTestRuntimeConfig_(
         test_name="zero_baseline_fn",
         target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9196, 0.9996, 0.9999, 1.0000]),
+        expected=torch.tensor([0.9973, 1.0000, 1.0000, 1.0000]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -829,26 +507,12 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_zero_baseline_func(),
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="zero_baseline_fn_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9196, 0.9982, 1.0000, 1.0000]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_zero_baseline_func(),
     ),
     MetricTestRuntimeConfig_(
         test_name="fixed_zero_baseline",
         target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9196, 0.9996, 0.9999, 1.0000]),
+        expected=torch.tensor([0.9973, 1.0000, 1.0000, 1.0000]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -856,28 +520,13 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="zero",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_zero_baseline_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9196, 0.9982, 1.0000, 1.0000]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="zero",
     ),
     MetricTestRuntimeConfig_(
         test_name="fixed_random_baseline",
         target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9927, 0.9995, 0.9998, 0.9999]),
+        expected=torch.tensor([0.9960, 0.9991, 0.9922, 0.9987]),
         n_perturb_samples=[
             10,  # 10 perturbations per example, run 1
             10,  # 10 perturbations per example, run 2
@@ -885,21 +534,6 @@ test_configurations = [
         ],
         max_examples_per_batch=[5, 1, 40],
         assert_across_runs=False,
-        perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
-        set_fixed_baseline_of_type="random",
-    ),
-    MetricTestRuntimeConfig_(
-        test_name="fixed_random_baseline_with_same_perturbation_mask_across_batch",
-        target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
-        expected=torch.tensor([0.9927, 0.9980, 0.9997, 0.9998]),
-        n_perturb_samples=[
-            10,  # 10 perturbations per example, run 1
-            10,  # 10 perturbations per example, run 2
-            10,  # 10 perturbations per example, run 3
-        ],
-        max_examples_per_batch=[5, 1, 40],
-        assert_across_runs=False,
-        set_same_perturbation_mask_for_batch=True,
         perturb_func=default_fixed_baseline_perturb_func(),  # here we use random function but use the underlying fixed baseline
         set_fixed_baseline_of_type="random",
     ),
@@ -970,7 +604,6 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
                 n_perturb_samples=n_perturbs,
                 max_examples_per_batch=max_examples,
                 perturbation_probability=runtime_config.perturbation_probability,
-                set_same_perturbation_mask_for_batch=runtime_config.set_same_perturbation_mask_for_batch,
                 return_intermediate_results=True,
             )
         )

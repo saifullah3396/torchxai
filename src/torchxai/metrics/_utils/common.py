@@ -79,6 +79,17 @@ def _construct_default_feature_mask(
     return feature_mask
 
 
+def _feature_mask_to_perturbation_mask(mask, feature_indices, frozen_features):
+    if frozen_features is not None:
+        frozen_tensor = torch.tensor(frozen_features, device=mask.device)
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
+        feature_indices = feature_indices[valid_indices_mask]
+
+    # Create the perturbation mask in one operation
+    perturbation_mask = mask.unsqueeze(0) == feature_indices.unsqueeze(1)
+    return perturbation_mask.squeeze(0)  # Shape: (num_features, mask.size)
+
+
 def _format_tensor_tuple_feature_dim(
     tuple_tensors: Tuple[torch.Tensor],
 ) -> Tuple[torch.Tensor]:

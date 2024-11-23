@@ -21,6 +21,8 @@ from torchxai.metrics._utils.batching import (
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _split_tensors_to_tuple_tensors,
+    _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
@@ -31,17 +33,17 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions_list: List[TensorOrTupleOfTensorsGeneric],
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
-    n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
     perturb_func: Callable = default_random_perturb_func(),
+    n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
     def _generate_perturbations(
-        current_n_perturbed_features: int, current_feature_indices: int, feature_mask
+        current_n_perturbed_features: int, current_perturbation_mask: Tensor
     ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
         r"""
         The perturbations are generated for each example
@@ -57,10 +59,10 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
             inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:
                 inputs_pert = inputs_expanded[0]
-                perturbation_masks = perturbation_masks_expanded[0]
+                perturbation_masks = perturbation_mask_expanded[0]
             else:
                 inputs_pert = inputs_expanded
-                perturbation_masks = perturbation_masks_expanded
+                perturbation_masks = perturbation_mask_expanded
             return perturb_func(
                 inputs=inputs_pert, perturbation_masks=perturbation_masks
             )
@@ -74,21 +76,20 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
             for input in inputs
         )
 
-        def feature_mask_to_perturbation_mask(mask, feature_index):
-            if frozen_features is not None and feature_index in frozen_features:
-                return torch.zeros_like(
-                    mask
-                )  # if the feature index is frozen, then the perturbation mask is zero
-            return mask == feature_index
+        # repeat each perturbation mask n_perturbations_per_feature times
+        perturbation_mask_expanded = current_perturbation_mask.repeat_interleave(
+            repeats=n_perturbations_per_feature, dim=0
+        )
 
-        perturbation_masks_expanded = tuple(
-            torch.cat(
-                [
-                    feature_mask_to_perturbation_mask(mask, feature_index)
-                    for feature_index in current_feature_indices
-                ]
-            ).repeat_interleave(repeats=n_perturbations_per_feature, dim=0)
-            for mask in feature_mask
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            perturbation_mask_expanded, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, inputs_expanded)
         )
         return call_perturb_func()
 
@@ -121,7 +122,8 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
             current_n_steps - current_n_perturbed_features, current_n_steps
         )
         inputs_perturbed = _generate_perturbations(
-            current_n_perturbed_features, current_feature_indices, feature_mask
+            current_n_perturbed_features,
+            global_perturbation_masks[current_feature_indices],
         )
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         _validate_inputs_and_perturbations(
@@ -222,14 +224,33 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
     with torch.no_grad():
         bsz = inputs[0].size(0)
         assert bsz == 1, "Batch size must be 1 for monotonicity_corr_single_sample"
-        if feature_mask is not None:
-            # assert that all elements in the feature_mask are unique and non-negative increasing
-            _validate_feature_mask(feature_mask)
-        else:
-            feature_mask = _construct_default_feature_mask(attributions)
+        if feature_mask is None:
+            feature_mask = _construct_default_feature_mask(attributions_list[0])
+
+        # flatten the feature mask
+        feature_mask_flattened, flattened_mask_shape = _tuple_tensors_to_tensors(
+            feature_mask
+        )
+
+        # validate feature masks are increasing non-negative
+        _validate_feature_mask(feature_mask_flattened)
 
         # this assumes a batch size of 1, this will not work for batch size > 1
-        n_features = max(x.max() for x in feature_mask).item() + 1
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+        feature_indices = feature_mask_flattened.unique()
+
+        # filter out frozen features if necessary
+        if frozen_features is not None:
+            mask = ~torch.isin(
+                feature_indices,
+                torch.tensor(frozen_features, device=inputs[0].device),
+            )
+            feature_indices = feature_indices[mask]
+
+        n_features = feature_indices.shape[0]
+        global_perturbation_masks = feature_mask_flattened.unsqueeze(
+            0
+        ) == feature_indices.unsqueeze(1)
 
         # the logic for this implementation as as follows:
         # each input is repeated n_perturbations_per_feature times to create an input of shape

@@ -13,7 +13,7 @@ from torchxai.metrics._utils.common import (
     _validate_feature_mask,
 )
 from torchxai.metrics._utils.perturbation import (
-    _generate_random_perturbation_masks_with_fixed_n,
+    _generate_random_perturbation_masks,
 )
 from torchxai.metrics.faithfulness.infidelity import infidelity
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
@@ -298,11 +298,11 @@ def sensitivity_n(
         )
 
     feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
-    if feature_mask is not None:
-        # assert that all elements in the feature_mask are unique and non-negative increasing
-        _validate_feature_mask(feature_mask)
-    else:
+    if feature_mask is None:
         feature_mask = _construct_default_feature_mask(attributions)
+
+    # assert that all elements in the feature_mask are unique and non-negative increasing
+    _validate_feature_mask(feature_mask)
 
     batch_size = inputs[0].shape[0] if isinstance(inputs, tuple) else inputs.shape[0]
 
@@ -324,16 +324,19 @@ def sensitivity_n(
             if isinstance(baselines[0], int)
             else baselines
         )
-
-        device = inputs[0].device
+        n_features = torch.max((x.map for x in feature_mask)).item() + 1
+        percent_features_perturbed = (
+            n_features_perturbed / n_features
+            if n_features_perturbed > 1
+            else n_features_perturbed
+        )
         total_repeated_inputs = inputs[0].shape[0]
         n_perturbations = total_repeated_inputs // batch_size
-        perturbation_masks = _generate_random_perturbation_masks_with_fixed_n(
+        perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations,
             feature_mask,
-            n_features_perturbed=n_features_perturbed,
+            percent_features_perturbed=percent_features_perturbed,
             frozen_features=frozen_features,
-            device=device,
         )
         perturbation_masks = tuple(
             mask.view(-1, *mask.shape[2:]) for mask in perturbation_masks

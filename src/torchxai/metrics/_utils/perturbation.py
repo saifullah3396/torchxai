@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-from typing import List, Tuple, Union
+from typing import List, Tuple
 
 import numpy as np
 import torch
 from captum._utils.typing import TensorOrTupleOfTensorsGeneric
 from dacite import Optional
-from ignite.utils import convert_tensor
 
 from torchxai.metrics._utils.common import (
     _split_tensors_to_tuple_tensors,
@@ -198,96 +197,6 @@ def _generate_random_perturbation_masks(
         for x in perturbation_masks
     )
     return perturbation_masks
-
-
-def _generate_random_perturbation_masks_with_fixed_n(
-    n_perturbations_per_sample: int,
-    feature_mask: Tuple[torch.Tensor, ...],
-    n_features_perturbed: Union[int, float] = 1,
-    frozen_features: Optional[List[torch.Tensor]] = None,
-    device: torch.device = torch.device("cpu"),
-) -> Tuple[torch.Tensor, ...]:
-    """
-    Generate random perturbation masks for a given feature mask.
-    """
-    if not isinstance(feature_mask, tuple):
-        feature_mask = (feature_mask,)
-
-    # convert to device
-    feature_mask = convert_tensor(feature_mask, device=device)
-
-    # get batch size
-    batch_size = feature_mask[0].shape[0]
-    perturbation_masks = []
-    for sample_idx in range(batch_size):
-        feature_masks_per_sample = [x[sample_idx] for x in feature_mask]
-        features_in_sample = torch.unique(
-            torch.cat(tuple(x.flatten() for x in feature_masks_per_sample))
-        )
-        perturbation_masks_per_sample = []
-        for _ in range(n_perturbations_per_sample):
-            # here we generate a single random perturbation mask for the sample. This would be of shape
-            # (channel, height, width) or (seq_length, feature_dim)
-            # we randomly drop n_features_perturbed features
-            if isinstance(n_features_perturbed, float):
-                assert (
-                    0 <= n_features_perturbed <= 1
-                ), "n_features_perturbed should be in [0, 1] if passed as a float percentage of total features"
-                n_features_perturbed = int(
-                    n_features_perturbed * len(features_in_sample)
-                )
-            feature_drop_mask = torch.randperm(len(features_in_sample), device=device)[
-                :n_features_perturbed
-            ]
-
-            # here we take the indices of the feature groups that are dropped
-            # this means if the feature mask is like [0, 0, 0, 1, 1, 1, 2, 2, 2]
-            # the features_in_sample will be [0, 1, 2] and if the feature_drop_mask is [True, False, True]
-            # the dropped_feature_indices will be [0, 2], meaning we need to drop 0 and 2 feature groups
-            dropped_feature_indices = features_in_sample[feature_drop_mask]
-
-            # freeze some features if required
-            if frozen_features is not None:
-                for frozen_idx in frozen_features[sample_idx]:
-                    if frozen_idx in dropped_feature_indices:
-                        dropped_feature_indices = dropped_feature_indices[
-                            dropped_feature_indices != frozen_idx
-                        ]
-
-            perturbation_masks_per_feature_type = tuple()
-            for feature_masks_per_sample_per_type in feature_masks_per_sample:
-                # generate an empty mask for this sample, this could be a tensor of shape same as
-                # (n_perturbations_per_sample, channel, height, width) or (n_perturbations_per_sample, seq_length, feature_dim)
-                # where sample shape is (channel, height, width) or (seq_length, feature_dim)
-                # since we wish to generate n_perturbations_per_sample random perturabtions for each sample
-                mask = torch.zeros_like(
-                    feature_masks_per_sample_per_type,
-                    dtype=torch.bool,
-                    device=device,
-                )
-                # here we set the perturbation mask to True where the feature group is dropped
-                for dropped_feature_idx in dropped_feature_indices:
-                    mask[feature_masks_per_sample_per_type == dropped_feature_idx] = (
-                        True
-                    )
-                perturbation_masks_per_feature_type += (mask,)
-            perturbation_masks_per_sample.append(perturbation_masks_per_feature_type)
-        perturbation_masks.append(perturbation_masks_per_sample)
-
-    perturbation_masks_unwrapped = tuple(
-        [
-            [
-                perturbation_masks_per_feature_type[feature_type_idx].tolist()
-                for perturbation_masks_per_feature_type in perturbation_masks_per_sample
-            ]
-            for perturbation_masks_per_sample in perturbation_masks
-        ]
-        for feature_type_idx in range(len(feature_mask))
-    )
-    perturbation_masks_unwrapped = tuple(
-        torch.tensor(x, device=device) for x in perturbation_masks_unwrapped
-    )
-    return perturbation_masks_unwrapped
 
 
 def perturb_fn_drop_batched_single_output(

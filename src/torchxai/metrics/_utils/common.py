@@ -130,11 +130,13 @@ def _reduce_tensor_with_indices_non_deterministic(
     source: torch.Tensor, indices: torch.Tensor
 ) -> torch.Tensor:
     source = source.flatten()
-    reduced_attributions = torch.zeros(indices.max() + 1, dtype=source.dtype)
+    reduced_attributions = torch.zeros(
+        indices.max() + 1, dtype=source.dtype, device=source.device
+    )
     reduced_attributions.index_add_(
         0,
-        indices.cpu(),
-        source.cpu(),
+        indices,
+        source,
     )
     n_features = (indices.max() + 1).item()
     return reduced_attributions, n_features

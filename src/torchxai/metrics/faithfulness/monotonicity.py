@@ -19,14 +19,15 @@ from torch import Tensor
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
+    _feature_mask_to_chunked_accumulated_perturbation_mask,
+    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
 
 
-def eval_monotonicity_single_sample_tupled_computation(
+def eval_monotonicity_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
@@ -34,43 +35,52 @@ def eval_monotonicity_single_sample_tupled_computation(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    n_feature_accumulations: int = 1,
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
 ) -> Tensor:
+    def _generate_perturbations(
+        current_n_perturbed_features: int,
+        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        # repeat each current_n_perturbed_features times
+        baselines_expanded = tuple(
+            baseline.repeat(
+                current_n_perturbed_features,
+                *tuple([1] * len(baseline.shape[1:])),
+            )
+            for baseline in baselines
+        )
+
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            current_perturbation_mask, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, baselines_expanded)
+        )
+        return tuple(
+            baseline * ~mask + input * mask
+            for baseline, mask, input in zip(
+                baselines_expanded, perturbation_mask_expanded, inputs
+            )
+        )
+
     def _next_monotonicity_tensors(
         current_n_perturbed_features: int,
         current_n_steps: int,
     ) -> Union[Tuple[Tensor], Tuple[Tensor, Tensor, Tensor]]:
-        # get the indices of features that will be perturbed in the current iteration
-        # for example if we do 1 by 1 perturbation, then the first iteration will perturb the first feature
-        # the second iteration will perturb both the first and second feature and so on
-        inputs_expanded = tuple(
-            inputs.repeat(
-                current_n_perturbed_features, *tuple([1] * len(inputs.shape[1:]))
-            )
+        current_feature_indices = torch.arange(
+            current_n_steps - current_n_perturbed_features, current_n_steps
         )
-        baselines_expanded = tuple(
-            baselines.repeat(
-                current_n_perturbed_features, *tuple([1] * len(baselines.shape[1:]))
-            )
+        current_perturbation_masks = global_perturbation_masks[current_feature_indices]
+        baselines_perturbed = _generate_perturbations(
+            current_n_perturbed_features, current_perturbation_masks
         )
-        perturbation_masks = tuple(
-            torch.cat(
-                [
-                    mask == ascending_attribution_indices[: current_n_steps - idx]
-                    for idx in range(current_n_perturbed_features, -1, 0)
-                ]
-            )
-            for mask in feature_mask
-        )
-
-        baselines_perturbed = baselines_expanded
-        for baseline, mask, input in zip(
-            baselines_perturbed, perturbation_masks, inputs_expanded
-        ):
-            baseline[mask] = input[mask]
-
         targets_expanded = _expand_target(
             target,
             current_n_perturbed_features,
@@ -84,193 +94,6 @@ def eval_monotonicity_single_sample_tupled_computation(
         baselines_perturbed_fwd = _run_forward(
             forward_func,
             baselines_perturbed,
-            targets_expanded,
-            additional_forward_args_expanded,
-        )
-        baselines_perturbed_fwd = baselines_perturbed_fwd.chunk(
-            current_n_perturbed_features
-        )
-
-        # this is a list of tensors which holds the forward outputs of the model
-        # on each feature group perturbation
-        # the first element will be when the feature with lowest importance is added to the baseline
-        # the last element will be when all features are added to the baseline
-        return (list(baselines_perturbed_fwd),)
-
-    def _agg_monotonicity_tensors(agg_tensors, tensors):
-        return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
-
-    bsz = inputs[0].size(0)
-    assert bsz == 1, "Batch size must be 1 for monotonicity_single_sample"
-    if feature_mask is not None:
-        # assert that all elements in the feature_mask are unique and non-negative increasing
-        _validate_feature_mask(feature_mask)
-    else:
-        feature_mask = _construct_default_feature_mask(attributions)
-
-    # this assumes a batch size of 1, this will not work for batch size > 1
-    n_features = max(x.max() for x in feature_mask).item() + 1
-
-    # gather attribution scores of feature groups
-    # this can be useful for efficiently summing up attributions of feature groups
-    gathered_attributions = tuple()
-    for attribution, mask in zip(attributions, feature_mask):
-        gathered_attribution = torch.zeros_like(attribution)
-        reduced_indices = mask.squeeze() - mask.min()
-        gathered_attribution.index_add_(1, reduced_indices, attribution.clone())
-        gathered_attributions += (gathered_attribution[:, : reduced_indices.max() + 1],)
-
-    total_features_in_attribution = sum(
-        tuple(x.shape[1] for x in gathered_attributions)
-    )
-    assert total_features_in_attribution == n_features, (
-        """The total number of features in the attribution scores
-        must be equal to the total number of features found inside the feature masks in the inputs. Found
-        total number of features in the attribution scores is: {} and in the
-        inputs: {}"""
-    ).format(total_features_in_attribution, n_features)
-
-    # flatten the attributions to get the attribution scores of each feature group. Since this is for a single
-    # sample, we can flatten the attributions to get the attribution scores of each feature group
-    gathered_attributions = torch.cat(tuple(x.squeeze() for x in gathered_attributions))
-
-    # get the gathererd-attributions sorted in ascending order of their importance
-    ascending_attribution_indices = torch.argsort(gathered_attributions)
-    with torch.no_grad():
-        # the logic for this implementation as as follows:
-        # we start from baseline and in each iteration, a feature group is replaced by the original sample
-        # in ascending order of its importance
-        agg_tensors = _divide_and_aggregate_metrics_n_features(
-            n_features,
-            _next_monotonicity_tensors,
-            agg_func=_agg_monotonicity_tensors,
-            max_features_processed_per_batch=max_features_processed_per_batch,
-        )
-
-        # compute monotonicity corr metric
-        def compute_monotonicity(
-            baseline_perturbed_fwds: np.ndarray,
-        ):
-            # as feature are added from least to higher importance, the forward outputs should be monotonically increasing
-            return np.all(np.diff(baseline_perturbed_fwds) >= 0)
-
-        agg_tensors = tuple(np.array(x) for x in agg_tensors)
-        baseline_perturbed_fwds = agg_tensors[0]
-        monotonicity = compute_monotonicity(baseline_perturbed_fwds)
-    return monotonicity
-
-
-def monotonicity_tupled_computation(
-    forward_func: Callable,
-    inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
-    baselines: BaselineType,
-    feature_mask: TensorOrTupleOfTensorsGeneric = None,
-    additional_forward_args: Any = None,
-    target: TargetType = None,
-    max_features_processed_per_batch: int = None,
-) -> Tensor:
-    # perform argument formattings
-    inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-    additional_forward_args = _format_additional_forward_args(additional_forward_args)
-    attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-    feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
-
-    # Make sure that inputs and corresponding attributions have matching sizes.
-    assert len(inputs) == len(attributions), (
-        """The number of tensors in the inputs and
-        attributions must match. Found number of tensors in the inputs is: {} and in the
-        attributions: {}"""
-    ).format(len(inputs), len(attributions))
-
-    bsz = inputs[0].size(0)
-    monotonicity_batch = []
-    for sample_idx in range(bsz):
-        monotonicity = eval_monotonicity_single_sample_tupled_computation(
-            forward_func=forward_func,
-            inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
-            attributions=tuple(attr[sample_idx].unsqueeze(0) for attr in attributions),
-            feature_mask=(
-                tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                if feature_mask is not None
-                else None
-            ),
-            baselines=tuple(
-                baseline[sample_idx].unsqueeze(0) for baseline in baselines
-            ),
-            additional_forward_args=(
-                x[sample_idx].unsqueeze(0) for x in additional_forward_args
-            ),
-            target=target[sample_idx],
-            max_features_processed_per_batch=max_features_processed_per_batch,
-        )
-        monotonicity_batch.append(monotonicity)
-    monotonicity_batch = torch.tensor(monotonicity_batch)
-    return monotonicity_batch
-
-
-def eval_monotonicity_single_sample(
-    forward_func: Callable,
-    inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
-    baselines: BaselineType = None,
-    feature_mask: TensorOrTupleOfTensorsGeneric = None,
-    additional_forward_args: Any = None,
-    target: TargetType = None,
-    max_features_processed_per_batch: int = None,
-    frozen_features: Optional[List[torch.Tensor]] = None,
-    show_progress: bool = False,
-) -> Tensor:
-    def _next_monotonicity_tensors(
-        current_n_perturbed_features: int,
-        current_n_steps: int,
-    ) -> Union[Tuple[Tensor], Tuple[Tensor, Tensor, Tensor]]:
-        # get the indices of features that will be perturbed in the current iteration
-        # for example if we do 1 by 1 perturbation, then the first iteration will perturb the first feature
-        # the second iteration will perturb both the first and second feature and so on
-        baselines_perturbed = []
-        for feature_idx in range(
-            current_n_steps - current_n_perturbed_features, current_n_steps
-        ):
-            # for each feature in the current step incrementally replace the baseline with the original sample
-            if (
-                frozen_features is not None
-                and ascending_attribution_indices[feature_idx] in frozen_features
-            ):
-                # freeze this feature
-                perturbation_mask = torch.zeros_like(
-                    feature_mask, device=feature_mask.device, dtype=torch.bool
-                )
-            else:
-                perturbation_mask = (
-                    feature_mask == ascending_attribution_indices[feature_idx]
-                )
-            if len(inputs.shape) > len(perturbation_mask.shape):
-                perturbation_mask = perturbation_mask.unsqueeze(-1)
-            global_perturbed_baselines[perturbation_mask.expand_as(inputs)] = inputs[
-                perturbation_mask.expand_as(inputs)
-            ]  # input[0] here since batch size is 1
-            baselines_perturbed.append(
-                global_perturbed_baselines[0].clone()
-            )  # input[0] here since batch size is 1
-        baselines_perturbed = torch.stack(baselines_perturbed)
-
-        targets_expanded = _expand_target(
-            target,
-            current_n_perturbed_features,
-            expansion_type=ExpansionTypes.repeat_interleave,
-        )
-        additional_forward_args_expanded = _expand_additional_forward_args(
-            additional_forward_args,
-            current_n_perturbed_features,
-            expansion_type=ExpansionTypes.repeat_interleave,
-        )
-        baselines_perturbed_fwd = _run_forward(
-            forward_func,
-            # the inputs are [batch_size, feature_size, feature_dims] so we need to split them by feature size
-            _split_tensors_to_tuple_tensors(
-                baselines_perturbed, baselines_shape, dim=1
-            ),
             targets_expanded,
             additional_forward_args_expanded,
         )
@@ -289,45 +112,49 @@ def eval_monotonicity_single_sample(
         bsz = inputs[0].size(0)
         assert bsz == 1, "Batch size must be 1 for monotonicity_single_sample"
 
-        # flatten all inputs and baseline features in the input
-        inputs, inputs_shape = _tuple_tensors_to_tensors(inputs)
-        global_perturbed_baselines, baselines_shape = _tuple_tensors_to_tensors(
-            baselines
-        )
-        assert (
-            inputs_shape == baselines_shape
-        ), "Inputs and baselines must have the same shape"
+        # flatten all feature masks in the input
+        if feature_mask is None:
+            feature_mask = _construct_default_feature_mask(attributions)
 
         # flatten all feature masks in the input
-        if feature_mask is not None:
-            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
-        else:
-            feature_mask = _construct_default_feature_mask(attributions)
-            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
+        feature_mask_flattened, flattened_mask_shape = _tuple_tensors_to_tensors(
+            feature_mask
+        )
 
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
 
         # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_mask)
+        _validate_feature_mask(feature_mask_flattened)
 
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
-        reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions[0], indices=feature_mask[0].flatten()
+        reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
+            attributions[0], indices=feature_mask_flattened[0].flatten()
         )
 
         # get the gathererd-attributions sorted in ascending order of their importance
-        ascending_attribution_indices = torch.argsort(reduced_attributions)
+        sorted_ascending_indices = torch.argsort(reduced_attributions)
+
+        # get accumulated masks
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+        global_perturbation_masks = (
+            _feature_mask_to_chunked_accumulated_perturbation_mask(
+                feature_mask_flattened,
+                sorted_ascending_indices,
+                frozen_features,
+                n_feature_accumulations,
+            )
+        )
 
         # the logic for this implementation as as follows:
         # we start from baseline and in each iteration, a feature group is replaced by the original sample
         # in ascending order of its importance
         agg_tensors = _divide_and_aggregate_metrics_n_features(
-            n_features,
+            global_perturbation_masks.shape[0],
             _next_monotonicity_tensors,
             agg_func=_agg_monotonicity_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
@@ -355,7 +182,9 @@ def monotonicity(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
+    n_feature_accumulations: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
@@ -519,12 +348,20 @@ def monotonicity(
                   target for the corresponding example.
 
                 Default: None
+        use_absolute_attributions (bool, optional): A flag to indicate whether to use absolute
+                values of attributions for monotonicity computation. Default is True.
         max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
+        n_feature_accumulations (int, optional): The number of steps to process the features in a single batch.
+                This is useful for reducing the computation time for large models. This allows 'n_feature_accumulations'
+                ascending features to be removed together in each step instead of removing all the features.
+                Therefore, if n_feature_accumulations=10, instead of removing the features X1, <X2, <X3... in each step, we
+                will remove the features <X1-10, <X10-X20, <X20-X30 ...
+                Default: 1
         frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
                 This can be useful for ignoring the input structure features like padding, etc. Default: None
                 In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
@@ -592,7 +429,9 @@ def monotonicity(
                 feature_mask=feature_mask,
                 additional_forward_args=additional_forward_args,
                 target=target,
+                use_absolute_attributions=use_absolute_attributions,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                n_feature_accumulations=n_feature_accumulations,
                 frozen_features=frozen_features,
                 show_progress=show_progress,
                 return_dict=False,
@@ -649,6 +488,9 @@ def monotonicity(
                     """
                 ).format(input.shape, attribution.shape, mask.shape)
 
+        if use_absolute_attributions:
+            attributions = tuple(torch.abs(attr) for attr in attributions)
+
         bsz = inputs[0].size(0)
         monotonicity_batch = []
         asc_baseline_perturbed_fwds_batch = []
@@ -690,6 +532,7 @@ def monotonicity(
                         else target
                     ),
                     max_features_processed_per_batch=max_features_processed_per_batch,
+                    n_feature_accumulations=n_feature_accumulations,
                     frozen_features=(
                         frozen_features[sample_idx]
                         if frozen_features is not None

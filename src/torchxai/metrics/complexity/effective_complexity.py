@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
@@ -14,13 +15,13 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
+    _reduce_tensor_with_indices_non_deterministic,
+    _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
@@ -37,6 +38,7 @@ def eval_effective_complexity_single_sample(
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
+    n_process_steps: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
     eps: float = 1e-5,
     return_ratio: bool = False,
@@ -44,8 +46,7 @@ def eval_effective_complexity_single_sample(
 ) -> Tensor:
     def _generate_perturbations(
         current_n_perturbed_features: int,
-        current_feature_indices: int,
-        feature_mask,
+        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
     ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
         r"""
         The perturbations are generated for each example
@@ -78,27 +79,21 @@ def eval_effective_complexity_single_sample(
             for input in inputs
         )
 
-        current_perturbation_mask = tuple()
-        for mask, perturbation_mask in zip(
-            feature_mask, global_perturbation_mask
-        ):  # this is input types
-            current_perturbation_mask_per_input = []
-            for feature_index in current_feature_indices:
-                if frozen_features is None or feature_index not in frozen_features:
-                    perturbation_mask += (mask == feature_index).bool()
-                current_perturbation_mask_per_input += [
-                    perturbation_mask.clone()
-                ]  # this is batch-wise concatenation
-            current_perturbation_mask += (
-                torch.cat(current_perturbation_mask_per_input),
-            )
-
         # repeat each perturbation mask n_perturbations_per_feature times
-        perturbation_mask_expanded = tuple(
-            mask.repeat_interleave(repeats=n_perturbations_per_feature, dim=0)
-            for mask in current_perturbation_mask
+        perturbation_mask_expanded = current_perturbation_mask.repeat_interleave(
+            repeats=n_perturbations_per_feature, dim=0
         )
 
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            perturbation_mask_expanded, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, inputs_expanded)
+        )
         return call_perturb_func()
 
     def _validate_inputs_and_perturbations(
@@ -129,14 +124,9 @@ def eval_effective_complexity_single_sample(
         current_feature_indices = torch.arange(
             current_n_steps - current_n_perturbed_features, current_n_steps
         )
-
-        # get the ascending indices of the attributions
-        current_feature_indices = ascending_attribution_indices[current_feature_indices]
-
+        current_perturbation_mask = global_perturbation_masks[current_feature_indices]
         inputs_perturbed = _generate_perturbations(
-            current_n_perturbed_features,
-            current_feature_indices,
-            feature_mask,
+            current_n_perturbed_features, current_perturbation_mask
         )
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         _validate_inputs_and_perturbations(
@@ -194,7 +184,9 @@ def eval_effective_complexity_single_sample(
             feature_mask_flattened, _ = _tuple_tensors_to_tensors(feature_mask)
         else:
             feature_mask = _construct_default_feature_mask(attributions)
-            feature_mask_flattened, _ = _tuple_tensors_to_tensors(feature_mask)
+            feature_mask_flattened, flattened_mask_shape = _tuple_tensors_to_tensors(
+                feature_mask
+            )
 
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
@@ -207,17 +199,33 @@ def eval_effective_complexity_single_sample(
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
-        reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions[0], indices=feature_mask_flattened[0].flatten()
+        reduced_attributions, n_features = (
+            _reduce_tensor_with_indices_non_deterministic(
+                attributions[0], indices=feature_mask_flattened[0].flatten()
+            )
         )
 
         # get the gathererd-attributions sorted in descending order of their importance
         ascending_attribution_indices = torch.argsort(reduced_attributions)
 
-        # initialize the global perturbation mask
-        global_perturbation_mask = tuple(
-            torch.zeros_like(mask).bool() for mask in feature_mask
+        # get total indices and total number of perturbations that will be performed
+        n_indices = ascending_attribution_indices.shape[0]
+        total_num_perturbations = math.ceil(n_indices / n_process_steps)
+
+        # create a perturbation mask of shape (n_perturations, feature_perturbation_mask)
+        # that will store all the perturbations
+        device = feature_mask_flattened.device
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+        global_perturbation_masks = torch.zeros(
+            (total_num_perturbations, feature_mask_flattened.shape[0]),
+            dtype=torch.bool,
+            device=device,
         )
+
+        # if n_process_steps is > 1, then we need to chunk the indices and perform perturbations in chunks
+        # this helps reduce the computation time for computing effective complexity at the cost of reduced
+        # accuracy in the final output. Since complexity only aims to find the top-k features that are important
+        # this is a reasonable trade-off. This can be used to reduce the computation time for large models
 
         # the logic for this implementation as as follows:
         # each input is repeated n_perturbations_per_feature times to create an input of shape
@@ -231,9 +239,37 @@ def eval_effective_complexity_single_sample(
         # in case of feature_mask, n_features is the total number of feature groups present in the inputs
         # each group is perturbed together n_perturbations_per_feature times
         # in case there is no feature masks, then a corresponding feature mask is generated for each input feature
+        chunks = torch.arange(0, n_indices, n_process_steps, device=device)
+        for row_idx, start_idx in enumerate(tqdm.tqdm(chunks)):
+            end_idx = min(start_idx + n_process_steps, n_indices)
+            feature_indices = ascending_attribution_indices[start_idx:end_idx]
+
+            # filter out frozen features if necessary
+            if frozen_features is not None:
+                mask = ~torch.isin(
+                    feature_indices,
+                    torch.tensor(frozen_features, device=device),
+                )
+                feature_indices = feature_indices[mask]
+
+            # update the global perturbation mask
+            current_mask = torch.any(
+                feature_mask_flattened.unsqueeze(0) == feature_indices.unsqueeze(1),
+                dim=0,
+            )
+
+            # perform OR operation with the previous mask as we need to accumulate features in case of effective
+            # complexity X1..., X1, X2... X1, X2, X3... X1, X2, X3, X4...
+            if row_idx > 0:
+                global_perturbation_masks[row_idx] = (
+                    current_mask | global_perturbation_masks[row_idx - 1]
+                )
+            else:
+                global_perturbation_masks[row_idx] = current_mask
+
         agg_tensors = _divide_and_aggregate_metrics_n_perturbations_per_feature(
             n_perturbations_per_feature,
-            n_features,
+            n_features // n_process_steps,
             _next_effective_complexity_tensors,
             agg_func=_agg_effective_complexity_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
@@ -283,6 +319,7 @@ def effective_complexity(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,
+    n_process_steps: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
     eps: float = 1e-5,
     return_ratio: bool = False,
@@ -685,6 +722,7 @@ def effective_complexity(
                 ),
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
+                n_process_steps=n_process_steps,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 return_ratio=return_ratio,
                 eps=eps,

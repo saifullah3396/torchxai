@@ -324,7 +324,7 @@ def sensitivity_n(
             if isinstance(baselines[0], int)
             else baselines
         )
-        n_features = torch.max((x.map for x in feature_mask)).item() + 1
+        n_features = torch.max(tuple(x.max() for x in feature_mask)).item() + 1
         percent_features_perturbed = (
             n_features_perturbed / n_features
             if n_features_perturbed > 1

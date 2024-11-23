@@ -76,8 +76,8 @@ def default_random_perturb_func(noise_scale: float = 0.02):
             mask.expand_as(input) for mask, input in zip(perturbation_masks, inputs)
         )
         perturbed_inputs = tuple(
-            (~mask * input + mask * baseline)
-            for input, mask, baseline in zip(
+            (~mask * input + mask * random_baseline)
+            for input, mask, random_baseline in zip(
                 inputs, perturbation_masks, random_baselines
             )
         )

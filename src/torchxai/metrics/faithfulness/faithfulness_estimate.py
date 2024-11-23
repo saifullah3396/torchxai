@@ -700,7 +700,11 @@ def faithfulness_estimate(
                 else target
             ),
             max_features_processed_per_batch=max_features_processed_per_batch,
-            frozen_features=frozen_features[sample_idx],
+            frozen_features=(
+                frozen_features[sample_idx]
+                if frozen_features is not None
+                else frozen_features
+            ),
             show_progress=show_progress,
         )
         faithfulness_estimate_batch.append(faithfulness_estimate_score)

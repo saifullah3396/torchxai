@@ -578,7 +578,11 @@ def effective_complexity(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                frozen_features=frozen_features[sample_idx],
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
                 eps=eps,
                 use_absolute_attributions=use_absolute_attributions,
                 return_ratio=return_ratio,

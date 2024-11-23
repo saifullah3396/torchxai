@@ -686,7 +686,11 @@ def monotonicity_corr_and_non_sens(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                frozen_features=frozen_features[sample_idx],
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
                 eps=eps,
                 show_progress=show_progress,
             )

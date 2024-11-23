@@ -15,7 +15,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.explainers._utils import _run_forward_multi_target
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
@@ -420,7 +419,11 @@ def _multi_target_monotonicity_corr_and_non_sens(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                frozen_features=frozen_features,
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
                 eps=eps,
                 show_progress=show_progress,
             )

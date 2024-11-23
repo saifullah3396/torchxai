@@ -650,7 +650,11 @@ def aopc(
             ),
             use_absolute_attributions=use_absolute_attributions,
             max_features_processed_per_batch=max_features_processed_per_batch,
-            frozen_features=frozen_features[sample_idx],
+            frozen_features=(
+                frozen_features[sample_idx]
+                if frozen_features is not None
+                else frozen_features
+            ),
             total_features_perturbed=total_features_perturbed,
             n_random_perms=n_random_perms,
             seed=seed,

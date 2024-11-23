@@ -17,7 +17,7 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
-
+from torchxai.metrics._utils.perturbation import default_infidelity_perturb_fn
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
@@ -53,7 +53,7 @@ def infidelity(
 
     It is derived from the completeness property of well-known attribution
     algorithms and is a computationally more efficient and generalized
-    notion of Sensitivy-n. The latter measures correlations between the sum
+    notion of Sensitivity-n. The latter measures correlations between the sum
     of the attributions and the differences of the predictor function at
     its input and fixed baseline. More details about the Sensitivity-n can
     be found here:
@@ -378,9 +378,11 @@ def infidelity(
                 torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
                 for feature_mask in feature_mask
             )
-            frozen_features_expanded = torch.repeat_interleave(
-                frozen_features, current_n_perturb_samples, dim=0
-            )
+            frozen_features_expanded = [
+                elem
+                for elem in frozen_features
+                for _ in range(current_n_perturb_samples)
+            ]
 
         baselines_expanded = baselines
         if baselines is not None:
@@ -424,6 +426,7 @@ def infidelity(
         perturbations, inputs_perturbed = _generate_perturbations(
             current_n_perturb_samples
         )
+        print("current_n_perturb_samples", current_n_perturb_samples)
 
         perturbations = _format_tensor_into_tuples(perturbations)
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
@@ -518,6 +521,7 @@ def infidelity(
     with torch.no_grad():
         # if not normalize, directly return aggrgated MSE ((a-b)^2,)
         # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)
+        print("n_perturb_samples", n_perturb_samples)
         agg_tensors = _divide_and_aggregate_metrics(
             cast(Tuple[Tensor, ...], inputs),
             n_perturb_samples,

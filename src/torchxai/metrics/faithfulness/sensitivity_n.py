@@ -324,10 +324,10 @@ def sensitivity_n(
             if isinstance(baselines[0], int)
             else baselines
         )
-        n_features = torch.max(tuple(x.max() for x in feature_mask)).item() + 1
+        n_features = max(tuple(x.max().item() for x in feature_mask)) + 1
         percent_features_perturbed = (
             n_features_perturbed / n_features
-            if n_features_perturbed > 1
+            if n_features_perturbed >= 1
             else n_features_perturbed
         )
         total_repeated_inputs = inputs[0].shape[0]
@@ -339,21 +339,12 @@ def sensitivity_n(
             frozen_features=frozen_features,
         )
         perturbation_masks = tuple(
-            mask.view(-1, *mask.shape[2:]) for mask in perturbation_masks
+            mask.view_as(input) for mask, input in zip(perturbation_masks, inputs)
         )
         assert perturbation_masks[0].dtype == torch.bool
-
-        # perturb the inputs in place
-        inputs_perturbed = tuple(input.clone() for input in inputs)
-        for input_perturbed, mask, baseline in zip(
-            inputs_perturbed, perturbation_masks, baselines
-        ):
-            input_perturbed[mask] = baseline[mask]
         return perturbation_masks, tuple(
-            input_perturbed * ~perturbation_mask + perturbation_mask * baseline
-            for input_perturbed, perturbation_mask, baseline in zip(
-                inputs_perturbed, perturbation_masks, baselines
-            )
+            input * ~mask + mask * baseline
+            for input, mask, baseline in zip(inputs, perturbation_masks, baselines)
         )
 
     if is_multi_target:

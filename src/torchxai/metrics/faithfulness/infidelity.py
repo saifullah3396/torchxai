@@ -430,7 +430,6 @@ def infidelity(
         perturbations, inputs_perturbed = _generate_perturbations(
             current_n_perturb_samples
         )
-        print("current_n_perturb_samples", current_n_perturb_samples)
 
         perturbations = _format_tensor_into_tuples(perturbations)
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
@@ -525,7 +524,6 @@ def infidelity(
     with torch.no_grad():
         # if not normalize, directly return aggrgated MSE ((a-b)^2,)
         # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)
-        print("n_perturb_samples", n_perturb_samples)
         agg_tensors = _divide_and_aggregate_metrics(
             cast(Tuple[Tensor, ...], inputs),
             n_perturb_samples,

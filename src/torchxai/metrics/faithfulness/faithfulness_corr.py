@@ -539,11 +539,10 @@ def faithfulness_corr(
                 baselines: {}"""
             ).format(len(inputs[0]), len(baselines[0]))
 
-        if feature_mask is not None:
-            # assert that all elements in the feature_mask are unique and non-negative increasing
-            _validate_feature_mask(feature_mask)
-        else:
+        if feature_mask is None:
             feature_mask = _construct_default_feature_mask(attributions)
+
+        _validate_feature_mask(feature_mask)
 
         # here we generate perturbation masks for the complete run in one call
         # global_perturbation_masks is a tuple of tensors, where each tensor is a perturbation mask

@@ -21,7 +21,7 @@ from torch import Tensor
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
+    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
@@ -102,11 +102,11 @@ def eval_faithfulness_estimate_single_sample_tupled_computation(
 
     bsz = inputs[0].size(0)
     assert bsz == 1, "Batch size must be 1 for faithfulness_estimate_single_sample"
-    if feature_mask is not None:
-        # assert that all elements in the feature_mask are unique and non-negative increasing
-        _validate_feature_mask(feature_mask)
-    else:
+    if feature_mask is None:
         feature_mask = _construct_default_feature_mask(attributions)
+
+    # assert that all elements in the feature_mask are unique and non-negative increasing
+    _validate_feature_mask(feature_mask)
 
     # this assumes a batch size of 1, this will not work for batch size > 1
     n_features = max(x.max() for x in feature_mask).item() + 1
@@ -310,11 +310,11 @@ def eval_faithfulness_estimate_single_sample(
     ), "Inputs and baselines must have the same shape"
 
     # flatten all feature masks in the input
-    if feature_mask is not None:
-        feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
-    else:
+    if feature_mask is None:
         feature_mask = _construct_default_feature_mask(attributions)
-        feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
+
+    # flatten all feature masks in the input
+    feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
 
     # flatten all attributions in the input, this must be done after the feature masks are flattened as
     # feature masks may depened on attribution
@@ -327,7 +327,7 @@ def eval_faithfulness_estimate_single_sample(
     # this can be useful for efficiently summing up attributions of feature groups
     # this is why we need a single batch size as gathered attributes and number of features for each
     # sample can be different
-    reduced_attributions, n_features = _reduce_tensor_with_indices(
+    reduced_attributions, n_features = _reduce_tensor_with_indices_non_deterministic(
         attributions[0], indices=feature_mask[0].flatten()
     )
 

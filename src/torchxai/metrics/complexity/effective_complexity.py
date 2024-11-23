@@ -597,8 +597,8 @@ def effective_complexity(
                     else frozen_features
                 ),
                 eps=eps,
-                use_absolute_attributions=use_absolute_attributions,
                 return_ratio=return_ratio,
+                use_absolute_attributions=use_absolute_attributions,
                 show_progress=show_progress,
                 return_intermediate_results=True,
                 return_dict=False,
@@ -655,6 +655,11 @@ def effective_complexity(
                     """The shape of the feature mask and the attribution
                     must match. Found feature mask shape: {} and attribution shape: {}"""
                 ).format(mask.shape, attribution.shape)
+            for mask, input in zip(feature_mask, inputs):
+                assert mask.shape == attribution.shape, (
+                    """The shape of the feature mask and the input
+                    must match. Found feature mask shape: {} and input shape: {}"""
+                ).format(mask.shape, input.shape)
 
         if use_absolute_attributions:
             attributions = tuple(torch.abs(attr) for attr in attributions)

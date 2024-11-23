@@ -74,6 +74,9 @@ def test_effective_complexity_multi_target(metrics_runtime_test_configuration):
 
     if runtime_config.set_image_feature_mask:
         base_config.feature_mask = grid_segmenter(base_config.inputs, cell_size=32)
+        base_config.feature_mask = base_config.feature_mask.expand_as(
+            base_config.inputs
+        )
 
     runtime_config.n_perturbations_per_feature = _format_to_list(
         runtime_config.n_perturbations_per_feature
@@ -103,9 +106,7 @@ def test_effective_complexity_multi_target(metrics_runtime_test_configuration):
         ) = effective_complexity(
             forward_func=base_config.model,
             inputs=base_config.inputs,
-            attributions=[
-                explanation.sum(dim=1, keepdim=True) for explanation in explanations
-            ],
+            attributions=explanations,
             feature_mask=base_config.feature_mask,
             additional_forward_args=base_config.additional_forward_args,
             target=runtime_config.override_target,
@@ -128,7 +129,7 @@ def test_effective_complexity_multi_target(metrics_runtime_test_configuration):
             ) = effective_complexity(
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
-                attributions=explanation.sum(dim=1, keepdim=True),
+                attributions=explanations,
                 feature_mask=base_config.feature_mask,
                 additional_forward_args=base_config.additional_forward_args,
                 target=target,

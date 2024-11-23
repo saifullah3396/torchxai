@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
+from collections import OrderedDict
 
 import torch
 import tqdm
@@ -21,8 +22,9 @@ from torchxai.metrics._utils.batching import (
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _feature_mask_to_accumulated_perturbation_mask,
     _format_tensor_feature_dim,
-    _reduce_tensor_with_indices,
+    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
@@ -121,6 +123,36 @@ def eval_aopcs_single_sample(
     seed: Optional[int] = None,
     show_progress: bool = False,
 ) -> Tensor:
+    def _generate_perturbations(
+        current_n_perturbed_features: int,
+        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        # repeat each current_n_perturbed_features times
+        inputs_expanded = tuple(
+            input.repeat(
+                current_n_perturbed_features * (2 + n_random_perms),
+                *tuple([1] * len(input.shape[1:])),
+            )
+            for input in inputs
+        )
+
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            current_perturbation_mask, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, inputs_expanded)
+        )
+        return tuple(
+            input * ~mask + baseline * mask
+            for input, mask, baseline in zip(
+                inputs_expanded, perturbation_mask_expanded, baselines
+            )
+        )
+
     def _next_aopc_tensors(
         current_n_perturbed_features: int,
         current_n_steps: int,
@@ -128,40 +160,40 @@ def eval_aopcs_single_sample(
         # get the indices of features that will be perturbed in the current iteration
         # for example if we do 1 by 1 perturbation, then the first iteration will perturb the first feature
         # the second iteration will perturb both the first and second feature and so on
-        perturbed_inputs = []
-        for feature_idx in range(
-            current_n_steps - current_n_perturbed_features, current_n_steps
-        ):
-            # update global perturbed input tensor for each perturbation type, ascending, descending and random
-            for global_perturbed_inputs, indices in zip(
-                [
-                    global_perturbed_inputs_desc,  # this order is maintained in outputs
-                    global_perturbed_inputs_asc,  # this order is maintained in outputs
-                    *global_perturbed_inputs_rand,  # this order is maintained in outputs
-                ],
-                [
-                    descending_attribution_indices,  # this order is maintained in outputs
-                    ascending_attribution_indices,  # this order is maintained in outputs
-                    *rand_attribution_indices,  # this order is maintained in outputs
-                ],
-            ):
-                if (
-                    frozen_features is not None
-                    and indices[feature_idx] in frozen_features
-                ):
-                    perturbation_masks = torch.zeros_like(
-                        global_perturbed_inputs, device=inputs.device
-                    ).bool()
-                else:
-                    perturbation_masks = (
-                        feature_mask == indices[feature_idx]
-                    ).expand_as(global_perturbed_inputs)
-                global_perturbed_inputs[perturbation_masks] = baselines[
-                    perturbation_masks
-                ]  # input[0] here since batch size is 1
-                perturbed_inputs.append(global_perturbed_inputs.clone())
+        current_feature_indices = torch.arange(
+            current_n_steps - current_n_perturbed_features,
+            current_n_steps,
+            device=inputs[0].device,
+        )
 
-        perturbed_inputs = torch.cat(perturbed_inputs)
+        inputs_perturbed = {}
+        curr_perturbation_mask = []
+        for (
+            key,
+            global_perturbation_masks,
+        ) in global_perturbation_masks_per_order.items():
+            if key == "rand":
+                curr_perturbation_mask.append(
+                    global_perturbation_masks[:, current_feature_indices, :]
+                )
+            else:
+                curr_perturbation_mask.append(
+                    global_perturbation_masks[current_feature_indices].unsqueeze(0)
+                )
+
+        # reshape from desc desc..., asc asc..., rand rand..., to desc asc rand, desc asc rand
+        curr_perturbation_mask = torch.cat(
+            [x.transpose(0, 1) for x in curr_perturbation_mask], dim=1
+        )
+
+        # flatten the perturbation mask to batch dim
+        curr_perturbation_mask = curr_perturbation_mask.view(
+            -1, curr_perturbation_mask.shape[-1]
+        )
+        inputs_perturbed = _generate_perturbations(
+            current_n_perturbed_features,
+            curr_perturbation_mask,
+        )
         targets_expanded = _expand_target(
             target,
             current_n_perturbed_features * (2 + n_random_perms),
@@ -173,15 +205,10 @@ def eval_aopcs_single_sample(
             expansion_type=ExpansionTypes.repeat_interleave,
         )
 
-        # split the perturbed inputs by feature size
-        perturbed_inputs = _split_tensors_to_tuple_tensors(
-            perturbed_inputs, inputs_shape
-        )
-        # _draw_perturbated_inputs_sequences_images(perturbed_inputs)
+        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
         inputs_perturbed_fwd = _run_forward(
             forward_func,
-            # the inputs are [batch_size, feature_size, feature_dims] so we need to split them by feature size
-            perturbed_inputs,
+            inputs_perturbed,
             targets_expanded,
             additional_forward_args_expanded,
         )
@@ -210,69 +237,88 @@ def eval_aopcs_single_sample(
         # get the first input forward output
         inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
 
-        # flatten all inputs and baseline features in the input
-        inputs, inputs_shape = _tuple_tensors_to_tensors(inputs)
-        baselines, baselines_shape = _tuple_tensors_to_tensors(baselines)
-        assert (
-            inputs_shape == baselines_shape
-        ), "Inputs and baselines must have the same shape"
+        # flatten all feature masks in the input
+        if feature_mask is None:
+            feature_mask = _construct_default_feature_mask(attributions)
 
         # flatten all feature masks in the input
-        if feature_mask is not None:
-            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
-        else:
-            feature_mask = _construct_default_feature_mask(attributions)
-            feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
+        feature_mask_flattened, flattened_mask_shape = _tuple_tensors_to_tensors(
+            feature_mask
+        )
 
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
 
         # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_mask)
+        _validate_feature_mask(feature_mask_flattened)
 
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
-        reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions[0], indices=feature_mask[0].flatten()
+        reduced_attributions, n_features = (
+            _reduce_tensor_with_indices_non_deterministic(
+                attributions[0], indices=feature_mask_flattened[0].flatten()
+            )
         )
 
         # take absolute values of attributions if required
         if use_absolute_attributions:
             reduced_attributions = reduced_attributions.abs()
 
-        # get the gathererd-attributions sorted in ascending order of their importance
-        ascending_attribution_indices = torch.argsort(reduced_attributions)[
-            :total_features_perturbed
-        ]
+        attribution_indices = OrderedDict()
 
         # get the gathererd-attributions sorted in descending order of their importance
-        descending_attribution_indices = torch.argsort(
+        attribution_indices["desc"] = torch.argsort(
             reduced_attributions, descending=True
         )[:total_features_perturbed]
 
+        # get the gathererd-attributions sorted in ascending order of their importance
+        attribution_indices["asc"] = torch.argsort(reduced_attributions)[
+            :total_features_perturbed
+        ]
+
         # get the gathererd-attributions sorted in a random order of their importance n times
-        generator = torch.Generator().manual_seed(seed) if seed is not None else None
-        rand_attribution_indices = torch.stack(
+        generator = (
+            torch.Generator(device=inputs[0].device).manual_seed(seed)
+            if seed is not None
+            else None
+        )
+        attribution_indices["rand"] = torch.stack(
             [
                 torch.randperm(
                     len(reduced_attributions),
                     generator=generator,
+                    device=inputs[0].device,
                 )[:total_features_perturbed]
                 for _ in range(n_random_perms)
             ]
         )
 
-        assert ascending_attribution_indices.max() < n_features
-        assert descending_attribution_indices.max() < n_features
-        assert rand_attribution_indices.max() < n_features
+        assert attribution_indices["desc"].max() < n_features
+        assert attribution_indices["asc"].max() < n_features
+        assert attribution_indices["rand"].max() < n_features
 
-        # make a global perturbed input tensor for each perturbation type, ascending, descending and random
-        global_perturbed_inputs_desc = inputs.clone()
-        global_perturbed_inputs_asc = inputs.clone()
-        global_perturbed_inputs_rand = [inputs.clone() for _ in range(n_random_perms)]
+        global_perturbation_masks_per_order = OrderedDict()
+        for key, indices in attribution_indices.items():
+            if key == "rand":
+                global_perturbation_masks_per_order[key] = torch.stack(
+                    [
+                        _feature_mask_to_accumulated_perturbation_mask(
+                            feature_mask_flattened,
+                            indices[rand_perm_idx],
+                            frozen_features,
+                        )
+                        for rand_perm_idx in range(n_random_perms)
+                    ],
+                )
+            else:
+                global_perturbation_masks_per_order[key] = (
+                    _feature_mask_to_accumulated_perturbation_mask(
+                        feature_mask_flattened, indices, frozen_features
+                    )
+                )
 
         # the logic for this implementation as as follows:
         # we start from baseline and in each iteration, a feature group is replaced by the original sample
@@ -707,3 +753,15 @@ def aopc(
                 _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
             )
+
+
+# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.]])
+# inputs_perturbed_fwd torch.Size([1, 12])
+# inputs_perturbed_fwd tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+# inputs_perturbed_fwd torch.Size([1, 12])
+# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.]])
+# inputs_perturbed_fwd torch.Size([1, 12])
+# inputs_perturbed_fwd tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
+# inputs_perturbed_fwd torch.Size([2, 12])
+# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.],
+#         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])

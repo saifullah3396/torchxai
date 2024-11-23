@@ -85,9 +85,71 @@ def _feature_mask_to_perturbation_mask(mask, feature_indices, frozen_features):
         valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
         feature_indices = feature_indices[valid_indices_mask]
 
-    # Create the perturbation mask in one operation
-    perturbation_mask = mask.unsqueeze(0) == feature_indices.unsqueeze(1)
-    return perturbation_mask.squeeze(0)  # Shape: (num_features, mask.size)
+    # create the perturbation mask in one operation
+    perturbation_mask = mask == feature_indices.unsqueeze(1)
+    return perturbation_mask  # Shape: (num_features, mask.size)
+
+
+def _feature_mask_to_accumulated_perturbation_mask(
+    mask, feature_indices, frozen_features
+):
+    if frozen_features is not None:
+        frozen_tensor = torch.tensor(frozen_features, device=mask.device)
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
+        feature_indices = feature_indices[valid_indices_mask]
+
+    # create the perturbation mask in one operation
+    perturbation_mask = mask == feature_indices.unsqueeze(1)
+
+    # now accumulate the perturbation mask
+    for i in range(1, perturbation_mask.shape[0]):
+        perturbation_mask[i] = perturbation_mask[i] | perturbation_mask[i - 1]
+    return perturbation_mask
+
+
+def _feature_mask_to_chunked_accumulated_perturbation_mask(
+    mask, feature_indices, frozen_features, chunk_size
+):
+    # get total indices and total number of perturbations that will be performed
+    n_indices = feature_indices.shape[0]
+    total_num_perturbations = math.ceil(n_indices / chunk_size)
+
+    # create a perturbation mask of shape (n_perturations, feature_perturbation_mask)
+    # that will store all the perturbations
+    accum_perturbation_masks = torch.zeros(
+        (total_num_perturbations, mask.shape[0]),
+        dtype=torch.bool,
+        device=mask.device,
+    )
+
+    chunks = torch.arange(0, n_indices, chunk_size, device=mask.device)
+    for row_idx, start_idx in enumerate(chunks):
+        end_idx = min(start_idx + chunk_size, n_indices)
+        chunk_feature_indices = feature_indices[start_idx:end_idx]
+
+        # filter out frozen features if necessary
+        if frozen_features is not None:
+            mask = ~torch.isin(
+                chunk_feature_indices,
+                torch.tensor(frozen_features, device=mask.device),
+            )
+            chunk_feature_indices = chunk_feature_indices[mask]
+
+        # update the global perturbation mask
+        current_mask = torch.any(
+            mask.unsqueeze(0) == chunk_feature_indices.unsqueeze(1),
+            dim=0,
+        )
+
+        # perform OR operation with the previous mask as we need to accumulate features in case of effective
+        # complexity X1..., X1, X2... X1, X2, X3... X1, X2, X3, X4...
+        if row_idx > 0:
+            accum_perturbation_masks[row_idx] = (
+                current_mask | accum_perturbation_masks[row_idx - 1]
+            )
+        else:
+            accum_perturbation_masks[row_idx] = current_mask
+    return accum_perturbation_masks
 
 
 def _format_tensor_tuple_feature_dim(
@@ -120,7 +182,7 @@ def _tuple_tensors_to_tensors(
 
 
 def _split_tensors_to_tuple_tensors(
-    tensor: Tuple[torch.Tensor], shapes, dim=1
+    tensor: Tuple[torch.Tensor], shapes
 ) -> torch.Tensor:
     import numpy as np
 

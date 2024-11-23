@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _reduce_tensor_with_indices,
+    _reduce_tensor_with_indices_non_deterministic,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
@@ -216,9 +216,11 @@ def sparseness_feature_grouped(
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
-        reduced_attributions, n_features = _reduce_tensor_with_indices(
-            attributions_single_sample[0],
-            indices=feature_mask_flattened[0].flatten(),
+        reduced_attributions, n_features = (
+            _reduce_tensor_with_indices_non_deterministic(
+                attributions_single_sample[0],
+                indices=feature_mask_flattened[0].flatten(),
+            )
         )
         reduced_attributions = reduced_attributions.abs().sort(dim=0).values
 

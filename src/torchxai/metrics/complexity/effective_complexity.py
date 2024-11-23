@@ -535,6 +535,16 @@ def effective_complexity(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequeeffective_complexityd as zero.
+        n_process_steps (int, optional): The number of steps to process the features in a single batch.
+                This is useful for reducing the computation time for large models. This allows 'n_process_steps'
+                ascending features to be removed together in each step instead of removing all the features.
+                Therefore, if n_process_steps=10, instead of removing the features X1, <X2, <X3... in each step, we
+                will remove the features <X1-10, <X10-X20, <X20-X30 ...
+                Default: 1
+        frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
+                This can be useful for ignoring the input structure features like padding, etc. Default: None
+                In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
+                of feature masks that correspond to these tokens.
         eps (float, optional): A small value to prevent division by zero. Default: 1e-5
         return_ratio (bool, optional): A boolean flag that indicates whether the effective complexity is returned as a ratio
                 of the number of important features to the total number of features. Default: False

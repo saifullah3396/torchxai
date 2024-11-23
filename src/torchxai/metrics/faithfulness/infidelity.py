@@ -263,6 +263,10 @@ def infidelity(
                 `input batch size * n_perturb_samples`.
 
                 Default: None
+        frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
+                This can be useful for ignoring the input structure features like padding, etc. Default: None
+                In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
+                of feature masks that correspond to these tokens.
         normalize (bool, optional): Normalize the dot product of the input
                 perturbation and the attribution so the infidelity value is invariant
                 to constant scaling of the attribution values. The normalization factor

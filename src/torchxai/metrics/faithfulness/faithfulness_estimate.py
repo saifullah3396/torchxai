@@ -526,6 +526,10 @@ def faithfulness_estimate(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
+        frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
+                This can be useful for ignoring the input structure features like padding, etc. Default: None
+                In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
+                of feature masks that correspond to these tokens.
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs

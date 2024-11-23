@@ -271,6 +271,10 @@ def faithfulness_corr(
                 `input batch size * n_perturb_samples`.
 
                 Default: None
+        frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
+                This can be useful for ignoring the input structure features like padding, etc. Default: None
+                In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
+                of feature masks that correspond to these tokens.
         perturbation_probability (float, optional): The perturbation probability effectively defines
             how many features in the input are perturbed in each perturbation of the input.
             Default: 0.1

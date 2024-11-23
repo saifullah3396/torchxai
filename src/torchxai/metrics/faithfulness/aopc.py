@@ -482,6 +482,10 @@ def aopc(
                 examples are processed together. `max_features_processed_per_batch` should
                 at least be equal `(2 + n_random_perms)` and at most
                 `total_features_perturbed * (2 + n_random_perms)`.
+        frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
+                This can be useful for ignoring the input structure features like padding, etc. Default: None
+                In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
+                of feature masks that correspond to these tokens.
         eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
                 variances. If the absolute value of the attribution scores or the model forward variances
                 is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity

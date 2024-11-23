@@ -171,18 +171,20 @@ def test_non_sensitivity_multi_target(metrics_runtime_test_configuration):
             perturbed_fwd_diffs_relative_vars_batch_list_1,
             perturbed_fwd_diffs_relative_vars_batch_list_2,
         ):
-            x = x / torch.max(x)
-            y = y / torch.max(y)
-            assert_tensor_almost_equal(
-                x.float(),
-                y.float(),
-                delta=runtime_config.delta,
-                mode="mean",
-            )
+            for xx, yy in zip(x, y):
+                xx = xx / torch.max(xx)
+                yy = yy / torch.max(yy)
+                assert_tensor_almost_equal(
+                    xx.float(),
+                    yy.float(),
+                    delta=runtime_config.delta,
+                    mode="mean",
+                )
         for x, y in zip(
             feature_group_attribution_scores_batch_list_1,
             feature_group_attribution_scores_batch_list_2,
         ):
-            assert_tensor_almost_equal(
-                x.float(), y.float(), delta=runtime_config.delta, mode="mean"
-            )
+            for xx, yy in zip(x, y):
+                assert_tensor_almost_equal(
+                    xx.float(), yy.float(), delta=runtime_config.delta, mode="mean"
+                )

@@ -7,9 +7,8 @@ from typing import Any, Callable, List, Optional, Tuple, Union
 
 import torch
 from captum._utils.common import (
+    _flatten_tensor_or_tuple,
     _format_additional_forward_args,
-    _format_output,
-    _is_tuple,
     _format_output,
     _is_tuple,
     _reduce_list,
@@ -17,7 +16,12 @@ from captum._utils.common import (
 )
 from captum._utils.models.linear_model import SkLearnLasso
 from captum._utils.models.model import Model
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.typing import (
+    BaselineType,
+    Literal,
+    TargetType,
+    TensorOrTupleOfTensorsGeneric,
+)
 from captum.attr import Attribution, LimeBase
 from captum.attr._core.lime import (
     _reduce_list,
@@ -29,33 +33,8 @@ from captum.attr._utils.batching import _batch_example_iterator
 from captum.attr._utils.common import _format_input_baseline
 from captum.log import log_usage
 from torch import Tensor
-from torch.nn import Module
-import typing
-import warnings
-from typing import Any, Callable, Optional, Tuple, Union
+from torch.nn import CosineSimilarity, Module
 
-import torch
-from captum._utils.common import (
-    _format_output,
-    _is_tuple,
-    _reduce_list,
-    _run_forward,
-    _flatten_tensor_or_tuple,
-)
-from captum._utils.models.linear_model import SkLearnLasso
-from captum._utils.models.model import Model
-from captum._utils.typing import (
-    BaselineType,
-    Literal,
-    TargetType,
-    TensorOrTupleOfTensorsGeneric,
-)
-from captum.attr._utils.batching import _batch_example_iterator
-from captum.attr._utils.common import (
-    _format_input_baseline,
-)
-from captum.log import log_usage
-from torch import Tensor
 from torchxai.explainers._perturbation.lime_base import MultiTargetLimeBase
 from torchxai.explainers._utils import (
     _expand_feature_mask_to_target,
@@ -63,7 +42,6 @@ from torchxai.explainers._utils import (
     _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
-from torch.nn import CosineSimilarity
 
 
 def get_exp_kernel_similarity_function(
@@ -644,7 +622,7 @@ class LimeExplainer(Explainer):
         n_samples: int = 100,
         alpha: float = 0.01,
         weight_attributions: bool = True,
-        similarity_func=get_exp_kernel_similarity_function_with_interpretable_inps(),
+        similarity_func=get_exp_kernel_similarity_function(),
     ) -> None:
         """
         Initialize the LimeExplainer with the model, number of samples, and perturbations per evaluation.

@@ -129,7 +129,7 @@ def test_effective_complexity_multi_target(metrics_runtime_test_configuration):
             ) = effective_complexity(
                 forward_func=base_config.model,
                 inputs=base_config.inputs,
-                attributions=explanations,
+                attributions=explanation,
                 feature_mask=base_config.feature_mask,
                 additional_forward_args=base_config.additional_forward_args,
                 target=target,

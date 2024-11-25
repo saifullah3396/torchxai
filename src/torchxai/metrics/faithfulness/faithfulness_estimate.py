@@ -224,36 +224,6 @@ def eval_faithfulness_estimate_single_sample(
     frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
 ) -> Tensor:
-    def _generate_perturbations(
-        current_n_perturbed_features: int,
-        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
-    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
-        # repeat each current_n_perturbed_features times
-        baselines_expanded = tuple(
-            baseline.repeat(
-                current_n_perturbed_features,
-                *tuple([1] * len(baseline.shape[1:])),
-            )
-            for baseline in baselines
-        )
-
-        # split back to tuple tensors
-        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
-            current_perturbation_mask, flattened_mask_shape
-        )
-
-        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
-        perturbation_mask_expanded = tuple(
-            mask.view_as(input)
-            for mask, input in zip(perturbation_mask_expanded, baselines_expanded)
-        )
-        return tuple(
-            baseline * ~mask + input * mask
-            for baseline, mask, input in zip(
-                baselines_expanded, perturbation_mask_expanded, inputs
-            )
-        )
-
     def _next_faithfulness_estimate_tensors(
         current_n_perturbed_features: int,
         current_n_steps: int,

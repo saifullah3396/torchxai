@@ -656,7 +656,7 @@ def effective_complexity(
                     must match. Found feature mask shape: {} and attribution shape: {}"""
                 ).format(mask.shape, attribution.shape)
             for mask, input in zip(feature_mask, inputs):
-                assert mask.shape == attribution.shape, (
+                assert mask.shape == input.shape, (
                     """The shape of the feature mask and the input
                     must match. Found feature mask shape: {} and input shape: {}"""
                 ).format(mask.shape, input.shape)

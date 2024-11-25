@@ -115,7 +115,6 @@ def eval_aopcs_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
     frozen_features: Optional[List[torch.Tensor]] = None,
@@ -263,10 +262,6 @@ def eval_aopcs_single_sample(
             )
         )
 
-        # take absolute values of attributions if required
-        if use_absolute_attributions:
-            reduced_attributions = reduced_attributions.abs()
-
         attribution_indices = OrderedDict()
 
         # get the gathererd-attributions sorted in descending order of their importance
@@ -352,7 +347,6 @@ def aopc(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     total_features_perturbed: int = 100,
     frozen_features: Optional[List[torch.Tensor]] = None,
@@ -516,8 +510,6 @@ def aopc(
                   target for the corresponding example.
 
                 Default: None
-        use_absolute_attributions (bool, optional): If True, the absolute value of the attributions
-                is used in the computation of the AOPC scores. Default: False
         max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
@@ -534,10 +526,6 @@ def aopc(
                 This can be useful for ignoring the input structure features like padding, etc. Default: None
                 In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
                 of feature masks that correspond to these tokens.
-        eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
-                variances. If the absolute value of the attribution scores or the model forward variances
-                is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity
-                metric. Default: 1e-5
         total_features_perturbed (int, optional): The total number of features that will be perturbed in the
             descending, ascending and random order, to compute the AOPC scores. Default: 100
         n_random_perms (int, optional): The number of random permutations of the feature importance scores
@@ -610,7 +598,6 @@ def aopc(
                 feature_mask=feature_mask,
                 additional_forward_args=additional_forward_args,
                 target=target,
-                use_absolute_attributions=use_absolute_attributions,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 total_features_perturbed=total_features_perturbed,
                 n_random_perms=n_random_perms,
@@ -700,7 +687,6 @@ def aopc(
                 if isinstance(target, (list, torch.Tensor))
                 else target
             ),
-            use_absolute_attributions=use_absolute_attributions,
             max_features_processed_per_batch=max_features_processed_per_batch,
             frozen_features=(
                 frozen_features[sample_idx]

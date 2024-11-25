@@ -182,7 +182,6 @@ def monotonicity(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    use_absolute_attributions: bool = False,
     max_features_processed_per_batch: Optional[int] = None,
     n_feature_accumulations: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
@@ -348,8 +347,6 @@ def monotonicity(
                   target for the corresponding example.
 
                 Default: None
-        use_absolute_attributions (bool, optional): A flag to indicate whether to use absolute
-                values of attributions for monotonicity computation. Default is True.
         max_features_processed_per_batch (int, optional): The number of maximum input
                 features that are processed together for every example. In case the number of
                 features to be perturbed in each example (`total_features_perturbed`) exceeds
@@ -429,7 +426,6 @@ def monotonicity(
                 feature_mask=feature_mask,
                 additional_forward_args=additional_forward_args,
                 target=target,
-                use_absolute_attributions=use_absolute_attributions,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 n_feature_accumulations=n_feature_accumulations,
                 frozen_features=frozen_features,
@@ -487,9 +483,6 @@ def monotonicity(
                     attribution {} and feature mask {}
                     """
                 ).format(input.shape, attribution.shape, mask.shape)
-
-        if use_absolute_attributions:
-            attributions = tuple(torch.abs(attr) for attr in attributions)
 
         bsz = inputs[0].size(0)
         monotonicity_batch = []

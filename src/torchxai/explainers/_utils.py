@@ -194,7 +194,9 @@ def _compute_gradients_vmap_autograd(
             unit_vectors = torch.eye(outputs.shape[-1]).to(outputs.device)
             multi_target_gradients = None
             for start_idx in tqdm.tqdm(
-                range(0, outputs.shape[-1], grad_batch_size), disable=not show_progress
+                range(0, outputs.shape[-1], grad_batch_size),
+                disable=not show_progress,
+                desc="Computing multi-output jacobian...",
             ):
                 end_idx = min(start_idx + grad_batch_size, outputs.shape[-1])
                 grads = torch.autograd.grad(

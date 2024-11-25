@@ -2,7 +2,6 @@
 
 from typing import List, Tuple
 
-import numpy as np
 import torch
 from captum._utils.typing import TensorOrTupleOfTensorsGeneric
 from dacite import Optional
@@ -11,6 +10,10 @@ from torchxai.metrics._utils.common import (
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
 )
+
+
+def generate_random_baseline(shape, r1, r2, device):
+    return (r1 - r2) * torch.rand(shape, device=device) + r2
 
 
 def default_zero_baseline_func():
@@ -70,10 +73,7 @@ def default_random_perturb_func(noise_scale: float = 0.02):
 
         # generate random noise if baselines are not provided
         random_baselines = tuple(
-            torch.tensor(
-                np.random.uniform(low=-noise_scale, high=noise_scale, size=x.shape),
-                device=x.device,
-            ).float()
+            generate_random_baseline(x.shape, -noise_scale, noise_scale, x.device)
             for x in inputs
         )
         perturbation_masks = tuple(

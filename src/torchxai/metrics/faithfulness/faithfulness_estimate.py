@@ -21,7 +21,7 @@ from torch import Tensor
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _reduce_tensor_with_indices_non_deterministic,
+    _feature_mask_to_perturbation_mask,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
@@ -224,6 +224,36 @@ def eval_faithfulness_estimate_single_sample(
     frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
 ) -> Tensor:
+    def _generate_perturbations(
+        current_n_perturbed_features: int,
+        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        # repeat each current_n_perturbed_features times
+        baselines_expanded = tuple(
+            baseline.repeat(
+                current_n_perturbed_features,
+                *tuple([1] * len(baseline.shape[1:])),
+            )
+            for baseline in baselines
+        )
+
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            current_perturbation_mask, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, baselines_expanded)
+        )
+        return tuple(
+            baseline * ~mask + input * mask
+            for baseline, mask, input in zip(
+                baselines_expanded, perturbation_mask_expanded, inputs
+            )
+        )
+
     def _next_faithfulness_estimate_tensors(
         current_n_perturbed_features: int,
         current_n_steps: int,
@@ -231,36 +261,25 @@ def eval_faithfulness_estimate_single_sample(
         # get the indices of features that will be perturbed in the current iteration
         # for example if we do 1 by 1 perturbation, then the first iteration will perturb the first feature
         # the second iteration will perturb both the first and second feature and so on
-        inputs_perturbed = inputs.repeat(
+        current_feature_indices = torch.arange(
+            current_n_steps - current_n_perturbed_features, current_n_steps
+        )
+        current_perturbation_masks = perturbation_masks[current_feature_indices]
+
+        # perturb inputs
+        inputs_expanded = inputs.repeat(
             current_n_perturbed_features, *tuple([1] * len(inputs.shape[1:]))
         )
-        attributions_sum_perturbed = []
-        for perturbation_sample_idx, feature_idx in enumerate(
-            range(current_n_steps - current_n_perturbed_features, current_n_steps)
-        ):
-            # for each feature in the current step incrementally replace the baseline with the original sample
-            if (
-                frozen_features is not None
-                and descending_attribution_indices[feature_idx] in frozen_features
-            ):
-                # freeze this feature
-                perturbation_mask = torch.zeros_like(
-                    feature_mask, device=feature_mask.device, dtype=torch.bool
-                )
-            else:
-                perturbation_mask = (
-                    feature_mask == descending_attribution_indices[feature_idx]
-                )
-            inputs_perturbed[perturbation_sample_idx][
-                perturbation_mask[0].expand_as(
-                    inputs_perturbed[perturbation_sample_idx]
-                )
-            ] = baselines[
-                perturbation_mask.expand_as(baselines)
-            ]  # input[0] here since batch size is 1
-            attributions_sum_perturbed.append((attributions * perturbation_mask).sum())
-
-        attributions_sum_perturbed = torch.stack(attributions_sum_perturbed)
+        baselines_expanded = baselines.repeat(
+            current_n_perturbed_features, *tuple([1] * len(baselines.shape[1:]))
+        )
+        inputs_perturbed = (
+            inputs_expanded * ~current_perturbation_masks
+            + baselines_expanded * current_perturbation_masks
+        )
+        attributions_sum_perturbed = (current_perturbation_masks * attributions).sum(
+            dim=1
+        )
         targets_expanded = _expand_target(
             target,
             current_n_perturbed_features,
@@ -314,26 +333,23 @@ def eval_faithfulness_estimate_single_sample(
         feature_mask = _construct_default_feature_mask(attributions)
 
     # flatten all feature masks in the input
-    feature_mask, _ = _tuple_tensors_to_tensors(feature_mask)
+    feature_mask_flattened, _ = _tuple_tensors_to_tensors(feature_mask)
+
+    # validate feature masks are increasing non-negative
+    _validate_feature_mask(feature_mask)
 
     # flatten all attributions in the input, this must be done after the feature masks are flattened as
     # feature masks may depened on attribution
     attributions, _ = _tuple_tensors_to_tensors(attributions)
 
-    # validate feature masks are increasing non-negative
-    _validate_feature_mask(feature_mask)
-
-    # gather attribution scores of feature groups
-    # this can be useful for efficiently summing up attributions of feature groups
-    # this is why we need a single batch size as gathered attributes and number of features for each
-    # sample can be different
-    reduced_attributions, n_features = _reduce_tensor_with_indices_non_deterministic(
-        attributions[0], indices=feature_mask[0].flatten()
-    )
+    # get total number of features
+    n_features = max(x.max() for x in feature_mask).item() + 1
 
     # get the gathererd-attributions sorted in descending order of their importance
-    descending_attribution_indices = torch.argsort(
-        reduced_attributions, descending=True
+    feature_indices = torch.arange(0, n_features, device=feature_mask_flattened.device)
+
+    perturbation_masks = _feature_mask_to_perturbation_mask(
+        feature_mask_flattened, feature_indices, frozen_features
     )
 
     with torch.no_grad():

@@ -39,9 +39,8 @@ def _multi_target_faithfulness_corr(
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    perturbation_probability: float = 0.1,
+    percent_features_perturbed: float = 0.1,
     show_progress: bool = False,
-    set_same_perturbation_mask_for_batch: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     def _generate_perturbations(
         current_n_perturb_samples: int,
@@ -272,19 +271,10 @@ def _multi_target_faithfulness_corr(
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations_per_sample=n_perturb_samples,
             feature_mask=feature_mask,
-            percent_features_perturbed=perturbation_probability,
+            percent_features_perturbed=percent_features_perturbed,
             frozen_features=frozen_features,
         )
         bsz = inputs[0].size(0)
-
-        # this is only a flag for debugging/tests where we can check if multiple runs are consistent for same inputs repeated
-        # in a batch
-        if set_same_perturbation_mask_for_batch:
-            for x in global_perturbation_masks:
-                for batch_idx in range(len(x)):
-                    if batch_idx == 0:
-                        continue
-                    x[batch_idx] = x[0]
 
         # if not normalize, directly return aggrgated MSE ((a-b)^2,)
         # else return aggregated MSE's polynomial expansion tensors (a^2, ab, b^2)

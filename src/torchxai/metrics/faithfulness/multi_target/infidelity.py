@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
@@ -27,7 +28,7 @@ def _multi_target_infidelity(
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
-    feature_masks: Optional[TensorOrTupleOfTensorsGeneric] = None,
+    feature_mask: Optional[TensorOrTupleOfTensorsGeneric] = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
@@ -57,31 +58,36 @@ def _multi_target_infidelity(
             else:
                 inputs_pert = inputs_expanded
                 baselines_pert = baselines_expanded
-            return (
-                perturb_func(
-                    inputs=inputs_pert,
-                    feature_masks=feature_masks_expanded,
-                    frozen_features=frozen_features,
-                    baselines=baselines_pert,
-                )
-                if baselines_pert is not None
-                else perturb_func(
-                    inputs=inputs_pert,
-                    feature_masks=feature_masks_expanded,
-                    frozen_features=frozen_features,
-                )
+
+            valid_args = inspect.signature(perturb_func).parameters.keys()
+            perturb_kwargs = dict(
+                inputs=inputs_pert,
             )
+            if "baselines" in valid_args:
+                perturb_kwargs["baselines"] = baselines_pert
+            if "feature_masks" in valid_args:
+                perturb_kwargs["feature_masks"] = feature_mask_expanded
+            if "frozen_features" in valid_args:
+                perturb_kwargs["frozen_features"] = frozen_features_expanded
+            return perturb_func(**perturb_kwargs)
 
         inputs_expanded = tuple(
             torch.repeat_interleave(input, current_n_perturb_samples, dim=0)
             for input in inputs
         )
-        feature_masks_expanded = None
-        if feature_masks is not None:
-            feature_masks_expanded = tuple(
+
+        feature_mask_expanded = None
+        frozen_features_expanded = None
+        if feature_mask is not None:
+            feature_mask_expanded = tuple(
                 torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
-                for feature_mask in feature_masks
+                for feature_mask in feature_mask
             )
+            frozen_features_expanded = [
+                elem
+                for elem in frozen_features
+                for _ in range(current_n_perturb_samples)
+            ]
 
         baselines_expanded = baselines
         if baselines is not None:
@@ -90,7 +96,6 @@ def _multi_target_infidelity(
                     baseline.repeat_interleave(current_n_perturb_samples, dim=0)
                     if isinstance(baseline, torch.Tensor)
                     and baseline.shape[0] == input.shape[0]
-                    and baseline.shape[0] > 1
                     else baseline
                 )
                 for input, baseline in zip(inputs, cast(Tuple, baselines))

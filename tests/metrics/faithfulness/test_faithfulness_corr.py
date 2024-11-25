@@ -30,7 +30,7 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     perturb_func: Callable = default_random_perturb_func()
     n_perturb_samples: int = 10
     max_examples_per_batch: int = None
-    perturbation_probability: float = 0.5
+    percent_features_perturbed: float = 0.5
     assert_across_runs: bool = True
     set_fixed_baseline_of_type: bool = False
     device: str = "cpu"
@@ -603,7 +603,7 @@ def test_faithfulness_corr(metrics_runtime_test_configuration):
                 perturb_func=runtime_config.perturb_func,
                 n_perturb_samples=n_perturbs,
                 max_examples_per_batch=max_examples,
-                perturbation_probability=runtime_config.perturbation_probability,
+                percent_features_perturbed=runtime_config.percent_features_perturbed,
                 return_intermediate_results=True,
             )
         )

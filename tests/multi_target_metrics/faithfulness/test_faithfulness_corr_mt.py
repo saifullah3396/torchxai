@@ -26,7 +26,7 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     n_perturb_samples: int = 10
     set_image_feature_mask: bool = False
     max_examples_per_batch: int = None
-    perturbation_probability: float = 0.1
+    percent_features_perturbed: float = 0.1
     set_fixed_baseline_of_type: str = None
 
 
@@ -170,7 +170,7 @@ def test_faithfulness_corr_multi_target(metrics_runtime_test_configuration):
             max_examples_per_batch=max_examples,
             show_progress=False,
             is_multi_target=True,
-            perturbation_probability=runtime_config.perturbation_probability,
+            percent_features_perturbed=runtime_config.percent_features_perturbed,
             return_intermediate_results=True,
         )
         faithfulness_corr_score_batch_list_2 = []
@@ -196,7 +196,7 @@ def test_faithfulness_corr_multi_target(metrics_runtime_test_configuration):
                 n_perturb_samples=n_perturbs,
                 max_examples_per_batch=max_examples,
                 show_progress=False,
-                perturbation_probability=runtime_config.perturbation_probability,
+                percent_features_perturbed=runtime_config.percent_features_perturbed,
                 return_intermediate_results=True,
             )
             faithfulness_corr_score_batch_list_2.append(faithfulness_corr_score_batch)

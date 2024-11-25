@@ -42,7 +42,7 @@ def faithfulness_corr(
     n_perturb_samples: int = 10,
     max_examples_per_batch: Optional[int] = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    perturbation_probability: float = 0.1,
+    percent_features_perturbed: float = 0.1,
     show_progress: bool = False,
     is_multi_target: bool = False,
     return_intermediate_results: bool = False,
@@ -274,8 +274,8 @@ def faithfulness_corr(
                 This can be useful for ignoring the input structure features like padding, etc. Default: None
                 In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
                 of feature masks that correspond to these tokens.
-        perturbation_probability (float, optional): The perturbation probability effectively defines
-            how many features in the input are perturbed in each perturbation of the input.
+        percent_features_perturbed (float, optional): The percent_features_perturbed effectively defines
+            what percentages of features in the input are perturbed in each perturbation of the input.
             Default: 0.1
         show_progress (bool, optional): Displays the progress of the metric computation.
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
@@ -329,7 +329,7 @@ def faithfulness_corr(
             n_perturb_samples=n_perturb_samples,
             max_examples_per_batch=max_examples_per_batch,
             frozen_features=frozen_features,
-            perturbation_probability=perturbation_probability,
+            percent_features_perturbed=percent_features_perturbed,
             show_progress=show_progress,
         )
 
@@ -545,7 +545,7 @@ def faithfulness_corr(
         global_perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations_per_sample=n_perturb_samples,
             feature_mask=feature_mask,
-            percent_features_perturbed=perturbation_probability,
+            percent_features_perturbed=percent_features_perturbed,
             frozen_features=frozen_features,
         )
         bsz = inputs[0].size(0)

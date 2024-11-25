@@ -221,7 +221,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         if frozen_features is not None:
             mask = ~torch.isin(
                 feature_indices,
-                torch.tensor(frozen_features, device=inputs[0].device),
+                frozen_features,
             )
             feature_indices = feature_indices[mask]
 

@@ -327,7 +327,8 @@ def eval_faithfulness_estimate_single_sample(
         # we start from baseline and in each iteration, a feature group is replaced by the original sample
         # in ascending order of its importance
         agg_tensors = _divide_and_aggregate_metrics_n_features(
-            n_features,
+            # total features can be different after frozen features are removed
+            perturbation_masks.shape[0],
             _next_faithfulness_estimate_tensors,
             agg_func=_agg_faithfulness_estimate_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,

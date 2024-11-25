@@ -81,8 +81,7 @@ def _construct_default_feature_mask(
 
 def _feature_mask_to_perturbation_mask(mask, feature_indices, frozen_features):
     if frozen_features is not None:
-        frozen_tensor = torch.tensor(frozen_features, device=mask.device)
-        valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
         feature_indices = feature_indices[valid_indices_mask]
 
     # create the perturbation mask in one operation
@@ -91,12 +90,15 @@ def _feature_mask_to_perturbation_mask(mask, feature_indices, frozen_features):
 
 
 def _feature_mask_to_accumulated_perturbation_mask(
-    mask, feature_indices, frozen_features
+    mask, feature_indices, frozen_features, top_n_features=None
 ):
     if frozen_features is not None:
-        frozen_tensor = torch.tensor(frozen_features, device=mask.device)
-        valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
         feature_indices = feature_indices[valid_indices_mask]
+
+    if top_n_features is not None:
+        # now take n first features
+        feature_indices = feature_indices[:top_n_features]
 
     # create the perturbation mask in one operation
     perturbation_mask = mask == feature_indices.unsqueeze(1)

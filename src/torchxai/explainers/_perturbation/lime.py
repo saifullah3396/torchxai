@@ -622,7 +622,6 @@ class LimeExplainer(Explainer):
         n_samples: int = 100,
         alpha: float = 0.01,
         weight_attributions: bool = True,
-        similarity_func=get_exp_kernel_similarity_function(),
     ) -> None:
         """
         Initialize the LimeExplainer with the model, number of samples, and perturbations per evaluation.
@@ -630,7 +629,6 @@ class LimeExplainer(Explainer):
         self._n_samples = n_samples
         self._alpha = alpha
         self._weight_attributions = weight_attributions
-        self._similarity_func = similarity_func
 
         super().__init__(model, is_multi_target, internal_batch_size)
 
@@ -646,13 +644,11 @@ class LimeExplainer(Explainer):
                 self._model,
                 interpretable_model=SkLearnLasso(alpha=self._alpha),
                 perturb_func=frozen_features_perturb_func,
-                similarity_func=self._similarity_func,
             )
         return Lime(
             self._model,
             interpretable_model=SkLearnLasso(alpha=self._alpha),
             perturb_func=frozen_features_perturb_func,
-            similarity_func=self._similarity_func,
         )
 
     def explain(

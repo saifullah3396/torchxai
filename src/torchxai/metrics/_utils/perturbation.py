@@ -122,8 +122,7 @@ def _feature_mask_to_perturbation_mask_n_indices(
     mask, feature_indices, frozen_features
 ):
     if frozen_features is not None:
-        frozen_tensor = torch.tensor(frozen_features, device=mask.device)
-        valid_indices_mask = ~torch.isin(feature_indices, frozen_tensor)
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
         feature_indices = feature_indices[valid_indices_mask]
 
     # create the perturbation mask in one operation
@@ -143,8 +142,15 @@ def _generate_random_perturbation_masks(
     flattened_feature_masks, flattened_feature_mask_base_shapes = (
         _tuple_tensors_to_tensors(feature_mask)
     )
+
+    if frozen_features is not None:
+        assert flattened_feature_masks.shape[0] == len(frozen_features), (
+            "Number of samples in frozen_features should be equal to the number of samples in the feature_mask. "
+            f"Got {flattened_feature_masks.shape[0]} samples in feature_mask and {len(frozen_features)} samples in frozen_features."
+        )
+
     perturbation_masks = []
-    for flattened_feature_mask in flattened_feature_masks:
+    for sample_idx, flattened_feature_mask in enumerate(flattened_feature_masks):
         flattened_feature_mask = flattened_feature_mask.squeeze()
         feature_indices_all = torch.unique(flattened_feature_mask)
 
@@ -161,11 +167,8 @@ def _generate_random_perturbation_masks(
                 )
             ]
             if frozen_features is not None:
-                frozen_tensor = torch.tensor(
-                    frozen_features, device=flattened_feature_mask.device
-                )
                 valid_mask = ~torch.isin(
-                    rand_feature_indices, frozen_tensor.unsqueeze(0)
+                    rand_feature_indices, frozen_features[sample_idx]
                 )
                 rand_feature_indices = rand_feature_indices[valid_mask]
 
@@ -201,7 +204,7 @@ def _generate_random_perturbation_masks(
 
 def perturb_fn_drop_batched_single_output(
     feature_mask: Tuple[torch.Tensor, ...],
-    perturbation_probability=0.1,
+    percent_features_perturbed=0.1,
 ):
     def wrapped(inputs, baselines):
         # to compute infidelity we take randomly set half the features to baseline
@@ -224,7 +227,7 @@ def perturb_fn_drop_batched_single_output(
         perturbation_masks = _generate_random_perturbation_masks(
             n_perturbations_per_sample=current_batch_size // total_samples,
             feature_mask=feature_mask,
-            perturbation_probability=perturbation_probability,
+            percent_features_perturbed=percent_features_perturbed,
             device=inputs[0].device,
         )
 

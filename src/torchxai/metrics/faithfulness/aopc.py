@@ -272,12 +272,10 @@ def eval_aopcs_single_sample(
         # get the gathererd-attributions sorted in descending order of their importance
         attribution_indices["desc"] = torch.argsort(
             reduced_attributions, descending=True
-        )[:total_features_perturbed]
+        )
 
         # get the gathererd-attributions sorted in ascending order of their importance
-        attribution_indices["asc"] = torch.argsort(reduced_attributions)[
-            :total_features_perturbed
-        ]
+        attribution_indices["asc"] = torch.argsort(reduced_attributions)
 
         # get the gathererd-attributions sorted in a random order of their importance n times
         generator = (
@@ -291,7 +289,7 @@ def eval_aopcs_single_sample(
                     len(reduced_attributions),
                     generator=generator,
                     device=inputs[0].device,
-                )[:total_features_perturbed]
+                )
                 for _ in range(n_random_perms)
             ]
         )
@@ -309,6 +307,7 @@ def eval_aopcs_single_sample(
                             feature_mask_flattened,
                             indices[rand_perm_idx],
                             frozen_features,
+                            top_n_features=total_features_perturbed,
                         )
                         for rand_perm_idx in range(n_random_perms)
                     ],
@@ -316,7 +315,10 @@ def eval_aopcs_single_sample(
             else:
                 global_perturbation_masks_per_order[key] = (
                     _feature_mask_to_accumulated_perturbation_mask(
-                        feature_mask_flattened, indices, frozen_features
+                        feature_mask_flattened,
+                        indices,
+                        frozen_features,
+                        top_n_features=total_features_perturbed,
                     )
                 )
 

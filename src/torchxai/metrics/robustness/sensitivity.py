@@ -15,10 +15,12 @@ from captum._utils.typing import TensorOrTupleOfTensorsGeneric
 from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
 
+from torchxai.explainers.explainer import Explainer
 from torchxai.metrics.robustness.multi_target.sensitivity import (
     _multi_target_sensitivity_scores,
 )
 from torchxai.metrics.robustness.utilities import default_perturb_func
+from captum.attr import Attribution
 
 
 def _sensitivity_scores(
@@ -150,7 +152,10 @@ def _sensitivity_scores(
             torch.norm(sensitivities, p=norm_ord, dim=1, keepdim=True)
             / expl_inputs_norm_expanded
         )
-        return max_values(sensitivities_norm.view(bsz, -1))
+        return sensitivities_norm.view(bsz, -1)
+
+    def _agg_tensors(agg_tensors, tensors):
+        return torch.cat((agg_tensors, tensors), dim=1)
 
     inputs = _format_tensor_into_tuples(inputs)  # type: ignore
 
@@ -163,13 +168,13 @@ def _sensitivity_scores(
             n_perturb_samples,
             _next_sensitivity_max,
             max_examples_per_batch=max_examples_per_batch,
-            agg_func=torch.cat,
+            agg_func=_agg_tensors,
         )
     return scores
 
 
 def sensitivity_max_and_avg(
-    explanation_func: Callable,
+    explainer: Union[Explainer, Attribution],
     inputs: TensorOrTupleOfTensorsGeneric,
     perturb_func: Callable = default_perturb_func,
     perturb_radius: float = 0.02,
@@ -323,6 +328,13 @@ def sensitivity_max_and_avg(
         >>> # Computes sensitivity score for saliency maps of class 3
         >>> sens = sensitivity_max(saliency.attribute, input, target = 3)
     """
+    assert isinstance(explainer, (Explainer, Attribution)), (
+        "The explainer must be an instance of the Explainer class or "
+        "the Atribution class from the captum library."
+    )
+    explanation_func = (
+        explainer.explain if isinstance(explainer, Explainer) else explainer.attribute
+    )
     sensitivity_scores = _sensitivity_scores(
         explanation_func,
         inputs,
@@ -338,8 +350,12 @@ def sensitivity_max_and_avg(
     if is_multi_target:
         if return_dict:
             return {
-                "sensitivity_max": [torch.max(score) for score in sensitivity_scores],
-                "sensitivity_avg": [torch.mean(score) for score in sensitivity_scores],
+                "sensitivity_max": [
+                    torch.max(score, dim=1) for score in sensitivity_scores
+                ],
+                "sensitivity_avg": [
+                    torch.mean(score, dim=1) for score in sensitivity_scores
+                ],
             }
         else:
             return [torch.max(score) for score in sensitivity_scores], [
@@ -348,8 +364,11 @@ def sensitivity_max_and_avg(
     else:
         if return_dict:
             return {
-                "sensitivity_max": torch.max(sensitivity_scores),
-                "sensitivity_avg": torch.mean(sensitivity_scores),
+                "sensitivity_max": torch.max(sensitivity_scores, dim=1).values,
+                "sensitivity_avg": torch.mean(sensitivity_scores, dim=1),
             }
         else:
-            return torch.max(sensitivity_scores), torch.mean(sensitivity_scores)
+            return (
+                torch.max(sensitivity_scores, dim=1).values,
+                torch.mean(sensitivity_scores, dim=1),
+            )

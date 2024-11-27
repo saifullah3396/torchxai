@@ -40,6 +40,7 @@ def eval_effective_complexity_single_sample(
     max_features_processed_per_batch: int = None,
     n_feature_accumulations: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
+    use_absolute_attributions: bool = True,
     eps: float = 1e-5,
     return_ratio: bool = False,
     show_progress: bool = False,
@@ -196,11 +197,15 @@ def eval_effective_complexity_single_sample(
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
+
         reduced_attributions, n_features = (
             _reduce_tensor_with_indices_non_deterministic(
                 attributions[0], indices=feature_mask_flattened[0].flatten()
             )
         )
+
+        if use_absolute_attributions:
+            reduced_attributions = reduced_attributions.abs()
 
         # get the gathererd-attributions sorted in descending order of their importance
         ascending_attribution_indices = torch.argsort(reduced_attributions)
@@ -248,11 +253,9 @@ def eval_effective_complexity_single_sample(
             # if the variance in output it less than a threshold, that means the feature set is not important
             # find top-k features that are important
             N = len(perturbed_fwd_diffs_relative_vars)
-            top_k_features = N
-            for k in range(N, 0, -1):
-                if perturbed_fwd_diffs_relative_vars[k - 1] < eps:
-                    top_k_features = N - k
-                    break
+            top_k_features = perturbed_fwd_diffs_relative_vars[
+                perturbed_fwd_diffs_relative_vars > eps
+            ].shape[0]
             if return_ratio:
                 return top_k_features / N
             else:
@@ -661,9 +664,6 @@ def effective_complexity(
                     must match. Found feature mask shape: {} and input shape: {}"""
                 ).format(mask.shape, input.shape)
 
-        if use_absolute_attributions:
-            attributions = tuple(torch.abs(attr) for attr in attributions)
-
         bsz = inputs[0].size(0)
         effective_complexity_batch = []
         perturbed_fwd_diffs_relative_vars_batch = []
@@ -705,6 +705,12 @@ def effective_complexity(
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 n_feature_accumulations=n_feature_accumulations,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
+                use_absolute_attributions=use_absolute_attributions,
                 return_ratio=return_ratio,
                 eps=eps,
                 show_progress=show_progress,

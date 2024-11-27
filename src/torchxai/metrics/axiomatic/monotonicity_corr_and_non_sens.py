@@ -22,6 +22,8 @@ from torchxai.metrics._utils.batching import (
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _feature_mask_to_perturbation_mask,
+    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
@@ -43,6 +45,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
+    use_absolute_attributions: bool = True,
     eps: float = 1e-5,
     show_progress: bool = False,
 ) -> Tensor:
@@ -167,30 +170,12 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             torch.mean(x**2) * (inputs_fwd_inv**2) for x in perturbed_fwd_diffs
         )
 
-        # gather the attribution scores of all the features in the current feature group
-        curr_feature_attribution_scores = tuple(
-            torch.cat(
-                [
-                    attribution[mask == feature_index]
-                    for attribution, mask in zip(attributions, feature_mask)
-                ]
-            )
-            for feature_index in current_feature_indices
-        )
-
-        # compute the monotonicity corr for each feature group
-        # here we sum the attributions over feature groups, but should we sum the absolutes?
-        # this question is not clear from the paper
-        curr_feature_group_attribution_scores = tuple(
-            x.sum() for x in curr_feature_attribution_scores
-        )
-
         # return the perturbed forward differences and the current feature attribution scores
         curr_perturbed_fwd_diffs_relative_vars = tuple(
             x.item() for x in curr_perturbed_fwd_diffs_relative_vars
         )
         curr_feature_group_attribution_scores = tuple(
-            x.item() for x in curr_feature_group_attribution_scores
+            x.item() for x in reduced_attributions[current_feature_indices]
         )
         return list(curr_perturbed_fwd_diffs_relative_vars), list(
             curr_feature_group_attribution_scores
@@ -213,22 +198,47 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         # validate feature masks are increasing non-negative
         _validate_feature_mask(feature_mask_flattened)
 
-        # this assumes a batch size of 1, this will not work for batch size > 1
-        feature_mask_flattened = feature_mask_flattened.squeeze()
-        feature_indices = feature_mask_flattened.unique()
-
-        # filter out frozen features if necessary
-        if frozen_features is not None:
-            mask = ~torch.isin(
-                feature_indices,
-                frozen_features,
+        # flatten all attributions in the input, this must be done after the feature masks are flattened as
+        # feature masks may depened on attribution
+        attributions, _ = _tuple_tensors_to_tensors(attributions)
+        reduced_attributions, n_features = (
+            _reduce_tensor_with_indices_non_deterministic(
+                attributions[0], indices=feature_mask_flattened[0]
             )
-            feature_indices = feature_indices[mask]
+        )
 
-        n_features = feature_indices.shape[0]
-        global_perturbation_masks = feature_mask_flattened.unsqueeze(
-            0
-        ) == feature_indices.unsqueeze(1)
+        if use_absolute_attributions:
+            reduced_attributions = reduced_attributions.abs()
+
+        # this assumes a batch size of 1, this will not work for batch size > 1
+        feature_indices = feature_mask_flattened.unique()
+        global_perturbation_masks = _feature_mask_to_perturbation_mask(
+            feature_mask_flattened, feature_indices, frozen_features
+        )
+
+        # for idx, perturbation_mask in enumerate(global_perturbation_masks):
+        #     if idx % 10 == 0:
+
+        #         m1 = perturbation_mask[: 512 * 768].view(512, 768)[:, 0]
+        #         m2 = perturbation_mask[512 * 768 : 2 * 512 * 768].view(512, 768)[:, 0]
+        #         m3 = perturbation_mask[2 * 512 * 768 : 3 * 512 * 768].view(512, 768)[
+        #             :, 0
+        #         ]
+        #         m4 = (
+        #             perturbation_mask[3 * 512 * 768 :]
+        #             .view(3, 224, 224)
+        #             .permute(1, 2, 0)
+        #         )
+        #         import matplotlib.pyplot as plt
+
+        #         fig, ax = plt.subplots(1, 4, figsize=(20, 5))
+        #         ax[0].plot(m1.cpu().numpy())
+        #         ax[1].plot(m2.cpu().numpy())
+        #         ax[2].plot(m3.cpu().numpy())
+        #         ax[3].imshow(m4.cpu().float().numpy())
+        #         plt.show()
+        #     # m1 = global_perturbation_masks[]
+        # exit()
 
         # the logic for this implementation as as follows:
         # each input is repeated n_perturbations_per_feature times to create an input of shape
@@ -244,7 +254,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         # in case there is no feature masks, then a corresponding feature mask is generated for each input feature
         agg_tensors = _divide_and_aggregate_metrics_n_perturbations_per_feature(
             n_perturbations_per_feature,
-            n_features,
+            global_perturbation_masks.shape[0],
             _next_monotonicity_corr_tensors,
             agg_func=_agg_monotonicity_corr_tensors,
             max_features_processed_per_batch=max_features_processed_per_batch,
@@ -330,6 +340,7 @@ def monotonicity_corr_and_non_sens(
     eps: float = 1e-5,
     is_multi_target: bool = False,
     frozen_features: Optional[List[torch.Tensor]] = None,
+    use_absolute_attributions: bool = True,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,
@@ -722,6 +733,7 @@ def monotonicity_corr_and_non_sens(
                     if frozen_features is not None
                     else frozen_features
                 ),
+                use_absolute_attributions=use_absolute_attributions,
                 eps=eps,
                 show_progress=show_progress,
             )

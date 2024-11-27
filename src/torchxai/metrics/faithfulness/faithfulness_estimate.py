@@ -132,8 +132,7 @@ def eval_faithfulness_estimate_single_sample(
     n_features = max(x.max() for x in feature_mask).item() + 1
 
     # get the gathererd-attributions sorted in descending order of their importance
-    feature_indices = torch.arange(0, n_features, device=feature_mask_flattened.device)
-
+    feature_indices = feature_mask_flattened.unique()
     perturbation_masks = _feature_mask_to_perturbation_mask(
         feature_mask_flattened, feature_indices, frozen_features
     )

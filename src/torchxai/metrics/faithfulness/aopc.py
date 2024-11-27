@@ -600,6 +600,7 @@ def aopc(
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 total_features_perturbed=total_features_perturbed,
+                frozen_features=frozen_features,
                 n_random_perms=n_random_perms,
                 seed=seed,
                 show_progress=show_progress,

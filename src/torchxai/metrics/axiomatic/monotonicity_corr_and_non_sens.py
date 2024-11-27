@@ -48,6 +48,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     use_absolute_attributions: bool = True,
     eps: float = 1e-5,
     show_progress: bool = False,
+    return_ratio: bool = True,
 ) -> Tensor:
     def _generate_perturbations(
         current_n_perturbed_features: int, current_perturbation_mask: Tensor
@@ -201,10 +202,8 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
-        reduced_attributions, n_features = (
-            _reduce_tensor_with_indices_non_deterministic(
-                attributions[0], indices=feature_mask_flattened[0]
-            )
+        reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
+            attributions[0], indices=feature_mask_flattened[0]
         )
 
         if use_absolute_attributions:
@@ -215,6 +214,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         global_perturbation_masks = _feature_mask_to_perturbation_mask(
             feature_mask_flattened, feature_indices, frozen_features
         )
+        n_features = global_perturbation_masks.shape[0]
 
         # for idx, perturbation_mask in enumerate(global_perturbation_masks):
         #     if idx % 10 == 0:
@@ -304,9 +304,12 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             # 2. non-zero attribution scores and zero model forward variances
             # a higher non-sensitivity score indicates that the model is more sensitive to the zero attribution features
             # and a lower non-sensitivity score indicates that the model is non-sensitive to the zero attribution features
-            return len(
+            non_sens = len(
                 zero_attribution_features.symmetric_difference(zero_variance_features)
             )
+            if return_ratio:
+                return non_sens / n_features
+            return non_sens
 
         agg_tensors = tuple(np.array(x) for x in agg_tensors)
         perturbed_fwd_diffs_relative_vars = agg_tensors[0]
@@ -344,6 +347,7 @@ def monotonicity_corr_and_non_sens(
     show_progress: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,
+    return_ratio: bool = True,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Monotonicity Correlation and NonSensitivity by Nguyen at el., 2020. This implementation
@@ -634,6 +638,7 @@ def monotonicity_corr_and_non_sens(
             eps=eps,
             frozen_features=frozen_features,
             show_progress=show_progress,
+            return_ratio=return_ratio,
         )
 
         if return_intermediate_results:
@@ -736,6 +741,7 @@ def monotonicity_corr_and_non_sens(
                 use_absolute_attributions=use_absolute_attributions,
                 eps=eps,
                 show_progress=show_progress,
+                return_ratio=return_ratio,
             )
 
             monotonicity_corr_batch.append(monotonicity_corr)

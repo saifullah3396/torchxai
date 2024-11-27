@@ -214,6 +214,7 @@ def test_monotonicity_corr(metrics_runtime_test_configuration):
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
             return_intermediate_results=True,
+            return_ratio=False,
         )
         assert_tensor_almost_equal(
             monotonicity_corr_score,

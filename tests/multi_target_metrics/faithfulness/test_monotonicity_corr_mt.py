@@ -115,6 +115,7 @@ def test_monotonicity_corr_multi_target(metrics_runtime_test_configuration):
             show_progress=False,
             is_multi_target=True,
             return_intermediate_results=True,
+            return_ratio=False,
         )
         monotonicity_corr_score_batch_list_2 = []
         perturbed_fwd_diffs_relative_vars_batch_list_2 = []
@@ -141,6 +142,7 @@ def test_monotonicity_corr_multi_target(metrics_runtime_test_configuration):
                 max_features_processed_per_batch=max_features,
                 show_progress=False,
                 return_intermediate_results=True,
+                return_ratio=False,
             )
             monotonicity_corr_score_batch_list_2.append(monotonicity_corr_score_batch)
             perturbed_fwd_diffs_relative_vars_batch_list_2.append(

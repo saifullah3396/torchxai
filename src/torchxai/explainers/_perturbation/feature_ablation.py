@@ -1,5 +1,6 @@
+import itertools
 import math
-from typing import Any, Tuple, Union, cast
+from typing import Any, Callable, Tuple, Union, cast
 
 import torch
 from captum._utils.common import (
@@ -19,6 +20,7 @@ from torch import Tensor, dtype
 from torchxai.explainers._utils import (
     _expand_feature_mask_to_target,
     _run_forward_multi_target,
+    _weight_attributions,
 )
 from torchxai.explainers.explainer import Explainer
 
@@ -407,6 +409,16 @@ class FeatureAblationExplainer(Explainer):
         perturbations_per_eval (int): Number of feature perturbations per evaluation.
     """
 
+    def __init__(
+        self,
+        model: Union[torch.nn.Module, Callable],
+        is_multi_target: bool = False,
+        internal_batch_size: int = 64,
+        weight_attributions: bool = False,
+    ) -> None:
+        super().__init__(model, is_multi_target, internal_batch_size)
+        self._weight_attributions = weight_attributions
+
     def _init_explanation_fn(self) -> Attribution:
         """
         Initializes the explanation function.
@@ -441,7 +453,7 @@ class FeatureAblationExplainer(Explainer):
         """
         # Compute the attributions using Kernel SHAP
         feature_mask = _expand_feature_mask_to_target(feature_mask, inputs)
-        return self._explanation_fn.attribute(
+        attributions = self._explanation_fn.attribute(
             inputs=inputs,
             target=target,
             baselines=baselines,
@@ -450,3 +462,15 @@ class FeatureAblationExplainer(Explainer):
             perturbations_per_eval=self._internal_batch_size,
             show_progress=True,
         )
+
+        if self._weight_attributions and feature_mask is not None:
+            if self._is_multi_target:
+                attributions = [
+                    _weight_attributions(attribution, feature_mask)
+                    for attribution, feature_mask in zip(
+                        attributions, itertools.cycle(feature_mask)
+                    )
+                ]
+            else:
+                attributions = _weight_attributions(attributions, feature_mask)
+        return attributions

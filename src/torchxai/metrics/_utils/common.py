@@ -249,7 +249,6 @@ def _draw_perturbated_inputs_with_splits(perturbed_inputs, inputs_shape):
     splitted_perturbed_inputs = _split_tensors_to_tuple_tensors(
         perturbed_inputs, inputs_shape
     )
-    print(tuple(x.shape for x in splitted_perturbed_inputs))
 
     import matplotlib.pyplot as plt
     from matplotlib.gridspec import GridSpec

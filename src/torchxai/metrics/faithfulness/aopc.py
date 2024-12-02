@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
 from collections import OrderedDict
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
 import tqdm
@@ -16,7 +16,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -316,6 +315,9 @@ def eval_aopcs_single_sample(
                         top_n_features=total_features_perturbed,
                     )
                 )
+
+        # features are updated after frozen features may have been removed
+        n_features = global_perturbation_masks_per_order["desc"].shape[0]
 
         # the logic for this implementation as as follows:
         # we start from baseline and in each iteration, a feature group is replaced by the original sample

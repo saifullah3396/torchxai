@@ -133,7 +133,7 @@ def _feature_mask_to_chunked_accumulated_perturbation_mask(
         if frozen_features is not None:
             mask = ~torch.isin(
                 chunk_feature_indices,
-                torch.tensor(frozen_features, device=mask.device),
+                frozen_features,
             )
             chunk_feature_indices = chunk_feature_indices[mask]
 

@@ -57,8 +57,7 @@ class Occlusion(FeatureAblation):
         FeatureAblation.__init__(self, forward_func)
         self.use_weights = True
 
-    @log_usage()
-    def attribute(
+    def _attribute(
         self,
         inputs: TensorOrTupleOfTensorsGeneric,
         baselines: BaselineType = None,
@@ -298,8 +297,7 @@ class Occlusion(FeatureAblation):
             )
 
         # Use ablation attribute method
-        return super().attribute.__wrapped__(
-            self,
+        return self._attribute(
             inputs,
             baselines=baselines,
             target=target,

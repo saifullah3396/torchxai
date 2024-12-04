@@ -317,6 +317,9 @@ def eval_aopcs_single_sample(
                     )
                 )
 
+        # features are updated after frozen features may have been removed
+        n_features = global_perturbation_masks_per_order["desc"].shape[0]
+        
         # the logic for this implementation as as follows:
         # we start from baseline and in each iteration, a feature group is replaced by the original sample
         # in ascending order of its importance
@@ -742,15 +745,3 @@ def aopc(
                 _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
             )
-
-
-# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.]])
-# inputs_perturbed_fwd torch.Size([1, 12])
-# inputs_perturbed_fwd tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
-# inputs_perturbed_fwd torch.Size([1, 12])
-# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.]])
-# inputs_perturbed_fwd torch.Size([1, 12])
-# inputs_perturbed_fwd tensor([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
-# inputs_perturbed_fwd torch.Size([2, 12])
-# inputs_perturbed_fwd tensor([[0., 2., 0., 2., 0., 0., 0., 2., 0., 0., 0., 2.],
-#         [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])

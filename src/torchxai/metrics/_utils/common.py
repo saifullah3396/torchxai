@@ -201,19 +201,27 @@ def _split_tensors_to_tuple_tensors(
     return tensor_tuple
 
 
-def _reduce_tensor_with_indices_non_deterministic(
+def _reduce_tensor_with_indices_non_deterministic_mean(
     source: torch.Tensor, indices: torch.Tensor
 ) -> torch.Tensor:
     source = source.flatten()
     reduced_attributions = torch.zeros(
         indices.max() + 1, dtype=source.dtype, device=source.device
     )
-    reduced_attributions.index_add_(
+    reduced_attributions.index_reduce_(
         0,
         indices,
         source,
+        reduce="mean",
+        include_self=False,
     )
     n_features = (indices.max() + 1).item()
+
+    # Since we take the mean over the features, we now scale each feature by the minimum possible feature
+    # set size. This will effectively sum the attributions of each feature with a weight of 1 if the feature groups are of all same sizes.
+    # But if the feature groups are of different sizes, then the larger feature groups will have their attributions scaled down.
+    reduced_attributions *= indices.unique(return_counts=True)[1].min()
+
     return reduced_attributions, n_features
 
 

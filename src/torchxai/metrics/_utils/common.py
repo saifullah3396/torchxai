@@ -201,7 +201,7 @@ def _split_tensors_to_tuple_tensors(
     return tensor_tuple
 
 
-def _reduce_tensor_with_indices_non_deterministic_mean(
+def _reduce_tensor_with_indices_non_deterministic(
     source: torch.Tensor, indices: torch.Tensor
 ) -> torch.Tensor:
     source = source.flatten()

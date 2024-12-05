@@ -6,15 +6,25 @@ from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics.axiomatic.completeness import completeness
 
 test_configurations = [
+    TestRuntimeConfig(
+        target_fixture="multi_modal_sequence_sum_with_single_target",
+        explainer="integrated_gradients",
+        expected=torch.tensor(
+            [0.0]
+        ),  # integrated gradients completeness should be 0 for this case
+    ),
+    TestRuntimeConfig(
+        target_fixture="multi_modal_sequence_sum_with_single_target",
+        explainer="saliency",
+        expected=torch.tensor([116]),  # saliency completeness is not so great
+    ),
     # the park function is taken from the paper: https://arxiv.org/pdf/2007.07584
     TestRuntimeConfig(
-        test_name="park_function_saliency",
         target_fixture="park_function_configuration",
         explainer="saliency",
         expected=torch.tensor([1.6322]),  # saliency completeness is not so great
     ),
     TestRuntimeConfig(
-        test_name="park_function_input_x_gradient",
         target_fixture="park_function_configuration",
         explainer="input_x_gradient",
         expected=torch.tensor(
@@ -22,7 +32,6 @@ test_configurations = [
         ),  # input_x_gradient results in better completeness
     ),
     TestRuntimeConfig(
-        test_name="park_function_integrated_gradients",
         target_fixture="park_function_configuration",
         explainer="integrated_gradients",
         expected=torch.tensor(
@@ -30,44 +39,37 @@ test_configurations = [
         ),  # integrated_gradients results in full completeness
     ),
     TestRuntimeConfig(
-        test_name="basic_model_single_input_integrated_gradients",
         target_fixture="basic_model_single_input_config",
         explainer="integrated_gradients",
         expected=torch.zeros(1),
     ),
     TestRuntimeConfig(
-        test_name="basic_model_batch_input_integrated_gradients",
         target_fixture="basic_model_batch_input_config",
         explainer="integrated_gradients",
         expected=torch.zeros(3),
     ),
     TestRuntimeConfig(
-        test_name="basic_model_batch_input_with_additional_forward_args_integrated_gradients",
         target_fixture="basic_model_batch_input_with_additional_forward_args_config",
         explainer="integrated_gradients",
         expected=torch.zeros(1),
     ),
     TestRuntimeConfig(
-        test_name="classification_convnet_model_with_multiple_targets_deep_lift",
         target_fixture="classification_convnet_model_with_multiple_targets_config",
         explainer="deep_lift",
         expected=torch.zeros(20),
     ),
     TestRuntimeConfig(
-        test_name="classification_convnet_model_with_multiple_targets_integrated_gradients",
         target_fixture="classification_convnet_model_with_multiple_targets_config",
         explainer="integrated_gradients",
         expected=torch.tensor([1.7565] * 20),
         delta=1e-3,
     ),
     TestRuntimeConfig(
-        test_name="classification_multilayer_model_with_tuple_targets_integrated_gradients",
         target_fixture="classification_multilayer_model_with_tuple_targets_config",
         explainer="integrated_gradients",
         expected=torch.tensor([0.6538, 0.0, 0.0, 0.0]),
     ),
     TestRuntimeConfig(
-        test_name="classification_multilayer_model_with_baseline_and_tuple_targets_integrated_gradients",
         target_fixture="classification_multilayer_model_with_baseline_and_tuple_targets_config",
         explainer="integrated_gradients",
         expected=torch.tensor([0.3269, 0.0, 0.0, 0.0]),

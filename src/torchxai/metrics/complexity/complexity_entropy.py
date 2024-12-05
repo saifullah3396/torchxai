@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from torch.distributions import Categorical
@@ -106,7 +106,7 @@ def complexity_entropy(
 
 def complexity_entropy_feature_grouped(
     attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
-    feature_mask: Tuple[torch.Tensor, ...] = None,
+    feature_mask: Optional[Tuple[torch.Tensor, ...]] = None,
     is_multi_target: bool = False,
     return_dict: bool = False,
 ) -> torch.Tensor:

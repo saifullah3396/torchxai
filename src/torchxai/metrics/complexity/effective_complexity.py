@@ -40,8 +40,7 @@ def eval_effective_complexity_single_sample(
     max_features_processed_per_batch: int = None,
     n_feature_accumulations: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    use_absolute_attributions: bool = True,
-    eps: float = 1e-5,
+    eps: float = 0.01,
     return_ratio: bool = False,
     show_progress: bool = False,
 ) -> Tensor:
@@ -153,16 +152,10 @@ def eval_effective_complexity_single_sample(
         perturbed_fwd_diffs = inputs_perturbed_fwd - inputs_fwd
         perturbed_fwd_diffs = perturbed_fwd_diffs.chunk(current_n_perturbed_features)
 
-        # each element in the tuple corresponds to a single feature group
-        curr_perturbed_fwd_diffs_relative_vars = tuple(
-            torch.mean(x**2) * (inputs_fwd_inv**2) for x in perturbed_fwd_diffs
-        )
-
-        # return the perturbed forward differences and the current feature attribution scores
-        curr_perturbed_fwd_diffs_relative_vars = tuple(
-            x.item() for x in curr_perturbed_fwd_diffs_relative_vars
-        )
-        return list(curr_perturbed_fwd_diffs_relative_vars)
+        # compute the relative variance of the output
+        return [
+            (torch.mean(x**2) * (inputs_fwd_inv**2)).item() for x in perturbed_fwd_diffs
+        ]
 
     def _agg_effective_complexity_tensors(agg_tensors, tensors):
         return agg_tensors + tensors
@@ -174,7 +167,7 @@ def eval_effective_complexity_single_sample(
         # get the first input forward output
         inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
         inputs_fwd_inv = (
-            1.0 if torch.abs(inputs_fwd) < eps else 1.0 / torch.abs(inputs_fwd)
+            1.0 if torch.abs(inputs_fwd) < 1e-8 else 1.0 / torch.abs(inputs_fwd)
         )
 
         # flatten all feature masks in the input
@@ -193,24 +186,24 @@ def eval_effective_complexity_single_sample(
         # validate feature masks are increasing non-negative
         _validate_feature_mask(feature_mask_flattened)
 
+        # flatten the feature mask
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
-
         reduced_attributions, n_features = (
             _reduce_tensor_with_indices_non_deterministic(
-                attributions[0], indices=feature_mask_flattened[0].flatten()
+                attributions[0], indices=feature_mask_flattened
             )
         )
 
-        if use_absolute_attributions:
-            reduced_attributions = reduced_attributions.abs()
+        # convert attributions to absolute values as effective complexity definition is based on absolute attributions
+        reduced_attributions = reduced_attributions.abs()
 
-        # get the gathererd-attributions sorted in descending order of their importance
+        # get the gathererd-attributions sorted in ascending order of their importance
         ascending_attribution_indices = torch.argsort(reduced_attributions)
-
-        feature_mask_flattened = feature_mask_flattened.squeeze()
 
         # # if n_feature_accumulations is > 1, then we need to chunk the indices and perform perturbations in chunks
         # # this helps reduce the computation time for computing effective complexity at the cost of reduced
@@ -289,9 +282,8 @@ def effective_complexity(
     max_features_processed_per_batch: Optional[int] = None,
     n_feature_accumulations: int = 1,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    eps: float = 1e-5,
+    eps: float = 0.01,
     return_ratio: bool = False,
-    use_absolute_attributions: bool = True,
     is_multi_target: bool = False,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
@@ -516,8 +508,6 @@ def effective_complexity(
         eps (float, optional): A small value to prevent division by zero. Default: 1e-5
         return_ratio (bool, optional): A boolean flag that indicates whether the effective complexity is returned as a ratio
                 of the number of important features to the total number of features. Default: False
-        use_absolute_attributions (bool, optional): A boolean flag that indicates whether the attributions are
-                used in absolute values. Default: True
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs
@@ -601,7 +591,6 @@ def effective_complexity(
                 ),
                 eps=eps,
                 return_ratio=return_ratio,
-                use_absolute_attributions=use_absolute_attributions,
                 show_progress=show_progress,
                 return_intermediate_results=True,
                 return_dict=False,
@@ -710,7 +699,6 @@ def effective_complexity(
                     if frozen_features is not None
                     else frozen_features
                 ),
-                use_absolute_attributions=use_absolute_attributions,
                 return_ratio=return_ratio,
                 eps=eps,
                 show_progress=show_progress,

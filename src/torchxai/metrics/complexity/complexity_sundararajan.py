@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 
@@ -14,7 +14,7 @@ from torchxai.metrics._utils.common import (
 
 def complexity_sundararajan(
     attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
-    eps: float = 1.0e-5,
+    eps: float = 1e-5,
     normalize_attribution: bool = True,
     is_multi_target: bool = False,
     return_dict: bool = False,
@@ -118,8 +118,8 @@ def complexity_sundararajan(
 
 def complexity_sundararajan_feature_grouped(
     attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
-    feature_mask: Tuple[torch.Tensor, ...] = None,
-    eps: float = 1.0e-5,
+    feature_mask: Optional[Tuple[torch.Tensor, ...]] = None,
+    eps: float = 1e-5,
     normalize_attribution: bool = True,
     is_multi_target: bool = False,
     return_dict: bool = False,

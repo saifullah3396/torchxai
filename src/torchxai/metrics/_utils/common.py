@@ -109,6 +109,54 @@ def _feature_mask_to_accumulated_perturbation_mask(
     return perturbation_mask
 
 
+def _feature_mask_to_chunked_perturbation_mask_with_attributions(
+    feature_mask,
+    attributions,
+    feature_indices,
+    frozen_features,
+    n_percentage_features_per_step,
+):
+    # first remove the frozen feature indices from the indices list
+    if frozen_features is not None:
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
+        feature_indices = feature_indices[valid_indices_mask]
+
+    # get total indices and total number of perturbations that will be performed
+    n_indices = feature_indices.shape[0]
+    if n_percentage_features_per_step < 1e-8:
+        chunk_size = 1
+    else:
+        chunk_size = math.ceil(n_indices * n_percentage_features_per_step)
+    total_num_perturbations = math.ceil(n_indices / chunk_size)
+
+    # create a perturbation mask of shape (n_perturations, feature_perturbation_mask)
+    # that will store all the perturbations
+    perturbation_masks = torch.zeros(
+        (total_num_perturbations, feature_mask.shape[0]),
+        dtype=torch.bool,
+        device=feature_mask.device,
+    )
+    chunk_reduced_attributions = torch.zeros(
+        total_num_perturbations,
+        dtype=attributions.dtype,
+        device=attributions.device,
+    )
+
+    chunks = torch.arange(0, n_indices, chunk_size, device=feature_mask.device)
+    for row_idx, start_idx in enumerate(chunks):
+        end_idx = min(start_idx + chunk_size, n_indices)
+        chunk_feature_indices = feature_indices[start_idx:end_idx]
+
+        # update the global perturbation mask
+        current_mask = torch.any(
+            feature_mask.unsqueeze(0) == chunk_feature_indices.unsqueeze(1),
+            dim=0,
+        )
+        perturbation_masks[row_idx] = current_mask
+        chunk_reduced_attributions[row_idx] = attributions[chunk_feature_indices].sum()
+    return perturbation_masks, chunk_reduced_attributions
+
+
 def _feature_mask_to_chunked_accumulated_perturbation_mask(
     feature_mask, feature_indices, frozen_features, chunk_size
 ):
@@ -199,6 +247,21 @@ def _split_tensors_to_tuple_tensors(
         )
         last_size += size
     return tensor_tuple
+
+
+def _add_tensor_with_indices_non_deterministic(
+    source: torch.Tensor, indices: torch.Tensor
+) -> torch.Tensor:
+    source = source.flatten()
+    reduced_attributions = torch.zeros(
+        indices.max() + 1, dtype=source.dtype, device=source.device
+    )
+    reduced_attributions.index_add_(
+        0,
+        indices,
+        source,
+    )
+    return reduced_attributions
 
 
 def _reduce_tensor_with_indices_non_deterministic(
@@ -308,16 +371,17 @@ def _draw_perturbated_inputs_sequences_images(perturbed_inputs):
             ax.matshow(
                 splitted_perturbed_input[:, :, 0].cpu().numpy(),
                 cmap="viridis",
+                aspect="auto",
             )
-            ax.set_axis_off()
         elif len(splitted_perturbed_input.shape) == 4:
             from torchvision.utils import make_grid
 
-            splitted_perturbed_input = splitted_perturbed_input * 0.5 + 0.5
-
+            splitted_perturbed_input = splitted_perturbed_input.float()
             combined_image = make_grid(
                 splitted_perturbed_input.detach().cpu(),
                 nrow=int(math.sqrt(splitted_perturbed_input.shape[0])),
+                pad_value=1,
+                normalize=True,
             )
             ax = fig.add_subplot(axes[idx])
             ax.imshow(

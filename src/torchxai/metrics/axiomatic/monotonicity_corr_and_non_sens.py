@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
+import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np
 import scipy
 import torch
 import tqdm
+from captum.attr._utils.common import _format_baseline
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -22,13 +24,17 @@ from torchxai.metrics._utils.batching import (
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _feature_mask_to_perturbation_mask,
+    _draw_perturbated_inputs_sequences_images,
+    _feature_mask_to_chunked_perturbation_mask_with_attributions,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_random_perturb_func
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from torchxai.metrics._utils.perturbation import (
+    default_random_perturb_func,
+)
 from torchxai.metrics.axiomatic.multi_target.monotonicity_corr_and_non_sens import (
     _multi_target_monotonicity_corr_and_non_sens,
 )
@@ -38,17 +44,21 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
+    baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
-    n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_random_perturb_func(),
-    max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    use_absolute_attributions: bool = True,
-    eps: float = 1e-5,
-    show_progress: bool = False,
+    perturb_func: Callable = default_random_perturb_func(),
+    n_perturbations_per_feature: int = 10,
+    max_features_processed_per_batch: int = None,
+    feature_removal_beam_size_percentage: float = 0.0,
+    zero_attribution_threshold: float = 0.01,
+    zero_variance_threshold: float = 0.01,
+    use_percentage_attribution_threshold: bool = True,
+    remove_features_in_ascending_order: bool = False,
     return_ratio: bool = True,
+    show_progress: bool = False,
 ) -> Tensor:
     def _generate_perturbations(
         current_n_perturbed_features: int, current_perturbation_mask: Tensor
@@ -64,16 +74,29 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
 
         def call_perturb_func():
             r""" """
+            baselines_pert = None
             inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:
                 inputs_pert = inputs_expanded[0]
                 perturbation_masks = perturbation_mask_expanded[0]
+                if baselines_expanded is not None:
+                    baselines_pert = cast(Tuple, baselines_expanded)[0]
             else:
                 inputs_pert = inputs_expanded
                 perturbation_masks = perturbation_mask_expanded
-            return perturb_func(
-                inputs=inputs_pert, perturbation_masks=perturbation_masks
+                baselines_pert = baselines_expanded
+
+            valid_args = inspect.signature(perturb_func).parameters.keys()
+            perturb_kwargs = dict(
+                inputs=inputs_pert,
+                perturbation_masks=perturbation_masks,
             )
+            if "baselines" in valid_args:
+                assert (
+                    baselines_pert is not None
+                ), f"""The perturb_func {perturb_func} requires baselines as an argument. Please provide baselines."""
+                perturb_kwargs["baselines"] = baselines_pert
+            return perturb_func(**perturb_kwargs)
 
         # repeat each current_n_perturbed_features times
         inputs_expanded = tuple(
@@ -83,6 +106,21 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             )
             for input in inputs
         )
+
+        baselines_expanded = baselines
+        if baselines is not None:
+            baselines_expanded = tuple(
+                (
+                    baseline.repeat_interleave(
+                        n_perturbations_per_feature * current_n_perturbed_features,
+                        dim=0,
+                    )
+                    if isinstance(baseline, torch.Tensor)
+                    and baseline.shape[0] == input.shape[0]
+                    else baseline
+                )
+                for input, baseline in zip(inputs, cast(Tuple, baselines))
+            )
 
         # repeat each perturbation mask n_perturbations_per_feature times
         perturbation_mask_expanded = current_perturbation_mask.repeat_interleave(
@@ -138,6 +176,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         inputs_perturbed = _generate_perturbations(
             current_n_perturbed_features, current_perturbation_mask
         )
+        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         _validate_inputs_and_perturbations(
             cast(Tuple[Tensor, ...], inputs),
@@ -155,7 +194,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         )
         inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
         inputs_fwd_inv = (
-            1.0 if torch.abs(inputs_fwd) < eps else 1.0 / torch.abs(inputs_fwd)
+            1.0 if torch.abs(inputs_fwd) < 1e-8 else 1.0 / torch.abs(inputs_fwd)
         )
         inputs_perturbed_fwd = _run_forward(
             forward_func,
@@ -164,26 +203,19 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             additional_forward_args_expanded,
         )
         perturbed_fwd_diffs = inputs_perturbed_fwd - inputs_fwd
+
+        # each element in the tuple corresponds to the multiple perturbations of a single feature group
         perturbed_fwd_diffs = perturbed_fwd_diffs.chunk(current_n_perturbed_features)
 
-        # each element in the tuple corresponds to a single feature group
-        curr_perturbed_fwd_diffs_relative_vars = tuple(
-            torch.mean(x**2) * (inputs_fwd_inv**2) for x in perturbed_fwd_diffs
-        )
-
-        # return the perturbed forward differences and the current feature attribution scores
-        curr_perturbed_fwd_diffs_relative_vars = tuple(
-            x.item() for x in curr_perturbed_fwd_diffs_relative_vars
-        )
-        curr_feature_group_attribution_scores = tuple(
-            x.item() for x in reduced_attributions[current_feature_indices]
-        )
-        return list(curr_perturbed_fwd_diffs_relative_vars), list(
-            curr_feature_group_attribution_scores
-        )
+        # the relative variance of the perturbed forward differences is computed
+        # (std^2 / target_mean^2) where target_mean is the unperturbed input_fwd
+        # here std = (sum(perturbed_fwd_diffs^2) / N) where N is the number of perturbations
+        return [
+            (torch.mean(x**2) * (inputs_fwd_inv**2)).item() for x in perturbed_fwd_diffs
+        ]
 
     def _agg_monotonicity_corr_tensors(agg_tensors, tensors):
-        return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
+        return agg_tensors + tensors
 
     with torch.no_grad():
         bsz = inputs[0].size(0)
@@ -199,46 +231,71 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         # validate feature masks are increasing non-negative
         _validate_feature_mask(feature_mask_flattened)
 
+        # remove the batch index
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
+
+        # in this step we reduce the attributions to the feature groups
+        # here the weighted sum of the attributions is computed for each feature group
+        # the 0th index of reduced_attributions corresponds to the 0th feature group
+        # the 1th index of reduced_attributions corresponds to the 1th feature group and so on
+        # therefore be careful that the order of the original feature group is not preserved
+        # for example, the feature mask may have the indices [0, 3, 4, 5, 1] but the reduced attributions
+        # may have the indices [0, 1, 2, 3, 4] where the 0th index of the reduced attributions corresponds to the
+        # 0th index of the feature mask
         reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
-            attributions[0], indices=feature_mask_flattened[0]
+            attributions[0], indices=feature_mask_flattened
         )
 
-        if use_absolute_attributions:
-            reduced_attributions = reduced_attributions.abs()
+        # after reduction we take the absolute value of the attributions as we are interested in the
+        # total magnitude of the attributions
+        reduced_attributions = reduced_attributions.abs()
 
-        # this assumes a batch size of 1, this will not work for batch size > 1
-        feature_indices = feature_mask_flattened.unique()
-        global_perturbation_masks = _feature_mask_to_perturbation_mask(
-            feature_mask_flattened, feature_indices, frozen_features
+        if remove_features_in_ascending_order:
+            # get the gathererd-attributions sorted in ascending order of their importance
+            # ascending indices can be important as if we remove features in chunks, we want to remove the least important
+            # and more important features together instead of mixing them together
+            # however this makes it impossible to perturb features together for multi-target scenario
+            # overall the monotonicity_corr and non-sensitivity should not change too much for small beam sizes
+            # and not at all for beam size 0 as the order of the features is not important in that case
+            ascending_attribution_indices = torch.argsort(reduced_attributions)
+        else:
+            ascending_attribution_indices = torch.arange(
+                ascending_attribution_indices.size(0), device=inputs[0].device
+            )
+
+        # now we generate the global perturbation masks and the chunked reduced attributions
+        # each step of the perturbation will generate a perturbation mask for all the features in a single chunk
+        # the chunk size is determined by the feature_removal_beam_size_percentage
+        # if the feature_removal_beam_size_percentage is 0.01, then 1% of the features will be removed in each step
+        # if the feature_removal_beam_size_percentage is 0, then chunk size is set to 1 in which case every
+        # perturbation step will remove a single feature in the ascending order of importance
+        # the returned chunk_reduced_attributions will have the same shape as the global_perturbation_masks
+        # and will contain the sum of attributions over the features in the each chunk
+        global_perturbation_masks, chunk_reduced_attributions = (
+            _feature_mask_to_chunked_perturbation_mask_with_attributions(
+                feature_mask_flattened,
+                reduced_attributions,
+                ascending_attribution_indices,
+                frozen_features,
+                feature_removal_beam_size_percentage,
+            )
         )
+        assert global_perturbation_masks.shape[0] == chunk_reduced_attributions.shape[0]
+
+        # draw all the global_perturbation_masks for debugging
+        # global_perturbation_masks_reshaped = _split_tensors_to_tuple_tensors(
+        #     global_perturbation_masks, flattened_mask_shape
+        # )
+        # _draw_perturbated_inputs_sequences_images(global_perturbation_masks_reshaped)
+
+        # note that the if frozen_features are present, they are not perturbed, and therefore the
+        # total global_perturbation_masks size may be less than the total number of features
+        # therefore we reassign the n_features to the total number of features that are perturbed
         n_features = global_perturbation_masks.shape[0]
-
-        # for idx, perturbation_mask in enumerate(global_perturbation_masks):
-        #     if idx % 10 == 0:
-
-        #         m1 = perturbation_mask[: 512 * 768].view(512, 768)[:, 0]
-        #         m2 = perturbation_mask[512 * 768 : 2 * 512 * 768].view(512, 768)[:, 0]
-        #         m3 = perturbation_mask[2 * 512 * 768 : 3 * 512 * 768].view(512, 768)[
-        #             :, 0
-        #         ]
-        #         m4 = (
-        #             perturbation_mask[3 * 512 * 768 :]
-        #             .view(3, 224, 224)
-        #             .permute(1, 2, 0)
-        #         )
-        #         import matplotlib.pyplot as plt
-
-        #         fig, ax = plt.subplots(1, 4, figsize=(20, 5))
-        #         ax[0].plot(m1.cpu().numpy())
-        #         ax[1].plot(m2.cpu().numpy())
-        #         ax[2].plot(m3.cpu().numpy())
-        #         ax[3].imshow(m4.cpu().float().numpy())
-        #         plt.show()
-        #     # m1 = global_perturbation_masks[]
-        # exit()
 
         # the logic for this implementation as as follows:
         # each input is repeated n_perturbations_per_feature times to create an input of shape
@@ -269,8 +326,29 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             # find the spearman corr between the attribution scores and the model forward variances
             # this corr should be close to 1 if the model forward variances are monotonically increasing with the attribution scores
             # this means that features that have a lower attribution score are directly correlated with lower effect on the model output
+            # import matplotlib.pyplot as plt
+
+            # print(
+            #     "perturbed_fwd_diffs_relative_vars", perturbed_fwd_diffs_relative_vars
+            # )
+            # print("feature_group_attribution_scores", feature_group_attribution_scores)
+            # fig, ax = plt.subplots()
+            # plt.plot(
+            #     perturbed_fwd_diffs_relative_vars,
+            #     color="blue",
+            # )
+            # plt.plot(feature_group_attribution_scores, color="red")
+
+            # plt.show()
+            # np.save(
+            #     "perturbed_fwd_diffs_relative_vars.npy",
+            #     perturbed_fwd_diffs_relative_vars,
+            # )
+            # np.save(
+            #     "feature_group_attribution_scores.npy", feature_group_attribution_scores
+            # )
             return scipy.stats.spearmanr(
-                np.abs(feature_group_attribution_scores),
+                feature_group_attribution_scores,
                 perturbed_fwd_diffs_relative_vars,
             )[0]
 
@@ -281,19 +359,30 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         ):
             # find the indices of features that have a zero attribution score, every attribution score value less
             # than non_sens_eps is considered zero
-            zero_attribution_features = set(
-                list(
-                    np.argwhere(
-                        np.abs(feature_group_attribution_scores) < eps
-                    ).flatten()
-                )
+            def find_small_scale_features(
+                values: np.ndarray, threshold: Optional[float] = None
+            ):
+                return set(list(np.argwhere(np.abs(values) < threshold).flatten()))
+
+            # find the indices of features that have a zero attribution score.
+            # All values below the threshold are considered zero, default threshold is set to 1% of the max value
+            # This can be sensitive to the max value of the attribution scores but since different explanation methods
+            # have different scales, it is better to use a relative threshold
+            zero_attribution_features_threshold = (
+                zero_attribution_threshold * np.max(feature_group_attribution_scores)
+                if use_percentage_attribution_threshold
+                else zero_attribution_threshold
             )
-            zero_variance_features = set(
-                list(
-                    np.argwhere(
-                        np.abs(perturbed_fwd_diffs_relative_vars) < eps
-                    ).flatten()
-                )
+            zero_attribution_features = find_small_scale_features(
+                feature_group_attribution_scores,
+                threshold=zero_attribution_features_threshold,
+            )
+
+            # find the indices of features that have a zero model forward variance,
+            # all values below the threshold are considered zero. Default threshold is set to 1%
+            zero_variance_features = find_small_scale_features(
+                perturbed_fwd_diffs_relative_vars,
+                threshold=zero_variance_threshold,
             )
 
             # find the symmetric difference of the zero attribution features and the zero variance features
@@ -311,22 +400,21 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
                 return non_sens / n_features
             return non_sens
 
-        agg_tensors = tuple(np.array(x) for x in agg_tensors)
-        perturbed_fwd_diffs_relative_vars = agg_tensors[0]
-        feature_group_attribution_scores = agg_tensors[1]
-
+        perturbed_fwd_diffs_relative_vars = np.array(agg_tensors)
         monotonicity_corr = compute_monotonocity_corr(
-            perturbed_fwd_diffs_relative_vars, feature_group_attribution_scores
+            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions.cpu().numpy()
         )
         non_sens = compute_non_sens(
-            perturbed_fwd_diffs_relative_vars, feature_group_attribution_scores
+            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions.cpu().numpy()
         )
+        print("monotonicity_corr", monotonicity_corr)
+        print("non_sens", non_sens)
     return (
         monotonicity_corr,
         non_sens,
         n_features,
         perturbed_fwd_diffs_relative_vars,
-        feature_group_attribution_scores,
+        chunk_reduced_attributions.cpu().numpy(),
     )
 
 
@@ -334,20 +422,23 @@ def monotonicity_corr_and_non_sens(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
+    baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
-    eps: float = 1e-5,
-    is_multi_target: bool = False,
-    frozen_features: Optional[List[torch.Tensor]] = None,
-    use_absolute_attributions: bool = True,
+    feature_removal_beam_size_percentage: float = 0.0,
+    zero_attribution_threshold: float = 0.01,
+    zero_variance_threshold: float = 0.01,
+    use_percentage_attribution_threshold: bool = True,
+    return_ratio: bool = True,
     show_progress: bool = False,
     return_intermediate_results: bool = False,
     return_dict: bool = False,
-    return_ratio: bool = True,
+    is_multi_target: bool = False,
 ) -> Tuple[Tensor, Tensor, Tensor]:
     """
     Implementation of Monotonicity Correlation and NonSensitivity by Nguyen at el., 2020. This implementation
@@ -572,9 +663,9 @@ def monotonicity_corr_and_non_sens(
                 This can be useful for ignoring the input structure features like padding, etc. Default: None
                 In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
                 of feature masks that correspond to these tokens.
-        eps (float, optional): Defines the minimum threshold for the attribution scores and the model forward
+        zero_attribution_threshold (float, optional): Defines the minimum threshold for the attribution scores and the model forward
                 variances. If the absolute value of the attribution scores or the model forward variances
-                is less than `eps`, it is considered as zero. This is used to compute the non-sensitivity
+                is less than `zero_attribution_threshold`, it is considered as zero. This is used to compute the non-sensitivity
                 metric. Default: 1e-5
 
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
@@ -629,16 +720,20 @@ def monotonicity_corr_and_non_sens(
             forward_func=forward_func,
             inputs=inputs,
             attributions_list=attributions,
+            baselines=baselines,
             feature_mask=feature_mask,
             additional_forward_args=additional_forward_args,
             targets_list=target,
+            frozen_features=frozen_features,
             perturb_func=perturb_func,
             n_perturbations_per_feature=n_perturbations_per_feature,
             max_features_processed_per_batch=max_features_processed_per_batch,
-            eps=eps,
-            frozen_features=frozen_features,
-            show_progress=show_progress,
+            feature_removal_beam_size_percentage=feature_removal_beam_size_percentage,
+            zero_attribution_threshold=zero_attribution_threshold,
+            zero_variance_threshold=zero_variance_threshold,
+            use_percentage_attribution_threshold=use_percentage_attribution_threshold,
             return_ratio=return_ratio,
+            show_progress=show_progress,
         )
 
         if return_intermediate_results:
@@ -670,6 +765,7 @@ def monotonicity_corr_and_non_sens(
     with torch.no_grad():
         # perform argument formattings
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
@@ -708,6 +804,11 @@ def monotonicity_corr_and_non_sens(
                 attributions=tuple(
                     attr[sample_idx].unsqueeze(0) for attr in attributions
                 ),
+                baselines=(
+                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
+                    if baselines is not None
+                    else None
+                ),
                 feature_mask=(
                     tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
                     if feature_mask is not None
@@ -730,18 +831,20 @@ def monotonicity_corr_and_non_sens(
                     if isinstance(target, (list, torch.Tensor))
                     else target
                 ),
-                perturb_func=perturb_func,
-                n_perturbations_per_feature=n_perturbations_per_feature,
-                max_features_processed_per_batch=max_features_processed_per_batch,
                 frozen_features=(
                     frozen_features[sample_idx]
                     if frozen_features is not None
                     else frozen_features
                 ),
-                use_absolute_attributions=use_absolute_attributions,
-                eps=eps,
-                show_progress=show_progress,
+                perturb_func=perturb_func,
+                n_perturbations_per_feature=n_perturbations_per_feature,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                feature_removal_beam_size_percentage=feature_removal_beam_size_percentage,
+                zero_attribution_threshold=zero_attribution_threshold,
+                zero_variance_threshold=zero_variance_threshold,
+                use_percentage_attribution_threshold=use_percentage_attribution_threshold,
                 return_ratio=return_ratio,
+                show_progress=show_progress,
             )
 
             monotonicity_corr_batch.append(monotonicity_corr)

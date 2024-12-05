@@ -170,6 +170,35 @@ class BasicModel6_MultiTensor(nn.Module):
         return 1 - F.relu(1 - input)[:, 1]
 
 
+class BasicModel7_SumMultiTensor(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, sequence1, sequence2, sequence3, image):
+        return (
+            sequence1.sum((1, 2))
+            + sequence2.sum((1, 2))
+            + sequence3.sum((1, 2))
+            + image.sum((1, 2, 3))
+        )
+
+
+class BasicModel7_ReluMultiTensor(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, sequence1, sequence2, sequence3, image):
+        from torch.nn.functional import relu, avg_pool2d, avg_pool1d
+
+        bs = image.shape[0]
+        image = avg_pool2d(image, 2)
+        sequence1 = avg_pool1d(sequence1, 4).squeeze(-1)
+        sequence2 = avg_pool1d(sequence2, 4).squeeze(-1)
+        sequence3 = avg_pool1d(sequence3, 4).squeeze(-1)
+        input = sequence1 + sequence2 + sequence3 + image.view(bs, -1)
+        return 1 - relu(1 - input)[:, 1]
+
+
 class BasicLinearModel(nn.Module):
     def __init__(self) -> None:
         super().__init__()

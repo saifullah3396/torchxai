@@ -1,3 +1,4 @@
+import inspect
 import logging
 import random
 from pathlib import Path
@@ -204,11 +205,12 @@ def compute_explanations(
         # our own explainer does not take explainer configuration specific kwargs at inference
         # but rather takes it in initialization
         explainer_kwargs = {}
-        if baselines is not None:
+        possible_args = inspect.signature(explainer.explain).parameters
+        if baselines is not None and "baselines" in possible_args:
             explainer_kwargs["baselines"] = baselines
-        if feature_mask is not None:
+        if feature_mask is not None and "feature_mask" in possible_args:
             explainer_kwargs["feature_mask"] = feature_mask
-        if train_baselines is not None:
+        if train_baselines is not None and "train_baselines" in possible_args:
             explainer_kwargs["train_baselines"] = train_baselines
         explanations = explainer.explain(
             inputs,

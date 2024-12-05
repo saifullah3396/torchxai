@@ -17,6 +17,7 @@ class TestBaseConfig:
     feature_mask: Union[torch.Tensor, Tuple[torch.Tensor, ...]] = None
     multiply_by_inputs: bool = False
     n_features: int = None
+    frozen_features: List[torch.Tensor] = None
     input_layer_names: List[str] = None
 
     def __post_init__(self):
@@ -57,18 +58,23 @@ class TestBaseConfig:
                     if isinstance(self.additional_forward_args, torch.Tensor)
                     else self.additional_forward_args
                 )
-        if self.baselines is not None:
+        if self.baselines is not None and not isinstance(self.baselines, int):
             self.baselines = convert_tensor(self.baselines, device=device)
         if self.feature_mask is not None:
             self.feature_mask = convert_tensor(self.feature_mask, device=device)
         if self.train_baselines is not None:
             self.train_baselines = convert_tensor(self.train_baselines, device=device)
+        if self.frozen_features is not None:
+            self.frozen_features = [
+                convert_tensor(frozen_feature, device=device)
+                for frozen_feature in self.frozen_features
+            ]
         self.model.to(device)
 
 
 @dataclasses.dataclass
 class TestRuntimeConfig:
-    test_name: str
+    test_name: str = ""
     target_fixture: str = None
     explainer: str = "integrated_gradients"
     explainer_kwargs: dict = None
@@ -86,9 +92,10 @@ class TestRuntimeConfig:
         if self.device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
 
-        self.test_name = (
-            f"fixture={self.target_fixture}_explainer={self.explainer}_{self.test_name}"
-        )
+        if self.test_name is None:
+            self.test_name = f"fixture={self.target_fixture}_explainer={self.explainer}"
+        else:
+            self.test_name = f"fixture={self.target_fixture}_explainer={self.explainer}_{self.test_name}"
 
     def __repr__(self):
         kws = [

@@ -451,7 +451,6 @@ class FeatureAblationExplainer(Explainer):
         Returns:
             TensorOrTupleOfTensorsGeneric: The computed attributions.
         """
-        # Compute the attributions using Kernel SHAP
         feature_mask = _expand_feature_mask_to_target(feature_mask, inputs)
         attributions = self._explanation_fn.attribute(
             inputs=inputs,

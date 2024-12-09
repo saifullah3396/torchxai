@@ -13,7 +13,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.explainers._utils import _run_forward_multi_target
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics
 from torchxai.metrics._utils.common import (
@@ -23,7 +22,7 @@ from torchxai.metrics._utils.common import (
 )
 from torchxai.metrics._utils.perturbation import (
     _generate_random_perturbation_masks,
-    default_random_perturb_func,
+    default_fixed_baseline_perturb_func,
 )
 
 
@@ -35,7 +34,7 @@ def _multi_target_faithfulness_corr(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturb_samples: int = 10,
     max_examples_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,

@@ -16,7 +16,6 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from matplotlib import pyplot as plt
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -29,7 +28,7 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_random_perturb_func
+from torchxai.metrics._utils.perturbation import default_fixed_baseline_perturb_func
 
 
 def eval_effective_complexity_single_sample(
@@ -41,7 +40,7 @@ def eval_effective_complexity_single_sample(
     n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     max_features_processed_per_batch: int = None,
     percentage_feature_removal_per_step: float = 0.0,
     frozen_features: Optional[List[torch.Tensor]] = None,
@@ -182,7 +181,7 @@ def eval_effective_complexity_single_sample(
             targets_expanded,
             additional_forward_args_expanded,
         )
-        perturbed_fwd_diffs = inputs_perturbed_fwd - inputs_fwd
+        perturbed_fwd_diffs = inputs_fwd - inputs_perturbed_fwd
         perturbed_fwd_diffs = perturbed_fwd_diffs.chunk(current_n_perturbed_features)
 
         # compute the relative variance of the output
@@ -250,8 +249,6 @@ def eval_effective_complexity_single_sample(
                 percentage_feature_removal_per_step,
             )
         )
-        # plt.matshow(global_perturbation_masks.cpu())
-        # plt.show()
 
         # update the number of features as this can be different from the original number of features due to frozen features
         # or chunking
@@ -317,7 +314,7 @@ def effective_complexity(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: Union[TargetType, List[TargetType]] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,
     percentage_feature_removal_per_step: float = 0.0,
@@ -757,6 +754,7 @@ def effective_complexity(
             )
             n_features_batch.append(n_features)
         effective_complexity_batch = torch.tensor(effective_complexity_batch)
+        n_features_batch = torch.tensor(n_features_batch)
         if return_intermediate_results:
             if return_dict:
                 return {

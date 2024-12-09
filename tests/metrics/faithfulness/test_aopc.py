@@ -3,7 +3,6 @@ import itertools
 
 import pytest  # noqa
 import torch
-
 from tests.utils.common import (
     assert_all_tensors_almost_equal,
     assert_tensor_almost_equal,
@@ -255,7 +254,7 @@ def test_aopc(metrics_runtime_test_configuration):
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             max_features_processed_per_batch=max_features,
-            total_features_perturbed=runtime_config.total_features_perturbed,
+            total_feature_bins=runtime_config.total_features_perturbed,
             seed=42,
             return_dict=True,
         )

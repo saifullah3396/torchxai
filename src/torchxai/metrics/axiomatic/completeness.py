@@ -11,7 +11,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics.axiomatic.multi_target.completeness import (
     _multi_target_completeness,
 )

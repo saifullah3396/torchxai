@@ -17,11 +17,13 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _feature_mask_to_chunked_perturbation_mask_with_attributions,
     _feature_mask_to_perturbation_mask,
+    _reduce_tensor_with_indices,
+    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
@@ -37,6 +39,7 @@ def eval_faithfulness_estimate_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: int = None,
+    percentage_feature_removal_per_step: float = 0.0,
     frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
 ) -> Tensor:
@@ -62,9 +65,6 @@ def eval_faithfulness_estimate_single_sample(
         inputs_perturbed = (
             inputs_expanded * ~current_perturbation_masks
             + baselines_expanded * current_perturbation_masks
-        )
-        attributions_sum_perturbed = (current_perturbation_masks * attributions).sum(
-            dim=1
         )
         targets_expanded = _expand_target(
             target,
@@ -93,10 +93,7 @@ def eval_faithfulness_estimate_single_sample(
         # on each feature group perturbation
         # the first element will be when the feature with lowest importance is added to the baseline
         # the last element will be when all features are added to the baseline
-        return (
-            list(inputs_perturbed_fwd_diff.detach().cpu().numpy()),
-            list(attributions_sum_perturbed.detach().cpu().numpy()),
-        )
+        return (list(inputs_perturbed_fwd_diff.detach().cpu().numpy()),)
 
     def _agg_faithfulness_estimate_tensors(agg_tensors, tensors):
         return tuple(agg_t + t for agg_t, t in zip(agg_tensors, tensors))
@@ -120,6 +117,7 @@ def eval_faithfulness_estimate_single_sample(
 
     # flatten all feature masks in the input
     feature_mask_flattened, _ = _tuple_tensors_to_tensors(feature_mask)
+    feature_mask_flattened = feature_mask_flattened.squeeze()
 
     # validate feature masks are increasing non-negative
     _validate_feature_mask(feature_mask)
@@ -128,13 +126,28 @@ def eval_faithfulness_estimate_single_sample(
     # feature masks may depened on attribution
     attributions, _ = _tuple_tensors_to_tensors(attributions)
 
-    # get total number of features
-    n_features = max(x.max() for x in feature_mask).item() + 1
+    # in this step we reduce the attributions to the feature groups
+    # here the weighted sum of the attributions is computed for each feature group
+    # the 0th index of reduced_attributions corresponds to the 0th feature group
+    # the 1th index of reduced_attributions corresponds to the 1th feature group and so on
+    # therefore be careful that the order of the original feature group is not preserved
+    # for example, the feature mask may have the indices [0, 3, 4, 5, 1] but the reduced attributions
+    # may have the indices [0, 1, 2, 3, 4] where the 0th index of the reduced attributions corresponds to the
+    # 0th index of the feature mask
+    reduced_attributions, _ = _reduce_tensor_with_indices(
+        attributions[0], indices=feature_mask_flattened
+    )
 
     # get the gathererd-attributions sorted in descending order of their importance
     feature_indices = feature_mask_flattened.unique()
-    perturbation_masks = _feature_mask_to_perturbation_mask(
-        feature_mask_flattened, feature_indices, frozen_features
+    perturbation_masks, chunk_reduced_attributions = (
+        _feature_mask_to_chunked_perturbation_mask_with_attributions(
+            feature_mask_flattened,
+            reduced_attributions,
+            feature_indices,
+            frozen_features,
+            percentage_feature_removal_per_step,
+        )
     )
 
     with torch.no_grad():
@@ -152,14 +165,14 @@ def eval_faithfulness_estimate_single_sample(
 
         agg_tensors = tuple(np.array(x).flatten() for x in agg_tensors)
         inputs_perturbed_fwd_diffs = agg_tensors[0]
-        attributions_sum_perturbed = agg_tensors[1]
         faithfulness_estimate_score = scipy.stats.pearsonr(
-            inputs_perturbed_fwd_diffs, attributions_sum_perturbed
+            inputs_perturbed_fwd_diffs, chunk_reduced_attributions.cpu().numpy()
         )[0]
+        print("faithfulness_estimate_score", faithfulness_estimate_score)
 
     return (
         torch.tensor(faithfulness_estimate_score),
-        torch.from_numpy(attributions_sum_perturbed),
+        chunk_reduced_attributions.cpu(),
         torch.from_numpy(inputs_perturbed_fwd_diffs),
     )
 
@@ -173,6 +186,7 @@ def faithfulness_estimate(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
+    percentage_feature_removal_per_step: float = 0.0,
     frozen_features: Optional[List[torch.Tensor]] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
@@ -404,6 +418,7 @@ def faithfulness_estimate(
                 additional_forward_args=additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                 frozen_features=frozen_features,
                 show_progress=show_progress,
                 return_dict=False,
@@ -506,6 +521,7 @@ def faithfulness_estimate(
                 else target
             ),
             max_features_processed_per_batch=max_features_processed_per_batch,
+            percentage_feature_removal_per_step=percentage_feature_removal_per_step,
             frozen_features=(
                 frozen_features[sample_idx]
                 if frozen_features is not None

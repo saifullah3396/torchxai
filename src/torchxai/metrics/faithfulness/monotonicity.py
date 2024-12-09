@@ -35,7 +35,7 @@ def eval_monotonicity_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: TargetType = None,
-    n_feature_accumulations: int = 1,
+    percentage_feature_removal_per_step: float = 0.01,
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
     show_progress: bool = False,
@@ -121,32 +121,34 @@ def eval_monotonicity_single_sample(
             feature_mask
         )
 
+        # validate feature masks are increasing non-negative
+        _validate_feature_mask(feature_mask_flattened)
+
+        # squeeze the batch dimension
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
-
-        # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_mask_flattened)
 
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
         # this is why we need a single batch size as gathered attributes and number of features for each
         # sample can be different
         reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
-            attributions[0], indices=feature_mask_flattened[0].flatten()
+            attributions[0], indices=feature_mask_flattened
         )
 
         # get the gathererd-attributions sorted in ascending order of their importance
         sorted_ascending_indices = torch.argsort(reduced_attributions)
 
         # get accumulated masks
-        feature_mask_flattened = feature_mask_flattened.squeeze()
         global_perturbation_masks = (
             _feature_mask_to_chunked_accumulated_perturbation_mask(
                 feature_mask_flattened,
                 sorted_ascending_indices,
                 frozen_features,
-                n_feature_accumulations,
+                percentage_feature_removal_per_step,
             )
         )
 
@@ -165,6 +167,10 @@ def eval_monotonicity_single_sample(
         def compute_monotonicity(
             baseline_perturbed_fwds: np.ndarray,
         ):
+            import matplotlib.pyplot as plt
+
+            plt.plot(baseline_perturbed_fwds)
+            plt.show()
             # as feature are added from least to higher importance, the forward outputs should be monotonically increasing
             return np.all(np.diff(baseline_perturbed_fwds) >= 0)
 
@@ -183,7 +189,7 @@ def monotonicity(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
-    n_feature_accumulations: int = 1,
+    percentage_feature_removal_per_step: float = 0.01,
     frozen_features: Optional[List[torch.Tensor]] = None,
     is_multi_target: bool = False,
     show_progress: bool = False,
@@ -353,10 +359,10 @@ def monotonicity(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequential order.
-        n_feature_accumulations (int, optional): The number of steps to process the features in a single batch.
-                This is useful for reducing the computation time for large models. This allows 'n_feature_accumulations'
+        percentage_feature_removal_per_step (int, optional): The number of steps to process the features in a single batch.
+                This is useful for reducing the computation time for large models. This allows 'percentage_feature_removal_per_step'
                 ascending features to be removed together in each step instead of removing all the features.
-                Therefore, if n_feature_accumulations=10, instead of removing the features X1, <X2, <X3... in each step, we
+                Therefore, if percentage_feature_removal_per_step=10, instead of removing the features X1, <X2, <X3... in each step, we
                 will remove the features <X1-10, <X10-X20, <X20-X30 ...
                 Default: 1
         frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
@@ -427,7 +433,7 @@ def monotonicity(
                 additional_forward_args=additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                n_feature_accumulations=n_feature_accumulations,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                 frozen_features=frozen_features,
                 show_progress=show_progress,
                 return_dict=False,
@@ -525,7 +531,7 @@ def monotonicity(
                         else target
                     ),
                     max_features_processed_per_batch=max_features_processed_per_batch,
-                    n_feature_accumulations=n_feature_accumulations,
+                    percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                     frozen_features=(
                         frozen_features[sample_idx]
                         if frozen_features is not None

@@ -3,7 +3,6 @@ from typing import List
 
 import pytest
 import torch  # noqa
-
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics.axiomatic.completeness import completeness
@@ -56,7 +55,7 @@ def test_completeness_multi_target(metrics_runtime_test_configuration):
             forward_func=base_config.model,
             inputs=base_config.inputs,
             attributions=explanation,
-            baselines=base_config.baselines,
+            metric_baselines=base_config.baselines,
             additional_forward_args=base_config.additional_forward_args,
             target=target,
         )
@@ -66,7 +65,7 @@ def test_completeness_multi_target(metrics_runtime_test_configuration):
         forward_func=base_config.model,
         inputs=base_config.inputs,
         attributions=explanations,
-        baselines=base_config.baselines,
+        metric_baselines=base_config.baselines,
         additional_forward_args=base_config.additional_forward_args,
         target=runtime_config.override_target,
         is_multi_target=True,

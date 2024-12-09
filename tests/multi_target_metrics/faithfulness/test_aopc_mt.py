@@ -2,7 +2,6 @@ import dataclasses
 from typing import List
 
 import pytest  # noqa
-
 from tests.utils.common import (
     assert_tensor_almost_equal,
     grid_segmenter,
@@ -86,7 +85,7 @@ def test_aopc_multi_target(metrics_runtime_test_configuration):
             additional_forward_args=base_config.additional_forward_args,
             target=base_config.target,
             max_features_processed_per_batch=max_features,
-            total_features_perturbed=runtime_config.total_features_perturbed,
+            total_feature_bins=runtime_config.total_features_perturbed,
             seed=42,
             is_multi_target=True,
             return_dict=False,
@@ -105,7 +104,7 @@ def test_aopc_multi_target(metrics_runtime_test_configuration):
                 additional_forward_args=base_config.additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features,
-                total_features_perturbed=runtime_config.total_features_perturbed,
+                total_feature_bins=runtime_config.total_features_perturbed,
                 seed=42,
                 return_dict=True,
             )

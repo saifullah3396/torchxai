@@ -8,7 +8,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.explainers._utils import _run_forward_multi_target
 
 
@@ -16,7 +15,7 @@ def _multi_target_completeness(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions_list: List[TensorOrTupleOfTensorsGeneric],
-    baselines: BaselineType,
+    metric_baselines: BaselineType,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
 ) -> List[Tensor]:
@@ -35,10 +34,12 @@ def _multi_target_completeness(
         ).format(len(targets_list), len(attributions_list))
 
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-        if baselines is None:
-            baselines = tuple(torch.zeros_like(inp) for inp in inputs)
+        if metric_baselines is None:
+            metric_baselines = tuple(torch.zeros_like(inp) for inp in inputs)
         else:
-            baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
+            metric_baselines = _format_baseline(
+                metric_baselines, cast(Tuple[Tensor, ...], inputs)
+            )
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
@@ -66,7 +67,7 @@ def _multi_target_completeness(
         # compute the forward pass on baselines
         baselines_fwd = _run_forward_multi_target(
             forward_func,
-            baselines,
+            metric_baselines,
             targets_list,
             additional_forward_args,
         )

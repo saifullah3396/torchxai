@@ -25,7 +25,7 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_random_perturb_func
+from torchxai.metrics._utils.perturbation import default_fixed_baseline_perturb_func
 
 
 def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
@@ -35,7 +35,7 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
@@ -152,7 +152,7 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
             targets_expanded_list,
             additional_forward_args_expanded,
         )
-        perturbed_fwd_diffs = inputs_perturbed_fwd - inputs_fwd
+        perturbed_fwd_diffs = inputs_fwd - inputs_perturbed_fwd
 
         # make perturbed_fwd_diffs_list list
         perturbed_fwd_diffs_list = [
@@ -357,7 +357,7 @@ def _multi_target_monotonicity_corr_and_non_sens(
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     targets_list: List[TargetType] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
     frozen_features: Optional[List[torch.Tensor]] = None,

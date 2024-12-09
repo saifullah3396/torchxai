@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-from typing import Any, Callable, List, Optional, Tuple, Union, cast
 from collections import OrderedDict
+from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
+import matplotlib
 import torch
 import tqdm
 from captum._utils.common import (
@@ -15,14 +16,16 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from matplotlib import pyplot as plt
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _draw_perturbated_inputs_sequences_images,
     _feature_mask_to_accumulated_perturbation_mask,
+    _feature_mask_to_chunked_accumulated_perturbation_mask,
     _format_tensor_feature_dim,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
@@ -89,6 +92,16 @@ def compute_aopc_scores_vectorized(
     # Convert input_fwds to tensor for broadcasting
     input_fwds_tensor = input_fwds.expand_as(cat_fwds)
 
+    # for i in range(cat_fwds.shape[0]):
+    #     if i == 0:
+    #         color = "red"
+    #     elif i == 1:
+    #         color = "blue"
+    #     else:
+    #         color = "green"
+    #     plt.plot(cat_fwds[i].cpu().numpy(), color=color)
+    # plt.show()
+
     # Compute the differences between input_fwds and each score
     differences = input_fwds_tensor - cat_fwds
 
@@ -116,7 +129,7 @@ def eval_aopcs_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
-    total_features_perturbed: int = 100,
+    total_feature_bins: int = 100,
     frozen_features: Optional[List[torch.Tensor]] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
@@ -149,6 +162,44 @@ def eval_aopcs_single_sample(
             input * ~mask + baseline * mask
             for input, mask, baseline in zip(
                 inputs_expanded, perturbation_mask_expanded, baselines
+            )
+        )
+
+    def _generate_baseline_perturbations(
+        current_n_perturbed_features: int,
+        current_perturbation_mask: TensorOrTupleOfTensorsGeneric,
+    ) -> Tuple[TensorOrTupleOfTensorsGeneric, TensorOrTupleOfTensorsGeneric]:
+        # repeat each current_n_perturbed_features times
+        inputs_expanded = tuple(
+            input.repeat(
+                current_n_perturbed_features * (2 + n_random_perms),
+                *tuple([1] * len(input.shape[1:])),
+            )
+            for input in inputs
+        )
+        # repeat each current_n_perturbed_features times
+        baselines_expanded = tuple(
+            baseline.repeat(
+                current_n_perturbed_features * (2 + n_random_perms),
+                *tuple([1] * len(baseline.shape[1:])),
+            )
+            for baseline in baselines
+        )
+
+        # split back to tuple tensors
+        perturbation_mask_expanded = _split_tensors_to_tuple_tensors(
+            current_perturbation_mask, flattened_mask_shape
+        )
+
+        # view as input shape (this is only necessary for edge cases where input is of (1, 1) shape)
+        perturbation_mask_expanded = tuple(
+            mask.view_as(input)
+            for mask, input in zip(perturbation_mask_expanded, inputs_expanded)
+        )
+        return tuple(
+            baseline * ~mask + input * mask
+            for baseline, mask, input in zip(
+                baselines_expanded, perturbation_mask_expanded, inputs_expanded
             )
         )
 
@@ -193,6 +244,10 @@ def eval_aopcs_single_sample(
             current_n_perturbed_features,
             curr_perturbation_mask,
         )
+        baselines_perturbed = _generate_baseline_perturbations(
+            current_n_perturbed_features,
+            curr_perturbation_mask,
+        )
         targets_expanded = _expand_target(
             target,
             current_n_perturbed_features * (2 + n_random_perms),
@@ -204,30 +259,40 @@ def eval_aopcs_single_sample(
             expansion_type=ExpansionTypes.repeat_interleave,
         )
 
-        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
+        # _draw_perturbated_inputs_sequences_images(baselines_perturbed)
         inputs_perturbed_fwd = _run_forward(
             forward_func,
             inputs_perturbed,
             targets_expanded,
             additional_forward_args_expanded,
         )
+        baselines_perturbed_fwd = _run_forward(
+            forward_func,
+            baselines_perturbed,
+            targets_expanded,
+            additional_forward_args_expanded,
+        )
 
         # we expect a single output per batch
         inputs_perturbed_fwd = inputs_perturbed_fwd.squeeze(-1)
+        baselines_perturbed_fwd = baselines_perturbed_fwd.squeeze(-1)
 
         # reshape outputs to [desc, asc, rand * n_random_perms]
         inputs_perturbed_fwd = torch.stack(
             inputs_perturbed_fwd.split(2 + n_random_perms), dim=0
+        )
+        baselines_perturbed_fwd = torch.stack(
+            baselines_perturbed_fwd.split(2 + n_random_perms), dim=0
         )
 
         # this is a list of tensors which holds the forward outputs of the model
         # on each feature group perturbation
         # the first element will be when the feature with lowest importance is added to the baseline
         # the last element will be when all features are added to the baseline
-        return inputs_perturbed_fwd
+        return inputs_perturbed_fwd, baselines_perturbed_fwd
 
     def _cat_aopc_tensors(agg_tensors, tensors):
-        return torch.cat([agg_tensors, tensors], dim=0)
+        return tuple(torch.cat([x, y], dim=0) for x, y in zip(agg_tensors, tensors))
 
     with torch.no_grad():
         bsz = inputs[0].size(0)
@@ -245,12 +310,15 @@ def eval_aopcs_single_sample(
             feature_mask
         )
 
+        # validate feature masks are increasing non-negative
+        _validate_feature_mask(feature_mask_flattened)
+
+        # squeeze feature_mask_flattened
+        feature_mask_flattened = feature_mask_flattened.squeeze()
+
         # flatten all attributions in the input, this must be done after the feature masks are flattened as
         # feature masks may depened on attribution
         attributions, _ = _tuple_tensors_to_tensors(attributions)
-
-        # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_mask_flattened)
 
         # gather attribution scores of feature groups
         # this can be useful for efficiently summing up attributions of feature groups
@@ -258,7 +326,7 @@ def eval_aopcs_single_sample(
         # sample can be different
         reduced_attributions, n_features = (
             _reduce_tensor_with_indices_non_deterministic(
-                attributions[0], indices=feature_mask_flattened[0].flatten()
+                attributions[0], indices=feature_mask_flattened
             )
         )
 
@@ -298,48 +366,80 @@ def eval_aopcs_single_sample(
             if key == "rand":
                 global_perturbation_masks_per_order[key] = torch.stack(
                     [
-                        _feature_mask_to_accumulated_perturbation_mask(
+                        _feature_mask_to_chunked_accumulated_perturbation_mask(
                             feature_mask_flattened,
                             indices[rand_perm_idx],
                             frozen_features,
-                            top_n_features=total_features_perturbed,
+                            n_percentage_features_per_step=1 / total_feature_bins,
                         )
                         for rand_perm_idx in range(n_random_perms)
                     ],
                 )
             else:
                 global_perturbation_masks_per_order[key] = (
-                    _feature_mask_to_accumulated_perturbation_mask(
+                    _feature_mask_to_chunked_accumulated_perturbation_mask(
                         feature_mask_flattened,
                         indices,
                         frozen_features,
-                        top_n_features=total_features_perturbed,
+                        n_percentage_features_per_step=1 / total_feature_bins,
                     )
                 )
 
         # features are updated after frozen features may have been removed
         n_features = global_perturbation_masks_per_order["desc"].shape[0]
-        
+
         # the logic for this implementation as as follows:
         # we start from baseline and in each iteration, a feature group is replaced by the original sample
         # in ascending order of its importance
-        inputs_perturbed_fwds_agg = (
+        inputs_perturbed_fwds_agg, baselines_perturbed_fwds_agg = (
             _divide_and_aggregate_metrics_n_perturbations_per_feature(
                 n_perturbations_per_feature=(
                     2 + n_random_perms
                 ),  # 2 for ascending and descending and n_random_perms for random
-                n_features=min(total_features_perturbed, n_features),
+                n_features=min(total_feature_bins, n_features),
                 metric_func=_next_aopc_tensors,
                 agg_func=_cat_aopc_tensors,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 show_progress=show_progress,
             )
         )
-        aopc_scores = compute_aopc_scores_vectorized(
+        # plt.plot(inputs_perturbed_fwds_agg.T[0].cpu().numpy(), color="red")
+        # plt.plot(inputs_perturbed_fwds_agg.T[1].cpu().numpy(), color="blue")
+        # plt.plot(baselines_perturbed_fwds_agg.T[0].cpu().numpy(), color="green")
+        # plt.plot(baselines_perturbed_fwds_agg.T[1].cpu().numpy(), color="yellow")
+        # plt.show()
+        inputs_perturbed_aopc_scores = compute_aopc_scores_vectorized(
             inputs_perturbed_fwds_agg.T, inputs_fwd
         )
+        baselines_perturbed_aopc_scores = compute_aopc_scores_vectorized(
+            baselines_perturbed_fwds_agg.T, baselines_perturbed_fwds_agg.T[0][0]
+        )
+        # # debugging
+        # for idx, score in enumerate(inputs_perturbed_aopc_scores):
+        #     if idx == 0:
+        #         plt.plot(score.cpu().numpy(), color="red")
+        #     elif idx == 1:
+        #         plt.plot(score.cpu().numpy(), color="blue")
+        #     else:
+        #         plt.plot(score.cpu().numpy(), color="green")
+        # plt.show()
+        # # debugging
+        # for idx, score in enumerate(baselines_perturbed_aopc_scores):
+        #     if idx == 0:
+        #         plt.plot(score.cpu().numpy(), color="red")
+        #     elif idx == 1:
+        #         plt.plot(score.cpu().numpy(), color="blue")
+        #     else:
+        #         plt.plot(score.cpu().numpy(), color="green")
+        # plt.show()
 
-    return aopc_scores, inputs_perturbed_fwds_agg, inputs_fwd
+    return (
+        inputs_perturbed_aopc_scores,
+        inputs_perturbed_fwds_agg,
+        baselines_perturbed_aopc_scores,
+        baselines_perturbed_fwds_agg,
+        inputs_fwd,
+    )
 
 
 def aopc(
@@ -351,7 +451,7 @@ def aopc(
     additional_forward_args: Any = None,
     target: TargetType = None,
     max_features_processed_per_batch: Optional[int] = None,
-    total_features_perturbed: int = 100,
+    total_feature_bins: int = 100,
     frozen_features: Optional[List[torch.Tensor]] = None,
     n_random_perms: int = 10,
     seed: Optional[int] = None,
@@ -602,7 +702,7 @@ def aopc(
                 additional_forward_args=additional_forward_args,
                 target=target,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                total_features_perturbed=total_features_perturbed,
+                total_feature_bins=total_feature_bins,
                 frozen_features=frozen_features,
                 n_random_perms=n_random_perms,
                 seed=seed,
@@ -659,8 +759,16 @@ def aopc(
     aopc_batch = []
     inputs_perturbed_fwds_agg_batch = []
     inputs_fwd_batch = []
+    baselines_perturbed_aopc_scores_batch = []
+    baselines_perturbed_fwds_agg_batch = []
     for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-        aopc_scores, inputs_perturbed_fwds_agg, inputs_fwd = eval_aopcs_single_sample(
+        (
+            aopc_scores,
+            inputs_perturbed_fwds_agg,
+            baselines_perturbed_aopc_scores,
+            baselines_perturbed_fwds_agg,
+            inputs_fwd,
+        ) = eval_aopcs_single_sample(
             forward_func=forward_func,
             inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
             attributions=tuple(attr[sample_idx].unsqueeze(0) for attr in attributions),
@@ -697,13 +805,15 @@ def aopc(
                 if frozen_features is not None
                 else frozen_features
             ),
-            total_features_perturbed=total_features_perturbed,
+            total_feature_bins=total_feature_bins,
             n_random_perms=n_random_perms,
             seed=seed,
             show_progress=show_progress,
         )
         aopc_batch.append(aopc_scores)
         inputs_perturbed_fwds_agg_batch.append(inputs_perturbed_fwds_agg)
+        baselines_perturbed_aopc_scores_batch.append(baselines_perturbed_aopc_scores)
+        baselines_perturbed_fwds_agg_batch.append(baselines_perturbed_fwds_agg)
         inputs_fwd_batch.append(inputs_fwd)
 
     def _convert_to_tensor_if_possible(list_of_tensors):
@@ -719,7 +829,17 @@ def aopc(
                 rand=_convert_to_tensor_if_possible(
                     [x[2:].mean(0) for x in aopc_batch]
                 ),
+                baselines_perturbed_desc=_convert_to_tensor_if_possible(
+                    [x[0] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                baselines_perturbed_asc=_convert_to_tensor_if_possible(
+                    [x[1] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                baselines_perturbed_rand=_convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in baselines_perturbed_aopc_scores_batch]
+                ),
                 inputs_perturbed_fwds_agg_batch=inputs_perturbed_fwds_agg_batch,
+                baselines_perturbed_fwds_agg_batch=baselines_perturbed_fwds_agg_batch,
                 inputs_fwd_batch=inputs_fwd_batch,
             )  # descending, ascending, random
         else:
@@ -727,7 +847,17 @@ def aopc(
                 _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
+                _convert_to_tensor_if_possible(
+                    [x[0] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                _convert_to_tensor_if_possible(
+                    [x[1] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                _convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in baselines_perturbed_aopc_scores_batch]
+                ),
                 inputs_perturbed_fwds_agg_batch,
+                baselines_perturbed_fwds_agg_batch,
                 inputs_fwd_batch,
             )
     else:
@@ -738,10 +868,28 @@ def aopc(
                 rand=_convert_to_tensor_if_possible(
                     [x[2:].mean(0) for x in aopc_batch]
                 ),
+                baselines_perturbed_desc=_convert_to_tensor_if_possible(
+                    [x[0] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                baselines_perturbed_asc=_convert_to_tensor_if_possible(
+                    [x[1] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                baselines_perturbed_rand=_convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in baselines_perturbed_aopc_scores_batch]
+                ),
             )  # descending, ascending, random
         else:
             return (
                 _convert_to_tensor_if_possible([x[0] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[1] for x in aopc_batch]),
                 _convert_to_tensor_if_possible([x[2:].mean(0) for x in aopc_batch]),
+                _convert_to_tensor_if_possible(
+                    [x[0] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                _convert_to_tensor_if_possible(
+                    [x[1] for x in baselines_perturbed_aopc_scores_batch]
+                ),
+                _convert_to_tensor_if_possible(
+                    [x[2:].mean(0) for x in baselines_perturbed_aopc_scores_batch]
+                ),
             )

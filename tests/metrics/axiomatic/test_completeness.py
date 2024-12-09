@@ -1,6 +1,5 @@
 import pytest  # noqa
 import torch
-
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics.axiomatic.completeness import completeness
@@ -90,7 +89,7 @@ def test_completeness(metrics_runtime_test_configuration):
         forward_func=base_config.model,
         inputs=base_config.inputs,
         attributions=explanations,
-        baselines=base_config.baselines,
+        metric_baselines=base_config.baselines,
         additional_forward_args=base_config.additional_forward_args,
         target=base_config.target,
     )

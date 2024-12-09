@@ -31,7 +31,7 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import default_random_perturb_func
+from torchxai.metrics._utils.perturbation import default_fixed_baseline_perturb_func
 from torchxai.metrics.axiomatic.multi_target.monotonicity_corr_and_non_sens import (
     _multi_target_monotonicity_corr_and_non_sens,
 )
@@ -46,7 +46,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     additional_forward_args: Any = None,
     target: TargetType = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
     percentage_feature_removal_per_step: float = 0.0,
@@ -199,7 +199,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             targets_expanded,
             additional_forward_args_expanded,
         )
-        perturbed_fwd_diffs = inputs_perturbed_fwd - inputs_fwd
+        perturbed_fwd_diffs = inputs_fwd - inputs_perturbed_fwd
 
         # each element in the tuple corresponds to the multiple perturbations of a single feature group
         perturbed_fwd_diffs = perturbed_fwd_diffs.chunk(current_n_perturbed_features)
@@ -402,13 +402,13 @@ def monotonicity_corr_and_non_sens(
     additional_forward_args: Any = None,
     target: TargetType = None,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    perturb_func: Callable = default_random_perturb_func(),
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
     percentage_feature_removal_per_step: float = 0.0,
-    zero_attribution_threshold: float = 0.01,
-    zero_variance_threshold: float = 0.01,
-    use_percentage_attribution_threshold: bool = True,
+    zero_attribution_threshold: float = 1e-5,
+    zero_variance_threshold: float = 1e-5,
+    use_percentage_attribution_threshold: bool = False,
     return_ratio: bool = True,
     show_progress: bool = False,
     return_intermediate_results: bool = False,

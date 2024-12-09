@@ -7,7 +7,6 @@ import numpy as np
 import scipy
 import torch
 import tqdm
-from captum.attr._utils.common import _format_baseline
 from captum._utils.common import (
     ExpansionTypes,
     _expand_additional_forward_args,
@@ -16,7 +15,8 @@ from captum._utils.common import (
     _format_tensor_into_tuples,
     _run_forward,
 )
-from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from captum.attr._utils.common import _format_baseline
 from torch import Tensor
 
 from torchxai.metrics._utils.batching import (
@@ -31,10 +31,7 @@ from torchxai.metrics._utils.common import (
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
-from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from torchxai.metrics._utils.perturbation import (
-    default_random_perturb_func,
-)
+from torchxai.metrics._utils.perturbation import default_random_perturb_func
 from torchxai.metrics.axiomatic.multi_target.monotonicity_corr_and_non_sens import (
     _multi_target_monotonicity_corr_and_non_sens,
 )
@@ -52,7 +49,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
-    feature_removal_beam_size_percentage: float = 0.0,
+    percentage_feature_removal_per_step: float = 0.0,
     zero_attribution_threshold: float = 0.01,
     zero_variance_threshold: float = 0.01,
     use_percentage_attribution_threshold: bool = True,
@@ -264,14 +261,14 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             ascending_attribution_indices = torch.argsort(reduced_attributions)
         else:
             ascending_attribution_indices = torch.arange(
-                ascending_attribution_indices.size(0), device=inputs[0].device
+                reduced_attributions.size(0), device=inputs[0].device
             )
 
         # now we generate the global perturbation masks and the chunked reduced attributions
         # each step of the perturbation will generate a perturbation mask for all the features in a single chunk
-        # the chunk size is determined by the feature_removal_beam_size_percentage
-        # if the feature_removal_beam_size_percentage is 0.01, then 1% of the features will be removed in each step
-        # if the feature_removal_beam_size_percentage is 0, then chunk size is set to 1 in which case every
+        # the chunk size is determined by the percentage_feature_removal_per_step
+        # if the percentage_feature_removal_per_step is 0.01, then 1% of the features will be removed in each step
+        # if the percentage_feature_removal_per_step is 0, then chunk size is set to 1 in which case every
         # perturbation step will remove a single feature in the ascending order of importance
         # the returned chunk_reduced_attributions will have the same shape as the global_perturbation_masks
         # and will contain the sum of attributions over the features in the each chunk
@@ -281,7 +278,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
                 reduced_attributions,
                 ascending_attribution_indices,
                 frozen_features,
-                feature_removal_beam_size_percentage,
+                percentage_feature_removal_per_step,
             )
         )
         assert global_perturbation_masks.shape[0] == chunk_reduced_attributions.shape[0]
@@ -326,27 +323,6 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             # find the spearman corr between the attribution scores and the model forward variances
             # this corr should be close to 1 if the model forward variances are monotonically increasing with the attribution scores
             # this means that features that have a lower attribution score are directly correlated with lower effect on the model output
-            # import matplotlib.pyplot as plt
-
-            # print(
-            #     "perturbed_fwd_diffs_relative_vars", perturbed_fwd_diffs_relative_vars
-            # )
-            # print("feature_group_attribution_scores", feature_group_attribution_scores)
-            # fig, ax = plt.subplots()
-            # plt.plot(
-            #     perturbed_fwd_diffs_relative_vars,
-            #     color="blue",
-            # )
-            # plt.plot(feature_group_attribution_scores, color="red")
-
-            # plt.show()
-            # np.save(
-            #     "perturbed_fwd_diffs_relative_vars.npy",
-            #     perturbed_fwd_diffs_relative_vars,
-            # )
-            # np.save(
-            #     "feature_group_attribution_scores.npy", feature_group_attribution_scores
-            # )
             return scipy.stats.spearmanr(
                 feature_group_attribution_scores,
                 perturbed_fwd_diffs_relative_vars,
@@ -364,18 +340,19 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             ):
                 return set(list(np.argwhere(np.abs(values) < threshold).flatten()))
 
+            if use_percentage_attribution_threshold:
+                feature_group_attribution_scores = (
+                    feature_group_attribution_scores
+                    / np.sum(feature_group_attribution_scores)
+                )
+
             # find the indices of features that have a zero attribution score.
             # All values below the threshold are considered zero, default threshold is set to 1% of the max value
             # This can be sensitive to the max value of the attribution scores but since different explanation methods
             # have different scales, it is better to use a relative threshold
-            zero_attribution_features_threshold = (
-                zero_attribution_threshold * np.max(feature_group_attribution_scores)
-                if use_percentage_attribution_threshold
-                else zero_attribution_threshold
-            )
             zero_attribution_features = find_small_scale_features(
                 feature_group_attribution_scores,
-                threshold=zero_attribution_features_threshold,
+                threshold=zero_attribution_threshold,
             )
 
             # find the indices of features that have a zero model forward variance,
@@ -407,8 +384,6 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         non_sens = compute_non_sens(
             perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions.cpu().numpy()
         )
-        print("monotonicity_corr", monotonicity_corr)
-        print("non_sens", non_sens)
     return (
         monotonicity_corr,
         non_sens,
@@ -430,7 +405,7 @@ def monotonicity_corr_and_non_sens(
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: int = None,
-    feature_removal_beam_size_percentage: float = 0.0,
+    percentage_feature_removal_per_step: float = 0.0,
     zero_attribution_threshold: float = 0.01,
     zero_variance_threshold: float = 0.01,
     use_percentage_attribution_threshold: bool = True,
@@ -728,7 +703,7 @@ def monotonicity_corr_and_non_sens(
             perturb_func=perturb_func,
             n_perturbations_per_feature=n_perturbations_per_feature,
             max_features_processed_per_batch=max_features_processed_per_batch,
-            feature_removal_beam_size_percentage=feature_removal_beam_size_percentage,
+            percentage_feature_removal_per_step=percentage_feature_removal_per_step,
             zero_attribution_threshold=zero_attribution_threshold,
             zero_variance_threshold=zero_variance_threshold,
             use_percentage_attribution_threshold=use_percentage_attribution_threshold,
@@ -839,7 +814,7 @@ def monotonicity_corr_and_non_sens(
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                feature_removal_beam_size_percentage=feature_removal_beam_size_percentage,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                 zero_attribution_threshold=zero_attribution_threshold,
                 zero_variance_threshold=zero_variance_threshold,
                 use_percentage_attribution_threshold=use_percentage_attribution_threshold,

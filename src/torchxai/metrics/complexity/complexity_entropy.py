@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple, Union
 
 import torch
 from torch.distributions import Categorical
+
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _reduce_tensor_with_indices_non_deterministic,
@@ -85,9 +86,7 @@ def complexity_entropy(
         attributions_base, _ = _tuple_tensors_to_tensors(attributions)
 
         # flatten the feature dims into a single dim
-        attributions = (
-            attributions_base.view(bsz, -1).float().abs()
-        )  # add epsilon to avoid zero attributions
+        attributions = attributions_base.view(bsz, -1).float().abs()
 
         # see if there is any case where the attribution is zero
         for attribution in attributions:
@@ -219,6 +218,7 @@ def complexity_entropy_feature_grouped(
             # see if there is any case where the attribution is zero
             if torch.norm(reduced_attributions) == 0:
                 reduced_attributions += 1e-8
+
             # normalize the attributions to get fractional contribution
             reduced_attributions = reduced_attributions / torch.sum(
                 reduced_attributions

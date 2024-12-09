@@ -213,6 +213,9 @@ def test_monotonicity_corr(metrics_runtime_test_configuration):
             perturb_func=runtime_config.perturb_func,
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
+            zero_attribution_threshold=1e-5,
+            zero_variance_threshold=1e-5,
+            use_percentage_attribution_threshold=False,
             return_intermediate_results=True,
             return_ratio=False,
         )

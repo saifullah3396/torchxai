@@ -29,7 +29,7 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
     zero_attribution_threshold: float = 1e-5
     zero_variance_threshold: float = 1e-5
     use_percentage_attribution_threshold: bool = False
-    feature_removal_beam_size_percentage: float = 0.0
+    percentage_feature_removal_per_step: float = 0.0
 
 
 test_configurations = [
@@ -64,7 +64,7 @@ test_configurations = [
         zero_attribution_threshold=0.01,
     ),
     MetricTestRuntimeConfig_(
-        test_name="n_perturbations_per_feature_1_feature_removal_beam_size_percentage_0.1",
+        test_name="n_perturbations_per_feature_1_percentage_feature_removal_per_step_0.1",
         target_fixture="multi_modal_sequence_relu",
         explainer="integrated_gradients",
         expected=torch.tensor(
@@ -77,10 +77,10 @@ test_configurations = [
         use_percentage_attribution_threshold=False,
         zero_variance_threshold=1e-4,
         zero_attribution_threshold=0.01,
-        feature_removal_beam_size_percentage=0.1,
+        percentage_feature_removal_per_step=0.1,
     ),
     MetricTestRuntimeConfig_(
-        test_name="n_perturbations_per_feature_10_feature_removal_beam_size_percentage_0.1",
+        test_name="n_perturbations_per_feature_10_percentage_feature_removal_per_step_0.1",
         target_fixture="multi_modal_sequence_relu",
         explainer="integrated_gradients",
         expected=torch.tensor(
@@ -93,7 +93,7 @@ test_configurations = [
         use_percentage_attribution_threshold=False,
         zero_variance_threshold=1e-4,
         zero_attribution_threshold=0.01,
-        feature_removal_beam_size_percentage=0.1,
+        percentage_feature_removal_per_step=0.1,
     ),
     MetricTestRuntimeConfig_(
         test_name="n_perturbations_per_feature_1",
@@ -124,7 +124,7 @@ test_configurations = [
         zero_attribution_threshold=0.01,
     ),
     MetricTestRuntimeConfig_(
-        test_name="n_perturbations_per_feature_1_feature_removal_beam_size_percentage_0.1",
+        test_name="n_perturbations_per_feature_1_percentage_feature_removal_per_step_0.1",
         target_fixture="multi_modal_sequence_sum",
         explainer="integrated_gradients",
         expected=torch.tensor(
@@ -137,10 +137,10 @@ test_configurations = [
         use_percentage_attribution_threshold=False,
         zero_variance_threshold=1e-4,
         zero_attribution_threshold=0.01,
-        feature_removal_beam_size_percentage=0.1,
+        percentage_feature_removal_per_step=0.1,
     ),
     MetricTestRuntimeConfig_(
-        test_name="n_perturbations_per_feature_10_feature_removal_beam_size_percentage_0.1",
+        test_name="n_perturbations_per_feature_10_percentage_feature_removal_per_step_0.1",
         target_fixture="multi_modal_sequence_sum",
         explainer="integrated_gradients",
         expected=torch.tensor(
@@ -153,7 +153,7 @@ test_configurations = [
         use_percentage_attribution_threshold=False,
         zero_variance_threshold=1e-4,
         zero_attribution_threshold=0.01,
-        feature_removal_beam_size_percentage=0.1,
+        percentage_feature_removal_per_step=0.1,
     ),
     # the park function is taken from the paper: https://arxiv.org/pdf/2007.07584
     MetricTestRuntimeConfig_(
@@ -274,7 +274,7 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
             zero_attribution_threshold=runtime_config.zero_attribution_threshold,
             zero_variance_threshold=runtime_config.zero_variance_threshold,
             use_percentage_attribution_threshold=runtime_config.use_percentage_attribution_threshold,
-            feature_removal_beam_size_percentage=runtime_config.feature_removal_beam_size_percentage,
+            percentage_feature_removal_per_step=runtime_config.percentage_feature_removal_per_step,
             return_intermediate_results=True,
             return_ratio=False,
         )
@@ -283,11 +283,11 @@ def test_non_sensitivity(metrics_runtime_test_configuration):
         )
         target_n_features = (
             base_config.n_features
-            if runtime_config.feature_removal_beam_size_percentage == 0.0
+            if runtime_config.percentage_feature_removal_per_step == 0.0
             else base_config.n_features
             // math.ceil(
                 base_config.n_features
-                * runtime_config.feature_removal_beam_size_percentage
+                * runtime_config.percentage_feature_removal_per_step
             )
         )
         assert (

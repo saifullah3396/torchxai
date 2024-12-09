@@ -158,10 +158,19 @@ def _feature_mask_to_chunked_perturbation_mask_with_attributions(
 
 
 def _feature_mask_to_chunked_accumulated_perturbation_mask(
-    feature_mask, feature_indices, frozen_features, chunk_size
+    feature_mask, feature_indices, frozen_features, n_percentage_features_per_step
 ):
+    # first remove the frozen feature indices from the indices list
+    if frozen_features is not None:
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
+        feature_indices = feature_indices[valid_indices_mask]
+
     # get total indices and total number of perturbations that will be performed
     n_indices = feature_indices.shape[0]
+    if n_percentage_features_per_step < 1e-8:
+        chunk_size = 1
+    else:
+        chunk_size = math.ceil(n_indices * n_percentage_features_per_step)
     total_num_perturbations = math.ceil(n_indices / chunk_size)
 
     # create a perturbation mask of shape (n_perturations, feature_perturbation_mask)
@@ -177,14 +186,6 @@ def _feature_mask_to_chunked_accumulated_perturbation_mask(
         end_idx = min(start_idx + chunk_size, n_indices)
         chunk_feature_indices = feature_indices[start_idx:end_idx]
 
-        # filter out frozen features if necessary
-        if frozen_features is not None:
-            chunk_feature_indices = chunk_feature_indices[
-                ~torch.isin(
-                    chunk_feature_indices,
-                    frozen_features,
-                )
-            ]
         # update the global perturbation mask
         current_mask = torch.any(
             feature_mask.unsqueeze(0) == chunk_feature_indices.unsqueeze(1),

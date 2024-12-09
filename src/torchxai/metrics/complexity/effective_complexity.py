@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import torch
@@ -12,13 +13,16 @@ from captum._utils.common import (
     _format_tensor_into_tuples,
     _run_forward,
 )
-from captum._utils.typing import TargetType, TensorOrTupleOfTensorsGeneric
+from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
+from matplotlib import pyplot as plt
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
+    _draw_perturbated_inputs_sequences_images,
     _feature_mask_to_chunked_accumulated_perturbation_mask,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
@@ -32,15 +36,16 @@ def eval_effective_complexity_single_sample(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
     attributions: TensorOrTupleOfTensorsGeneric,
+    baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     n_perturbations_per_feature: int = 10,
     additional_forward_args: Any = None,
     target: TargetType = None,
     perturb_func: Callable = default_random_perturb_func(),
     max_features_processed_per_batch: int = None,
-    n_feature_accumulations: int = 1,
+    percentage_feature_removal_per_step: float = 0.0,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    eps: float = 0.01,
+    zero_variance_threshold: float = 0.01,
     return_ratio: bool = False,
     show_progress: bool = False,
 ) -> Tensor:
@@ -59,16 +64,29 @@ def eval_effective_complexity_single_sample(
 
         def call_perturb_func():
             r""" """
+            baselines_pert = None
             inputs_pert: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:
                 inputs_pert = inputs_expanded[0]
-                feature_mask_pert = perturbation_mask_expanded[0]
+                perturbation_masks = perturbation_mask_expanded[0]
+                if baselines_expanded is not None:
+                    baselines_pert = cast(Tuple, baselines_expanded)[0]
             else:
                 inputs_pert = inputs_expanded
-                feature_mask_pert = perturbation_mask_expanded
-            return perturb_func(
-                inputs=inputs_pert, perturbation_masks=feature_mask_pert
+                perturbation_masks = perturbation_mask_expanded
+                baselines_pert = baselines_expanded
+
+            valid_args = inspect.signature(perturb_func).parameters.keys()
+            perturb_kwargs = dict(
+                inputs=inputs_pert,
+                perturbation_masks=perturbation_masks,
             )
+            if "baselines" in valid_args:
+                assert (
+                    baselines_pert is not None
+                ), f"""The perturb_func {perturb_func} requires baselines as an argument. Please provide baselines."""
+                perturb_kwargs["baselines"] = baselines_pert
+            return perturb_func(**perturb_kwargs)
 
         # repeat each current_n_perturbed_features times
         inputs_expanded = tuple(
@@ -78,6 +96,21 @@ def eval_effective_complexity_single_sample(
             )
             for input in inputs
         )
+
+        baselines_expanded = baselines
+        if baselines is not None:
+            baselines_expanded = tuple(
+                (
+                    baseline.repeat_interleave(
+                        n_perturbations_per_feature * current_n_perturbed_features,
+                        dim=0,
+                    )
+                    if isinstance(baseline, torch.Tensor)
+                    and baseline.shape[0] == input.shape[0]
+                    else baseline
+                )
+                for input, baseline in zip(inputs, cast(Tuple, baselines))
+            )
 
         # repeat each perturbation mask n_perturbations_per_feature times
         perturbation_mask_expanded = current_perturbation_mask.repeat_interleave(
@@ -205,31 +238,37 @@ def eval_effective_complexity_single_sample(
         # get the gathererd-attributions sorted in ascending order of their importance
         ascending_attribution_indices = torch.argsort(reduced_attributions)
 
-        # # if n_feature_accumulations is > 1, then we need to chunk the indices and perform perturbations in chunks
-        # # this helps reduce the computation time for computing effective complexity at the cost of reduced
-        # # accuracy in the final output. Since complexity only aims to find the top-k features that are important
-        # # this is a reasonable trade-off. This can be used to reduce the computation time for large models
+        # if percentage_feature_removal_per_step is > 1, then we need to chunk the indices and perform perturbations in chunks
+        # this helps reduce the computation time for computing effective complexity at the cost of reduced
+        # accuracy in the final output. Since complexity only aims to find the top-k features that are important
+        # this is a reasonable trade-off. This can be used to reduce the computation time for large models
         global_perturbation_masks = (
             _feature_mask_to_chunked_accumulated_perturbation_mask(
                 feature_mask_flattened,
                 ascending_attribution_indices,
                 frozen_features,
-                n_feature_accumulations,
+                percentage_feature_removal_per_step,
             )
         )
+        # plt.matshow(global_perturbation_masks.cpu())
+        # plt.show()
 
-        # # the logic for this implementation as as follows:
-        # # each input is repeated n_perturbations_per_feature times to create an input of shape
-        # # tuple(
-        # #   [(n_perturbations_per_feature, input.shape[0], ...), (n_perturbations_per_feature, input.shape[0], ...)]
-        # # )
-        # # then in each perturbation step, every k-features are sequentually perturbed n_perturbations_per_feature times
-        # # so perturbation step will have the n_pertrubations_per_feature perturbations for the first feature, then
-        # # n_perturbations_per_feature perturbations for the second feature and so on.
-        # # and the total perturbation steps n_features are equal to total features that need to be perturbed
-        # # in case of feature_mask, n_features is the total number of feature groups present in the inputs
-        # # each group is perturbed together n_perturbations_per_feature times
-        # # in case there is no feature masks, then a corresponding feature mask is generated for each input feature
+        # update the number of features as this can be different from the original number of features due to frozen features
+        # or chunking
+        n_features = global_perturbation_masks.shape[0]
+
+        # the logic for this implementation as as follows:
+        # each input is repeated n_perturbations_per_feature times to create an input of shape
+        # tuple(
+        #   [(n_perturbations_per_feature, input.shape[0], ...), (n_perturbations_per_feature, input.shape[0], ...)]
+        # )
+        # then in each perturbation step, every k-features are sequentually perturbed n_perturbations_per_feature times
+        # so perturbation step will have the n_pertrubations_per_feature perturbations for the first feature, then
+        # n_perturbations_per_feature perturbations for the second feature and so on.
+        # and the total perturbation steps n_features are equal to total features that need to be perturbed
+        # in case of feature_mask, n_features is the total number of feature groups present in the inputs
+        # each group is perturbed together n_perturbations_per_feature times
+        # in case there is no feature masks, then a corresponding feature mask is generated for each input feature
         agg_tensors = _divide_and_aggregate_metrics_n_perturbations_per_feature(
             n_perturbations_per_feature,
             global_perturbation_masks.shape[0],
@@ -247,7 +286,7 @@ def eval_effective_complexity_single_sample(
             # find top-k features that are important
             N = len(perturbed_fwd_diffs_relative_vars)
             top_k_features = perturbed_fwd_diffs_relative_vars[
-                perturbed_fwd_diffs_relative_vars > eps
+                perturbed_fwd_diffs_relative_vars > zero_variance_threshold
             ].shape[0]
             if return_ratio:
                 return top_k_features / N
@@ -264,7 +303,7 @@ def eval_effective_complexity_single_sample(
         return (
             effective_complexity_score,
             perturbed_fwd_diffs_relative_vars,
-            torch.tensor(n_features),
+            n_features,
         )
 
 
@@ -274,15 +313,16 @@ def effective_complexity(
     attributions: Union[
         TensorOrTupleOfTensorsGeneric, List[TensorOrTupleOfTensorsGeneric]
     ],
+    baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,
     target: Union[TargetType, List[TargetType]] = None,
     perturb_func: Callable = default_random_perturb_func(),
     n_perturbations_per_feature: int = 10,
     max_features_processed_per_batch: Optional[int] = None,
-    n_feature_accumulations: int = 1,
+    percentage_feature_removal_per_step: float = 0.0,
     frozen_features: Optional[List[torch.Tensor]] = None,
-    eps: float = 0.01,
+    zero_variance_threshold: float = 0.01,
     return_ratio: bool = False,
     is_multi_target: bool = False,
     show_progress: bool = False,
@@ -495,17 +535,17 @@ def effective_complexity(
                 `max_features_processed_per_batch`, they will be sliced
                 into batches of `max_features_processed_per_batch` examples and processed
                 in a sequeeffective_complexityd as zero.
-        n_feature_accumulations (int, optional): The number of steps to process the features in a single batch.
-                This is useful for reducing the computation time for large models. This allows 'n_feature_accumulations'
+        percentage_feature_removal_per_step (int, optional): The number of steps to process the features in a single batch.
+                This is useful for reducing the computation time for large models. This allows 'percentage_feature_removal_per_step'
                 ascending features to be removed together in each step instead of removing all the features.
-                Therefore, if n_feature_accumulations=10, instead of removing the features X1, <X2, <X3... in each step, we
+                Therefore, if percentage_feature_removal_per_step=10, instead of removing the features X1, <X2, <X3... in each step, we
                 will remove the features <X1-10, <X10-X20, <X20-X30 ...
                 Default: 1
         frozen_features (List[torch.Tensor], optional): A list of frozen features that are not perturbed.
                 This can be useful for ignoring the input structure features like padding, etc. Default: None
                 In case CLS,PAD,SEP tokens are present in the input, they can be frozen by passing the indices
                 of feature masks that correspond to these tokens.
-        eps (float, optional): A small value to prevent division by zero. Default: 1e-5
+        zero_variance_threshold (float, optional): A small value that is used to threshold the output variance
         return_ratio (bool, optional): A boolean flag that indicates whether the effective complexity is returned as a ratio
                 of the number of important features to the total number of features. Default: False
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
@@ -577,19 +617,20 @@ def effective_complexity(
                 forward_func=forward_func,
                 inputs=inputs,
                 attributions=attributions,
+                baselines=baselines,
                 feature_mask=feature_mask,
                 additional_forward_args=additional_forward_args,
                 target=target,
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
                 max_features_processed_per_batch=max_features_processed_per_batch,
-                n_feature_accumulations=n_feature_accumulations,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                 frozen_features=(
                     frozen_features[sample_idx]
                     if frozen_features is not None
                     else frozen_features
                 ),
-                eps=eps,
+                zero_variance_threshold=zero_variance_threshold,
                 return_ratio=return_ratio,
                 show_progress=show_progress,
                 return_intermediate_results=True,
@@ -622,6 +663,7 @@ def effective_complexity(
     with torch.no_grad():
         # perform argument formattings
         inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
         additional_forward_args = _format_additional_forward_args(
             additional_forward_args
         )
@@ -668,6 +710,11 @@ def effective_complexity(
                 attributions=tuple(
                     attr[sample_idx].unsqueeze(0) for attr in attributions
                 ),
+                baselines=(
+                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
+                    if baselines is not None
+                    else None
+                ),
                 feature_mask=(
                     tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
                     if feature_mask is not None
@@ -692,7 +739,7 @@ def effective_complexity(
                 ),
                 perturb_func=perturb_func,
                 n_perturbations_per_feature=n_perturbations_per_feature,
-                n_feature_accumulations=n_feature_accumulations,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
                 max_features_processed_per_batch=max_features_processed_per_batch,
                 frozen_features=(
                     frozen_features[sample_idx]
@@ -700,7 +747,7 @@ def effective_complexity(
                     else frozen_features
                 ),
                 return_ratio=return_ratio,
-                eps=eps,
+                zero_variance_threshold=zero_variance_threshold,
                 show_progress=show_progress,
             )
 

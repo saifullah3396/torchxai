@@ -12,15 +12,14 @@ from captum._utils.common import (
     _format_tensor_into_tuples,
 )
 from captum._utils.typing import TensorOrTupleOfTensorsGeneric
+from captum.attr import Attribution
 from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
-
 from torchxai.explainers.explainer import Explainer
 from torchxai.metrics.robustness.multi_target.sensitivity import (
     _multi_target_sensitivity_scores,
 )
 from torchxai.metrics.robustness.utilities import default_perturb_func
-from captum.attr import Attribution
 
 
 def _sensitivity_scores(
@@ -335,6 +334,8 @@ def sensitivity_max_and_avg(
     explanation_func = (
         explainer.explain if isinstance(explainer, Explainer) else explainer.attribute
     )
+    if "explainer_baselines" in kwargs:
+        kwargs["baselines"] = kwargs.pop("explainer_baselines")
     sensitivity_scores = _sensitivity_scores(
         explanation_func,
         inputs,

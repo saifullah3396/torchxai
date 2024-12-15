@@ -281,6 +281,9 @@ def eval_effective_complexity_single_sample(
         ):
             # if the variance in output it less than a threshold, that means the feature set is not important
             # find top-k features that are important
+            # this implementation assumes that the perturbed_fwd_diffs_relative_vars only increases as the features
+            # are removed. It could be that it goes up and down, but it is not clear how that should be handled?
+            # should we find the first first drop in the variance and stop there?
             N = len(perturbed_fwd_diffs_relative_vars)
             top_k_features = perturbed_fwd_diffs_relative_vars[
                 perturbed_fwd_diffs_relative_vars > zero_variance_threshold

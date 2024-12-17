@@ -5,12 +5,124 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _reduce_tensor_with_indices_non_deterministic,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,
 )
+
+
+def _sparseness(
+    attributions: Union[Tuple[Tensor, ...], List[Tuple[Tensor, ...]]],
+) -> Tensor:
+    with torch.no_grad():
+        if not isinstance(attributions, tuple):
+            attributions = (attributions,)
+
+        # get batch size
+        bsz = attributions[0].shape[0]
+
+        # flatten feature tuple tensors into a single tensor of shape [batch_size, num_features]
+        attributions, _ = _tuple_tensors_to_tensors(attributions)
+
+        # flatten the feature dims into a single dim, take absolute values and sort them batch-wise
+        attributions = attributions.view(bsz, -1).float().abs().sort(dim=1).values
+
+        def gini_index(vec: np.ndarray):
+            return (
+                np.sum((2 * np.arange(1, vec.shape[0] + 1) - vec.shape[0] - 1) * vec)
+            ) / (vec.shape[0] * np.sum(vec))
+
+        # compute batch-wise Gini Index of the attribution map
+        sparseness_score = torch.tensor(
+            [
+                gini_index(attribution.detach().cpu().numpy() + 1e-8)
+                for attribution in attributions
+            ],
+            device=attributions.device,
+        ).float()
+        return sparseness_score
+
+
+def _sparseness_feature_grouped(
+    attributions: Union[Tuple[Tensor, ...], List[Tuple[Tensor, ...]]],
+    feature_mask: Optional[Tuple[torch.Tensor, ...]] = None,
+) -> Tensor:
+    with torch.no_grad():
+
+        def sparseness_feature_grouped_single_sample(
+            attributions_single_sample, feature_mask_single_sample
+        ):
+            if not isinstance(attributions_single_sample, tuple):
+                attributions_single_sample = (attributions_single_sample,)
+
+            # get batch size
+            bsz = attributions_single_sample[0].shape[0]
+            assert bsz == 1, "Batch size must be 1 for feature grouped complexity"
+
+            # flatten all feature masks in the input
+            if feature_mask_single_sample is not None:
+                feature_mask_flattened, _ = _tuple_tensors_to_tensors(
+                    feature_mask_single_sample
+                )
+            else:
+                feature_mask_single_sample = _construct_default_feature_mask(
+                    attributions_single_sample
+                )
+                feature_mask_flattened, _ = _tuple_tensors_to_tensors(
+                    feature_mask_single_sample
+                )
+
+            # flatten all attributions_single_sample in the input, this must be done after the feature masks are flattened as
+            # feature masks may depened on attribution
+            attributions_single_sample, _ = _tuple_tensors_to_tensors(
+                attributions_single_sample
+            )
+
+            # validate feature masks are increasing non-negative
+            _validate_feature_mask(feature_mask_flattened)
+
+            # gather attribution scores of feature groups
+            # this can be useful for efficiently summing up attributions of feature groups
+            # this is why we need a single batch size as gathered attributes and number of features for each
+            # sample can be different
+            reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
+                attributions_single_sample[0],
+                indices=feature_mask_flattened[0].flatten(),
+            )
+            reduced_attributions = reduced_attributions.abs().sort(dim=0).values
+
+            def gini_index(vec: np.ndarray):
+                return (
+                    np.sum(
+                        (2 * np.arange(1, vec.shape[0] + 1) - vec.shape[0] - 1) * vec
+                    )
+                ) / (vec.shape[0] * np.sum(vec))
+
+            return torch.tensor(
+                gini_index(reduced_attributions.detach().cpu().numpy() + 1e-8),
+                device=reduced_attributions.device,
+            ).float()
+
+        if not isinstance(attributions, tuple):
+            attributions = (attributions,)
+        bsz = attributions[0].size(0)
+        sparseness_score_batch = []
+        for sample_idx in range(bsz):
+            sparseness_score = sparseness_feature_grouped_single_sample(
+                attributions_single_sample=tuple(
+                    attr[sample_idx].unsqueeze(0) for attr in attributions
+                ),
+                feature_mask_single_sample=(
+                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                    if feature_mask is not None
+                    else None
+                ),
+            )
+            sparseness_score_batch.append(sparseness_score)
+        return torch.tensor(sparseness_score_batch)
 
 
 def sparseness(
@@ -69,44 +181,24 @@ def sparseness(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> sparseness_scores = sparseness(attribution)
     """
-    with torch.no_grad():
-        if is_multi_target:
-            isinstance(
-                attributions, list
-            ), "attributions must be a list of tensors or list of tuples of tensors"
-            sparseness_score = [sparseness(a, return_dict=False) for a in attributions]
-            if return_dict:
-                return {"sparseness_score": sparseness_score}
-            return sparseness_score
-
-        if not isinstance(attributions, tuple):
-            attributions = (attributions,)
-
-        # get batch size
-        bsz = attributions[0].shape[0]
-
-        # flatten feature tuple tensors into a single tensor of shape [batch_size, num_features]
-        attributions, _ = _tuple_tensors_to_tensors(attributions)
-
-        # flatten the feature dims into a single dim, take absolute values and sort them batch-wise
-        attributions = attributions.view(bsz, -1).float().abs().sort(dim=1).values
-
-        def gini_index(vec: np.ndarray):
-            return (
-                np.sum((2 * np.arange(1, vec.shape[0] + 1) - vec.shape[0] - 1) * vec)
-            ) / (vec.shape[0] * np.sum(vec))
-
-        # compute batch-wise Gini Index of the attribution map
-        sparseness_score = torch.tensor(
-            [
-                gini_index(attribution.detach().cpu().numpy() + 1e-8)
-                for attribution in attributions
-            ],
-            device=attributions.device,
-        ).float()
-        if return_dict:
-            return {"sparseness_score": sparseness_score}
-        return sparseness_score
+    is_attributions_list = isinstance(attributions, list)
+    if is_multi_target:
+        assert (
+            is_attributions_list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+    if not is_attributions_list:
+        attributions = [attributions]
+    score = [
+        _sparseness(
+            attributions=attribution,
+        )
+        for attribution in attributions
+    ]
+    if not is_attributions_list:
+        score = score[0]
+    if return_dict:
+        return {"sparseness_score": score}
+    return score
 
 
 def sparseness_feature_grouped(
@@ -140,6 +232,30 @@ def sparseness_feature_grouped(
         attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
             tensor in the tuple has shape (batch_size, num_features).
 
+                    Default: None
+
+        feature_mask (Tensor or tuple[Tensor, ...], optional):
+                    feature_mask defines a mask for the input, grouping
+                    features which should be perturbed together. feature_mask
+                    should contain the same number of tensors as inputs.
+                    Each tensor should
+                    be the same size as the corresponding input or
+                    broadcastable to match the input tensor. Each tensor
+                    should contain integers in the range 0 to num_features
+                    - 1, and indices corresponding to the same feature should
+                    have the same value.
+                    Note that features within each input tensor are perturbed
+                    independently (not across tensors).
+                    If the forward function returns a single scalar per batch,
+                    we enforce that the first dimension of each mask must be 1,
+                    since attributions are returned batch-wise rather than per
+                    example, so the attributions must correspond to the
+                    same features (indices) in each input example.
+                    If None, then a feature mask is constructed which assigns
+                    each scalar within a tensor as a separate feature, which
+                    is perturbed independently.
+                    Default: None
+
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs
@@ -168,85 +284,22 @@ def sparseness_feature_grouped(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> sparseness_scores = sparseness(attribution)
     """
-    with torch.no_grad():
-        if is_multi_target:
-            isinstance(
-                attributions, list
-            ), "attributions must be a list of tensors or list of tuples of tensors"
-            sparseness_score = [
-                sparseness_feature_grouped(a, return_dict=False) for a in attributions
-            ]
-            if return_dict:
-                return {"sparseness_score": sparseness_score}
-            return sparseness_score
-
-    def sparseness_feature_grouped_single_sample(
-        attributions_single_sample, feature_mask_single_sample
-    ):
-        if not isinstance(attributions_single_sample, tuple):
-            attributions_single_sample = (attributions_single_sample,)
-
-        # get batch size
-        bsz = attributions_single_sample[0].shape[0]
-        assert bsz == 1, "Batch size must be 1 for feature grouped complexity"
-
-        # flatten all feature masks in the input
-        if feature_mask_single_sample is not None:
-            feature_mask_flattened, _ = _tuple_tensors_to_tensors(
-                feature_mask_single_sample
-            )
-        else:
-            feature_mask_single_sample = _construct_default_feature_mask(
-                attributions_single_sample
-            )
-            feature_mask_flattened, _ = _tuple_tensors_to_tensors(
-                feature_mask_single_sample
-            )
-
-        # flatten all attributions_single_sample in the input, this must be done after the feature masks are flattened as
-        # feature masks may depened on attribution
-        attributions_single_sample, _ = _tuple_tensors_to_tensors(
-            attributions_single_sample
+    is_attributions_list = isinstance(attributions, list)
+    if is_multi_target:
+        assert (
+            is_attributions_list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+    if not is_attributions_list:
+        attributions = [attributions]
+    score = [
+        _sparseness_feature_grouped(
+            attributions=attribution,
+            feature_mask=feature_mask,
         )
-
-        # validate feature masks are increasing non-negative
-        _validate_feature_mask(feature_mask_flattened)
-
-        # gather attribution scores of feature groups
-        # this can be useful for efficiently summing up attributions of feature groups
-        # this is why we need a single batch size as gathered attributes and number of features for each
-        # sample can be different
-        reduced_attributions, _ = _reduce_tensor_with_indices_non_deterministic(
-            attributions_single_sample[0],
-            indices=feature_mask_flattened[0].flatten(),
-        )
-        reduced_attributions = reduced_attributions.abs().sort(dim=0).values
-
-        def gini_index(vec: np.ndarray):
-            return (
-                np.sum((2 * np.arange(1, vec.shape[0] + 1) - vec.shape[0] - 1) * vec)
-            ) / (vec.shape[0] * np.sum(vec))
-
-        return torch.tensor(
-            gini_index(reduced_attributions.detach().cpu().numpy() + 1e-8),
-            device=reduced_attributions.device,
-        ).float()
-
-    bsz = attributions[0].size(0)
-    sparseness_score_batch = []
-    for sample_idx in range(bsz):
-        sparseness_score = sparseness_feature_grouped_single_sample(
-            attributions_single_sample=tuple(
-                attr[sample_idx].unsqueeze(0) for attr in attributions
-            ),
-            feature_mask_single_sample=(
-                tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                if feature_mask is not None
-                else None
-            ),
-        )
-        sparseness_score_batch.append(sparseness_score)
-    sparseness_score_batch = torch.tensor(sparseness_score_batch)
+        for attribution in attributions
+    ]
+    if not is_attributions_list:
+        score = score[0]
     if return_dict:
-        return {"sparseness_feature_grouped_score": sparseness_score_batch}
-    return sparseness_score_batch
+        return {"sparseness_feature_grouped_score": score}
+    return score

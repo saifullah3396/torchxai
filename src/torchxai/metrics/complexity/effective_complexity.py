@@ -16,6 +16,7 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from matplotlib import pyplot as plt
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -307,6 +308,130 @@ def eval_effective_complexity_single_sample(
         )
 
 
+def _effective_complexity(
+    forward_func: Callable,
+    inputs: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        TensorOrTupleOfTensorsGeneric, List[TensorOrTupleOfTensorsGeneric]
+    ],
+    baselines: BaselineType = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
+    additional_forward_args: Any = None,
+    target: Union[TargetType, List[TargetType]] = None,
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
+    n_perturbations_per_feature: int = 10,
+    max_features_processed_per_batch: Optional[int] = None,
+    percentage_feature_removal_per_step: float = 0.0,
+    frozen_features: Optional[List[torch.Tensor]] = None,
+    zero_variance_threshold: float = 0.01,
+    return_ratio: bool = False,
+    show_progress: bool = False,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    with torch.no_grad():
+        # perform argument formattings
+        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
+        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
+
+        # Make sure that inputs and corresponding attributions have matching sizes.
+        assert len(inputs) == len(attributions), (
+            """The number of tensors in the inputs and
+            attributions must match. Found number of tensors in the inputs is: {} and in the
+            attributions: {}"""
+        ).format(len(inputs), len(attributions))
+
+        # Make sure that inputs and corresponding attributions have matching sizes.
+        assert len(inputs) == len(attributions), (
+            """The number of tensors in the inputs and
+            attributions must match. Found number of tensors in the inputs is: {} and in the
+            attributions: {}"""
+        ).format(len(inputs), len(attributions))
+        if feature_mask is not None:
+            for mask, attribution in zip(feature_mask, attributions):
+                assert mask.shape == attribution.shape, (
+                    """The shape of the feature mask and the attribution
+                    must match. Found feature mask shape: {} and attribution shape: {}"""
+                ).format(mask.shape, attribution.shape)
+            for mask, input in zip(feature_mask, inputs):
+                assert mask.shape == input.shape, (
+                    """The shape of the feature mask and the input
+                    must match. Found feature mask shape: {} and input shape: {}"""
+                ).format(mask.shape, input.shape)
+
+        bsz = inputs[0].size(0)
+        effective_complexity_batch = []
+        perturbed_fwd_diffs_relative_vars_batch = []
+        n_features_batch = []
+        for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
+            (
+                effective_complexity_score,
+                perturbed_fwd_diffs_relative_vars,
+                n_features,
+            ) = eval_effective_complexity_single_sample(
+                forward_func=forward_func,
+                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
+                attributions=tuple(
+                    attr[sample_idx].unsqueeze(0) for attr in attributions
+                ),
+                baselines=(
+                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
+                    if baselines is not None
+                    else None
+                ),
+                feature_mask=(
+                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                    if feature_mask is not None
+                    else None
+                ),
+                additional_forward_args=(
+                    tuple(
+                        (
+                            arg[sample_idx].unsqueeze(0)
+                            if isinstance(arg, torch.Tensor)
+                            else arg
+                        )
+                        for arg in additional_forward_args
+                    )
+                    if additional_forward_args is not None
+                    else None
+                ),
+                target=(
+                    target[sample_idx]
+                    if isinstance(target, (list, torch.Tensor))
+                    else target
+                ),
+                perturb_func=perturb_func,
+                n_perturbations_per_feature=n_perturbations_per_feature,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
+                return_ratio=return_ratio,
+                zero_variance_threshold=zero_variance_threshold,
+                show_progress=show_progress,
+            )
+
+            effective_complexity_batch.append(effective_complexity_score)
+            perturbed_fwd_diffs_relative_vars_batch.append(
+                perturbed_fwd_diffs_relative_vars
+            )
+            n_features_batch.append(n_features)
+        effective_complexity_batch = torch.tensor(effective_complexity_batch)
+        n_features_batch = torch.tensor(n_features_batch)
+        return (
+            effective_complexity_batch,
+            perturbed_fwd_diffs_relative_vars_batch,
+            n_features_batch,
+        )
+
+
 def effective_complexity(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
@@ -358,34 +483,6 @@ def effective_complexity(
                 multiple input tensors are provided, the examples must
                 be aligned appropriately.
 
-        baselines (scalar, Tensor, tuple of scalar, or Tensor):
-                Baselines define reference values against which the completeness is measured which sometimes
-                represent ablated values and are used to compare with the actual inputs to compute
-                importance scores in attribution algorithms. They can be represented
-                as:
-
-                - a single tensor, if inputs is a single tensor, with
-                  exactly the same dimensions as inputs or the first
-                  dimension is one and the remaining dimensions match
-                  with inputs.
-
-                - a single scalar, if inputs is a single tensor, which will
-                  be broadcasted for each input value in input tensor.
-
-                - a tuple of tensors or scalars, the baseline corresponding
-                  to each tensor in the inputs' tuple can be:
-
-                - either a tensor with matching dimensions to
-                  corresponding tensor in the inputs' tuple
-                  or the first dimension is one and the remaining
-                  dimensions match with the corresponding
-                  input tensor.
-
-                - or a scalar, corresponding to a tensor in the
-                  inputs' tuple. This scalar value is broadcasted
-                  for corresponding input tensor.
-
-                Default: None
 
         attributions (Tensor or tuple[Tensor, ...]):
                 Attribution scores computed based on an attribution algorithm.
@@ -428,6 +525,35 @@ def effective_complexity(
                 If inputs is a single tensor then the attributions is a single
                 tensor as well. If inputs is provided as a tuple of tensors
                 then attributions will be tuples of tensors as well.
+
+        baselines (scalar, Tensor, tuple of scalar, or Tensor):
+                Baselines define reference values against which the completeness is measured which sometimes
+                represent ablated values and are used to compare with the actual inputs to compute
+                importance scores in attribution algorithms. They can be represented
+                as:
+
+                - a single tensor, if inputs is a single tensor, with
+                  exactly the same dimensions as inputs or the first
+                  dimension is one and the remaining dimensions match
+                  with inputs.
+
+                - a single scalar, if inputs is a single tensor, which will
+                  be broadcasted for each input value in input tensor.
+
+                - a tuple of tensors or scalars, the baseline corresponding
+                  to each tensor in the inputs' tuple can be:
+
+                - either a tensor with matching dimensions to
+                  corresponding tensor in the inputs' tuple
+                  or the first dimension is one and the remaining
+                  dimensions match with the corresponding
+                  input tensor.
+
+                - or a scalar, corresponding to a tensor in the
+                  inputs' tuple. This scalar value is broadcasted
+                  for corresponding input tensor.
+
+                Default: None
 
         feature_mask (Tensor or tuple[Tensor, ...], optional):
                     feature_mask defines a mask for the input, grouping
@@ -554,6 +680,9 @@ def effective_complexity(
                 are then returned as a list of metric outputs corresponding to each target class.
                 Default is False.
         show_progress (bool, optional): Displays the progress of the computation. Default: True
+        return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate
+                results are returned. Default: False
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
     Returns:
         A tuple of tensors:
             effective_complexity_batch (Tensor): A tensor of scalar effective_complexity scores per
@@ -567,11 +696,6 @@ def effective_complexity(
             n_features_batch (Tensor): A tensor of scalar values that represent the total number of
                     features that are processed in the input batch. The first dimension is equal to the
                     number of examples in the input batch and the second dimension is one.
-            return_intermediate_results (bool, optional): A boolean flag that indicates whether the intermediate
-                    results are returned. Default: False
-            return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
-                    with keys as the metric names and values as the corresponding metric outputs.
-                    Default is False.
     Examples::
         >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
         >>> # and returns an Nx10 tensor of class probabilities.
@@ -586,192 +710,77 @@ def effective_complexity(
         >>> # Computes the effective complexity for saliency maps
         >>> effective_complexity, non_sens, n_features = effective_complexity(net, input, attribution, baselines)
     """
+    is_attributions_list = isinstance(attributions, list)
+    is_targets_list = isinstance(target, list)
     if is_multi_target:
-        # effective complexity computation cannot be batched across targets, this is because it requires the removal
-        # of attribution features for each target in an ascending order of their importance. Since for each target
-        # the order of importance of features can be different, we cannot batch the computation across targets.
-        attributions_list = attributions
-        targets_list = target
-        isinstance(
-            attributions_list, list
+        assert (
+            is_attributions_list
         ), "attributions must be a list of tensors or list of tuples of tensors"
-        assert isinstance(targets_list, list), "targets must be a list of targets"
-        assert all(
-            isinstance(x, int) for x in targets_list
-        ), "targets must be a list of ints"
-        assert len(targets_list) == len(attributions_list), (
+        assert is_targets_list, "targets must be a list of targets"
+        assert all(isinstance(x, int) for x in target), "targets must be a list of ints"
+        assert len(target) == len(attributions), (
             """The number of targets in the targets_list and
             attributions_list must match. Found number of targets in the targets_list is: {} and in the
             attributions_list: {}"""
-        ).format(len(targets_list), len(attributions_list))
+        ).format(len(target), len(attributions))
 
-        effective_complexity_batch_list = []
-        perturbed_fwd_diffs_relative_vars_batch_list = []
-        n_features_batch_list = []
-        for attributions, target in zip(attributions_list, targets_list):
-            (
-                effective_complexity_batch,
-                perturbed_fwd_diffs_relative_vars_batch,
-                n_features_batch,
-            ) = effective_complexity(
-                forward_func=forward_func,
-                inputs=inputs,
-                attributions=attributions,
-                baselines=baselines,
-                feature_mask=feature_mask,
-                additional_forward_args=additional_forward_args,
-                target=target,
-                perturb_func=perturb_func,
-                n_perturbations_per_feature=n_perturbations_per_feature,
-                max_features_processed_per_batch=max_features_processed_per_batch,
-                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
-                frozen_features=(
-                    frozen_features[sample_idx]
-                    if frozen_features is not None
-                    else frozen_features
-                ),
-                zero_variance_threshold=zero_variance_threshold,
-                return_ratio=return_ratio,
-                show_progress=show_progress,
-                return_intermediate_results=True,
-                return_dict=False,
-            )
-            effective_complexity_batch_list.append(effective_complexity_batch)
-            perturbed_fwd_diffs_relative_vars_batch_list.append(
-                perturbed_fwd_diffs_relative_vars_batch
-            )
-            n_features_batch_list.append(n_features_batch)
+    if not is_attributions_list:
+        attributions = [attributions]
+    if not is_targets_list:
+        target = [target]
 
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "effective_complexity_score": effective_complexity_batch_list,
-                    "perturbed_fwd_diffs_relative_vars_batch": perturbed_fwd_diffs_relative_vars_batch_list,
-                    "n_features_batch": n_features_batch_list,
-                }
-            else:
-                return (
-                    effective_complexity_batch_list,
-                    perturbed_fwd_diffs_relative_vars_batch_list,
-                    n_features_batch_list,
-                )
-        else:
-            if return_dict:
-                return {"effective_complexity_score": effective_complexity_batch_list}
-            return effective_complexity
-
-    with torch.no_grad():
-        # perform argument formattings
-        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
-        additional_forward_args = _format_additional_forward_args(
-            additional_forward_args
+    effective_complexity_batch_list = []
+    perturbed_fwd_diffs_relative_vars_batch_list = []
+    n_features_batch_list = []
+    for a, t in zip(attributions, target):
+        (
+            effective_complexity_batch,
+            perturbed_fwd_diffs_relative_vars_batch,
+            n_features_batch,
+        ) = _effective_complexity(
+            forward_func=forward_func,
+            inputs=inputs,
+            attributions=a,
+            baselines=baselines,
+            feature_mask=feature_mask,
+            additional_forward_args=additional_forward_args,
+            target=t,
+            perturb_func=perturb_func,
+            n_perturbations_per_feature=n_perturbations_per_feature,
+            max_features_processed_per_batch=max_features_processed_per_batch,
+            percentage_feature_removal_per_step=percentage_feature_removal_per_step,
+            frozen_features=frozen_features,
+            zero_variance_threshold=zero_variance_threshold,
+            return_ratio=return_ratio,
+            show_progress=show_progress,
         )
-        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
+        effective_complexity_batch_list.append(effective_complexity_batch)
+        perturbed_fwd_diffs_relative_vars_batch_list.append(
+            perturbed_fwd_diffs_relative_vars_batch
+        )
+        n_features_batch_list.append(n_features_batch)
 
-        # Make sure that inputs and corresponding attributions have matching sizes.
-        assert len(inputs) == len(attributions), (
-            """The number of tensors in the inputs and
-            attributions must match. Found number of tensors in the inputs is: {} and in the
-            attributions: {}"""
-        ).format(len(inputs), len(attributions))
+    if not is_attributions_list:
+        effective_complexity_batch_list = effective_complexity_batch_list[0]
+        perturbed_fwd_diffs_relative_vars_batch_list = (
+            perturbed_fwd_diffs_relative_vars_batch_list[0]
+        )
+        n_features_batch_list = n_features_batch_list[0]
 
-        # Make sure that inputs and corresponding attributions have matching sizes.
-        assert len(inputs) == len(attributions), (
-            """The number of tensors in the inputs and
-            attributions must match. Found number of tensors in the inputs is: {} and in the
-            attributions: {}"""
-        ).format(len(inputs), len(attributions))
-        if feature_mask is not None:
-            for mask, attribution in zip(feature_mask, attributions):
-                assert mask.shape == attribution.shape, (
-                    """The shape of the feature mask and the attribution
-                    must match. Found feature mask shape: {} and attribution shape: {}"""
-                ).format(mask.shape, attribution.shape)
-            for mask, input in zip(feature_mask, inputs):
-                assert mask.shape == input.shape, (
-                    """The shape of the feature mask and the input
-                    must match. Found feature mask shape: {} and input shape: {}"""
-                ).format(mask.shape, input.shape)
-
-        bsz = inputs[0].size(0)
-        effective_complexity_batch = []
-        perturbed_fwd_diffs_relative_vars_batch = []
-        n_features_batch = []
-        for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-            (
-                effective_complexity_score,
-                perturbed_fwd_diffs_relative_vars,
-                n_features,
-            ) = eval_effective_complexity_single_sample(
-                forward_func=forward_func,
-                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
-                attributions=tuple(
-                    attr[sample_idx].unsqueeze(0) for attr in attributions
-                ),
-                baselines=(
-                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
-                    if baselines is not None
-                    else None
-                ),
-                feature_mask=(
-                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                    if feature_mask is not None
-                    else None
-                ),
-                additional_forward_args=(
-                    tuple(
-                        (
-                            arg[sample_idx].unsqueeze(0)
-                            if isinstance(arg, torch.Tensor)
-                            else arg
-                        )
-                        for arg in additional_forward_args
-                    )
-                    if additional_forward_args is not None
-                    else None
-                ),
-                target=(
-                    target[sample_idx]
-                    if isinstance(target, (list, torch.Tensor))
-                    else target
-                ),
-                perturb_func=perturb_func,
-                n_perturbations_per_feature=n_perturbations_per_feature,
-                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
-                max_features_processed_per_batch=max_features_processed_per_batch,
-                frozen_features=(
-                    frozen_features[sample_idx]
-                    if frozen_features is not None
-                    else frozen_features
-                ),
-                return_ratio=return_ratio,
-                zero_variance_threshold=zero_variance_threshold,
-                show_progress=show_progress,
-            )
-
-            effective_complexity_batch.append(effective_complexity_score)
-            perturbed_fwd_diffs_relative_vars_batch.append(
-                perturbed_fwd_diffs_relative_vars
-            )
-            n_features_batch.append(n_features)
-        effective_complexity_batch = torch.tensor(effective_complexity_batch)
-        n_features_batch = torch.tensor(n_features_batch)
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "effective_complexity_score": effective_complexity_batch,
-                    "perturbed_fwd_diffs_relative_vars_batch": perturbed_fwd_diffs_relative_vars_batch,
-                    "n_features_batch": n_features_batch,
-                }
-            else:
-                return (
-                    effective_complexity_batch,
-                    perturbed_fwd_diffs_relative_vars_batch,
-                    n_features_batch,
-                )
+    if return_intermediate_results:
+        if return_dict:
+            return {
+                "effective_complexity_score": effective_complexity_batch_list,
+                "perturbed_fwd_diffs_relative_vars_batch": perturbed_fwd_diffs_relative_vars_batch_list,
+                "n_features_batch": n_features_batch_list,
+            }
         else:
-            if return_dict:
-                return {"effective_complexity_score": effective_complexity_batch}
-            return effective_complexity_batch
+            return (
+                effective_complexity_batch_list,
+                perturbed_fwd_diffs_relative_vars_batch_list,
+                n_features_batch_list,
+            )
+    else:
+        if return_dict:
+            return {"effective_complexity_score": effective_complexity_batch_list}
+        return effective_complexity_batch_list

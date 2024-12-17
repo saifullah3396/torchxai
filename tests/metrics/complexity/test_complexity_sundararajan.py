@@ -4,6 +4,9 @@ import torch
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics import complexity_sundararajan
+from torchxai.metrics.complexity.complexity_sundararajan import (
+    complexity_sundararajan_feature_grouped,
+)
 
 test_configurations = [
     # the park function is taken from the paper: https://arxiv.org/pdf/2007.07584
@@ -75,6 +78,25 @@ test_configurations = [
 def test_complexity_sundararajan(metrics_runtime_test_configuration):
     basic_config, runtime_config, explanations = metrics_runtime_test_configuration
     output = complexity_sundararajan(
+        attributions=explanations,
+    )
+    assert_tensor_almost_equal(
+        output.float(),
+        runtime_config.expected.float(),
+        delta=runtime_config.delta,
+    )
+
+
+@pytest.mark.metrics
+@pytest.mark.parametrize(
+    "metrics_runtime_test_configuration",
+    test_configurations,
+    ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
+    indirect=True,
+)
+def test_complexity_sundararajan_feature_grouped(metrics_runtime_test_configuration):
+    basic_config, runtime_config, explanations = metrics_runtime_test_configuration
+    output = complexity_sundararajan_feature_grouped(
         attributions=explanations,
     )
     assert_tensor_almost_equal(

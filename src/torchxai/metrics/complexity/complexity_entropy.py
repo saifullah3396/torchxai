@@ -13,69 +13,10 @@ from torchxai.metrics._utils.common import (
 )
 
 
-def complexity_entropy(
+def _complexity_entropy(
     attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
-    is_multi_target: bool = False,
-    return_dict: bool = False,
 ) -> torch.Tensor:
-    """
-    Implementation of Complexity metric by Bhatt et al., 2020. This implementation
-    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
-    In addition, the implementation takes some ideas about the implementation of the metric from the python
-    Quantus library.
-
-    Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
-    magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain
-    some decision. Even though such an explanation may be faithful to the model output, if the number of features is
-    too large it may be too difficult for the user to understand the explanations, rendering it useless. Smaller value
-    of complexity indicates that the explanation is simple and uses fewer features to explain the decision.
-
-    References:
-        1) Umang Bhatt et al.: "Evaluating and aggregating
-        feature-based model explanations." IJCAI (2020): 3016-3022.
-
-    Args:
-        attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
-            tensor in the tuple has shape (batch_size, num_features).
-        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
-                multi-target explanations. if set to true, the targets are required to be a list of integers
-                each corresponding to a required target class in the output. The corresponding metric outputs
-                are then returned as a list of metric outputs corresponding to each target class.
-                Default is False.
-        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
-                with keys as the metric names and values as the corresponding metric outputs.
-                Default is False.
-    Returns:
-        Tensor: A tensor of scalar complexity scores per
-                input example. The first dimension is equal to the
-                number of examples in the input batch and the second
-                dimension is one.
-    Examples::
-        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
-        >>> # and returns an Nx10 tensor of class probabilities.
-        >>> net = ImageClassifier()
-        >>> saliency = Saliency(net)
-        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
-        >>> baselines = torch.zeros(2, 3, 32, 32)
-        >>> # Computes saliency maps for class 3.
-        >>> attribution = saliency.attribute(input, target=3)
-        >>> # define a perturbation function for the input
-
-        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
-        >>> complexity_entropy_scores = complexity(attribution)
-    """
     with torch.no_grad():
-        if is_multi_target:
-            isinstance(
-                attributions, list
-            ), "attributions must be a list of tensors or list of tuples of tensors"
-            complexity_entropy_score = [
-                complexity_entropy(a, return_dict=False) for a in attributions
-            ]
-            if return_dict:
-                return {"complexity_entropy_score": complexity_entropy_score}
-            return complexity_entropy_score
-
         if not isinstance(attributions, tuple):
             attributions = (attributions,)
 
@@ -97,79 +38,14 @@ def complexity_entropy(
         attributions = attributions / torch.sum(attributions, dim=1, keepdim=True)
 
         # compute batch-wise entropy of the fractional contribution
-        complexity_entropy_score = Categorical(probs=attributions).entropy()
-        if return_dict:
-            return {"complexity_entropy_score": complexity_entropy_score}
-        return complexity_entropy_score
+        return Categorical(probs=attributions).entropy()
 
 
-def complexity_entropy_feature_grouped(
+def _complexity_entropy_feature_grouped(
     attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
     feature_mask: Optional[Tuple[torch.Tensor, ...]] = None,
-    is_multi_target: bool = False,
-    return_dict: bool = False,
 ) -> torch.Tensor:
-    """
-    Implementation of Complexity metric by Bhatt et al., 2020. This implementation
-    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
-    In addition, the implementation takes some ideas about the implementation of the metric from the python
-    Quantus library. In this particular implementation, the attributions are grouped into feature groups and the
-    complexity is computed based on the entropy of the fractional contribution of feature groups to the total
-    magnitude of the attribution.
-
-    Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
-    magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain
-    some decision. Even though such an explanation may be faithful to the model output, if the number of features is
-    too large it may be too difficult for the user to understand the explanations, rendering it useless.
-
-    References:
-        1) Umang Bhatt et al.: "Evaluating and aggregating
-        feature-based model explanations." IJCAI (2020): 3016-3022.
-
-    Args:
-        attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
-            tensor in the tuple has shape (batch_size, num_features).
-        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
-                multi-target explanations. if set to true, the targets are required to be a list of integers
-                each corresponding to a required target class in the output. The corresponding metric outputs
-                are then returned as a list of metric outputs corresponding to each target class.
-                Default is False.
-        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
-                with keys as the metric names and values as the corresponding metric outputs.
-                Default is False.
-    Returns:
-        Tensor: A tensor of scalar complexity scores per
-                input example. The first dimension is equal to the
-                number of examples in the input batch and the second
-                dimension is one.
-    Examples::
-        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
-        >>> # and returns an Nx10 tensor of class probabilities.
-        >>> net = ImageClassifier()
-        >>> saliency = Saliency(net)
-        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
-        >>> baselines = torch.zeros(2, 3, 32, 32)
-        >>> # Computes saliency maps for class 3.
-        >>> attribution = saliency.attribute(input, target=3)
-        >>> # define a perturbation function for the input
-
-        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
-        >>> complexity_scores = complexity(attribution)
-    """
     with torch.no_grad():
-        if is_multi_target:
-            isinstance(
-                attributions, list
-            ), "attributions must be a list of tensors or list of tuples of tensors"
-            complexity_entropy_feature_grouped_score = [
-                complexity_entropy_feature_grouped(a, return_dict=False)
-                for a in attributions
-            ]
-            if return_dict:
-                return {
-                    "complexity_entropy_feature_grouped_score": complexity_entropy_feature_grouped_score
-                }
-            return complexity_entropy_feature_grouped_score
 
         def eval_complexity_entropy_feature_grouped_single_sample(
             attributions_single_sample, feature_mask_single_sample
@@ -225,6 +101,8 @@ def complexity_entropy_feature_grouped(
             )
             return Categorical(probs=reduced_attributions).entropy()
 
+        if not isinstance(attributions, tuple):
+            attributions = (attributions,)
         bsz = attributions[0].size(0)
         complexity_entropy_batch = []
         for sample_idx in range(bsz):
@@ -241,9 +119,170 @@ def complexity_entropy_feature_grouped(
                 )
             )
             complexity_entropy_batch.append(complexity_entropy_score)
-        complexity_entropy_batch = torch.tensor(complexity_entropy_batch)
-        if return_dict:
-            return {
-                "complexity_entropy_feature_grouped_score": complexity_entropy_batch
-            }
-        return complexity_entropy_batch
+        return torch.tensor(complexity_entropy_batch)
+
+
+def complexity_entropy(
+    attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
+    is_multi_target: bool = False,
+    return_dict: bool = False,
+) -> torch.Tensor:
+    """
+    Implementation of Complexity metric by Bhatt et al., 2020. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library.
+
+    Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
+    magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain
+    some decision. Even though such an explanation may be faithful to the model output, if the number of features is
+    too large it may be too difficult for the user to understand the explanations, rendering it useless. Smaller value
+    of complexity indicates that the explanation is simple and uses fewer features to explain the decision.
+
+    References:
+        1) Umang Bhatt et al.: "Evaluating and aggregating
+        feature-based model explanations." IJCAI (2020): 3016-3022.
+
+    Args:
+        attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
+            tensor in the tuple has shape (batch_size, num_features).
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
+    Returns:
+        Tensor: A tensor of scalar complexity scores per
+                input example. The first dimension is equal to the
+                number of examples in the input batch and the second
+                dimension is one.
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
+        >>> complexity_entropy_scores = complexity(attribution)
+    """
+    is_attributions_list = isinstance(attributions, list)
+    if is_multi_target:
+        assert (
+            is_attributions_list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+    if not is_attributions_list:
+        attributions = [attributions]
+    score = [
+        _complexity_entropy(
+            attributions=attribution,
+        )
+        for attribution in attributions
+    ]
+    if not is_attributions_list:
+        score = score[0]
+    if return_dict:
+        return {"complexity_entropy_score": score}
+    return score
+
+
+def complexity_entropy_feature_grouped(
+    attributions: Union[Tuple[torch.Tensor, ...], List[Tuple[torch.Tensor, ...]]],
+    feature_mask: Optional[Tuple[torch.Tensor, ...]] = None,
+    is_multi_target: bool = False,
+    return_dict: bool = False,
+) -> torch.Tensor:
+    """
+    Implementation of Complexity metric by Bhatt et al., 2020. This implementation
+    reuses the batch-computation ideas from captum and therefore it is fully compatible with the Captum library.
+    In addition, the implementation takes some ideas about the implementation of the metric from the python
+    Quantus library. In this particular implementation, the attributions are grouped into feature groups and the
+    complexity is computed based on the entropy of the fractional contribution of feature groups to the total
+    magnitude of the attribution.
+
+    Complexity of attributions is defined as the entropy of the fractional contribution of feature x_i to the total
+    magnitude of the attribution. A complex explanation is one that uses all features in its explanation to explain
+    some decision. Even though such an explanation may be faithful to the model output, if the number of features is
+    too large it may be too difficult for the user to understand the explanations, rendering it useless.
+
+    References:
+        1) Umang Bhatt et al.: "Evaluating and aggregating
+        feature-based model explanations." IJCAI (2020): 3016-3022.
+
+    Args:
+        attributions (Tuple[Tensor,...]): A tuple of tensors representing attributions of separate inputs. Each
+            tensor in the tuple has shape (batch_size, num_features).
+        feature_mask (Tensor or tuple[Tensor, ...], optional):
+                    feature_mask defines a mask for the input, grouping
+                    features which should be perturbed together. feature_mask
+                    should contain the same number of tensors as inputs.
+                    Each tensor should
+                    be the same size as the corresponding input or
+                    broadcastable to match the input tensor. Each tensor
+                    should contain integers in the range 0 to num_features
+                    - 1, and indices corresponding to the same feature should
+                    have the same value.
+                    Note that features within each input tensor are perturbed
+                    independently (not across tensors).
+                    If the forward function returns a single scalar per batch,
+                    we enforce that the first dimension of each mask must be 1,
+                    since attributions are returned batch-wise rather than per
+                    example, so the attributions must correspond to the
+                    same features (indices) in each input example.
+                    If None, then a feature mask is constructed which assigns
+                    each scalar within a tensor as a separate feature, which
+                    is perturbed independently.
+                    Default: None
+        is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
+                multi-target explanations. if set to true, the targets are required to be a list of integers
+                each corresponding to a required target class in the output. The corresponding metric outputs
+                are then returned as a list of metric outputs corresponding to each target class.
+                Default is False.
+        return_dict (bool, optional): A boolean flag that indicates whether the metric outputs are returned as a dictionary
+                with keys as the metric names and values as the corresponding metric outputs.
+                Default is False.
+    Returns:
+        Tensor: A tensor of scalar complexity scores per
+                input example. The first dimension is equal to the
+                number of examples in the input batch and the second
+                dimension is one.
+    Examples::
+        >>> # ImageClassifier takes a single input tensor of images Nx3x32x32,
+        >>> # and returns an Nx10 tensor of class probabilities.
+        >>> net = ImageClassifier()
+        >>> saliency = Saliency(net)
+        >>> input = torch.randn(2, 3, 32, 32, requires_grad=True)
+        >>> baselines = torch.zeros(2, 3, 32, 32)
+        >>> # Computes saliency maps for class 3.
+        >>> attribution = saliency.attribute(input, target=3)
+        >>> # define a perturbation function for the input
+
+        >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
+        >>> complexity_scores = complexity(attribution)
+    """
+    is_attributions_list = isinstance(attributions, list)
+    if is_multi_target:
+        assert (
+            is_attributions_list
+        ), "attributions must be a list of tensors or list of tuples of tensors"
+    if not is_attributions_list:
+        attributions = [attributions]
+    score = [
+        _complexity_entropy_feature_grouped(
+            attributions=attribution,
+            feature_mask=feature_mask,
+        )
+        for attribution in attributions
+    ]
+    if not is_attributions_list:
+        score = score[0]
+    if return_dict:
+        return {"complexity_entropy_feature_grouped_score": score}
+    return score

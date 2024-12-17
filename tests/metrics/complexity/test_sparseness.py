@@ -7,6 +7,10 @@ import torch
 from tests.utils.common import assert_tensor_almost_equal
 from tests.utils.containers import TestRuntimeConfig
 from torchxai.metrics import sparseness
+from torchxai.metrics.complexity.sparseness import (
+    _sparseness_feature_grouped,
+    sparseness_feature_grouped,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = getLogger(__name__)
@@ -80,6 +84,23 @@ test_configurations = [
 def test_sparseness(metrics_runtime_test_configuration):
     base_config, runtime_config, explanations = metrics_runtime_test_configuration
     output = sparseness(
+        attributions=explanations,
+    )
+    assert_tensor_almost_equal(
+        output, runtime_config.expected, delta=runtime_config.delta, mode="mean"
+    )
+
+
+@pytest.mark.metrics
+@pytest.mark.parametrize(
+    "metrics_runtime_test_configuration",
+    test_configurations,
+    ids=[f"{idx}_{config.test_name}" for idx, config in enumerate(test_configurations)],
+    indirect=True,
+)
+def test_sparseness_feature_grouped(metrics_runtime_test_configuration):
+    base_config, runtime_config, explanations = metrics_runtime_test_configuration
+    output = sparseness_feature_grouped(
         attributions=explanations,
     )
     assert_tensor_almost_equal(

@@ -86,11 +86,12 @@ def _infidelity(
                 torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
                 for feature_mask in feature_mask
             )
-            frozen_features_expanded = [
-                elem
-                for elem in frozen_features
-                for _ in range(current_n_perturb_samples)
-            ]
+            if frozen_features is not None:
+                frozen_features_expanded = [
+                    elem
+                    for elem in frozen_features
+                    for _ in range(current_n_perturb_samples)
+                ]
 
         baselines_expanded = baselines
         if baselines is not None:
@@ -545,7 +546,7 @@ def infidelity(
         perturb_func = default_infidelity_perturb_fn()
 
     metric_func = _multi_target_infidelity if is_multi_target else _infidelity
-    infidelity_score = metric_func(
+    score = metric_func(
         forward_func=forward_func,
         perturb_func=perturb_func,
         inputs=inputs,
@@ -564,5 +565,5 @@ def infidelity(
         normalize=normalize,
     )
     if return_dict:
-        return {"infidelity_score": infidelity_score}
-    return infidelity_score
+        return {"infidelity_score": score}
+    return score

@@ -83,11 +83,12 @@ def _multi_target_infidelity(
                 torch.repeat_interleave(feature_mask, current_n_perturb_samples, dim=0)
                 for feature_mask in feature_mask
             )
-            frozen_features_expanded = [
-                elem
-                for elem in frozen_features
-                for _ in range(current_n_perturb_samples)
-            ]
+            if frozen_features is not None:
+                frozen_features_expanded = [
+                    elem
+                    for elem in frozen_features
+                    for _ in range(current_n_perturb_samples)
+                ]
 
         baselines_expanded = baselines
         if baselines is not None:

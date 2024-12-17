@@ -11,9 +11,65 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
+
 from torchxai.metrics.axiomatic.multi_target.completeness import (
     _multi_target_completeness,
 )
+
+
+def _completeness(
+    forward_func: Callable,
+    inputs: TensorOrTupleOfTensorsGeneric,
+    attributions: TensorOrTupleOfTensorsGeneric,
+    baselines: BaselineType,
+    additional_forward_args: Any = None,
+    target: TargetType = None,
+) -> Union[Tensor, List[Tensor]]:
+    with torch.no_grad():
+        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+        if baselines is None:
+            baselines = tuple(torch.zeros_like(inp) for inp in inputs)
+        else:
+            baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
+        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+
+        # Make sure that inputs and corresponding attributions have number of tuples.
+        assert len(inputs) == len(attributions), (
+            """The number of tensors in the inputs and
+          attributions must match. Found number of tensors in the inputs is: {} and in the
+          attributions: {}"""
+        ).format(len(inputs), len(attributions))
+
+        # for this implementation the shapes of the inputs and attributions are not necessarily needed to be matched
+        # for example the inputs can be of shape (batch_size, seq_length, n_features) and the attributions can be of shape
+        # (batch_size, seq_length) where the n_features dim is summed for seq_length.
+
+        # get the batch size
+        bsz = inputs[0].size(0)
+
+        # compute the forward pass on inputs
+        inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
+
+        # compute the forward pass on baselines
+        baselines_fwd = _run_forward(
+            forward_func,
+            baselines,
+            target,
+            additional_forward_args,
+        )
+
+        # compute the difference between the forward pass on inputs and baselines
+        fwd_diffs = inputs_fwd - baselines_fwd
+
+        # compute the sum of attributions
+        attributions_sum = sum(tuple(x.view(bsz, -1).sum(dim=-1) for x in attributions))
+
+        # compute the absolute difference between the sum of attributions and the forward pass difference
+        # this is the completeness score, the lower the score the better the completeness
+        return torch.abs(attributions_sum - fwd_diffs)
 
 
 def completeness(
@@ -25,7 +81,7 @@ def completeness(
     target: TargetType = None,
     is_multi_target: bool = False,
     return_dict: bool = False,
-) -> Union[Tensor, List[Tensor]]:
+):
     """
     Implementation of Completeness test by Sundararajan et al., 2017, also referred
     to as Summation to Delta by Shrikumar et al., 2017 and Conservation by
@@ -157,7 +213,6 @@ def completeness(
                   target for the corresponding example.
 
                 Default: None
-
         is_multi_target (bool, optional): A boolean flag that indicates whether the metric computation is for
                 multi-target explanations. if set to true, the targets are required to be a list of integers
                 each corresponding to a required target class in the output. The corresponding metric outputs
@@ -195,56 +250,15 @@ def completeness(
             additional_forward_args=additional_forward_args,
             targets_list=target,
         )
-
-        if return_dict:
-            return {"completeness_score": completeness_score}
-        return completeness_score
-
-    with torch.no_grad():
-        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-        if baselines is None:
-            baselines = tuple(torch.zeros_like(inp) for inp in inputs)
-        else:
-            baselines = _format_baseline(baselines, cast(Tuple[Tensor, ...], inputs))
-        additional_forward_args = _format_additional_forward_args(
-            additional_forward_args
+    else:
+        completeness_score = _completeness(
+            forward_func=forward_func,
+            inputs=inputs,
+            attributions=attributions,
+            baselines=baselines,
+            additional_forward_args=additional_forward_args,
+            target=target,
         )
-        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-
-        # Make sure that inputs and corresponding attributions have number of tuples.
-        assert len(inputs) == len(attributions), (
-            """The number of tensors in the inputs and
-          attributions must match. Found number of tensors in the inputs is: {} and in the
-          attributions: {}"""
-        ).format(len(inputs), len(attributions))
-
-        # for this implementation the shapes of the inputs and attributions are not necessarily needed to be matched
-        # for example the inputs can be of shape (batch_size, seq_length, n_features) and the attributions can be of shape
-        # (batch_size, seq_length) where the n_features dim is summed for seq_length.
-
-        # get the batch size
-        bsz = inputs[0].size(0)
-
-        # compute the forward pass on inputs
-        inputs_fwd = _run_forward(forward_func, inputs, target, additional_forward_args)
-
-        # compute the forward pass on baselines
-        baselines_fwd = _run_forward(
-            forward_func,
-            baselines,
-            target,
-            additional_forward_args,
-        )
-
-        # compute the difference between the forward pass on inputs and baselines
-        fwd_diffs = inputs_fwd - baselines_fwd
-
-        # compute the sum of attributions
-        attributions_sum = sum(tuple(x.view(bsz, -1).sum(dim=-1) for x in attributions))
-
-        # compute the absolute difference between the sum of attributions and the forward pass difference
-        # this is the completeness score, the lower the score the better the completeness
-        completeness_score = torch.abs(attributions_sum - fwd_diffs)
-        if return_dict:
-            return {"completeness_score": completeness_score}
-        return completeness_score
+    if return_dict:
+        return {"completeness_score": completeness_score}
+    return completeness_score

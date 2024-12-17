@@ -241,24 +241,19 @@ def completeness(
         >>> # Computes completeness score for saliency maps
         >>> completeness = completeness(net, input, attribution, baselines)
     """
-    if is_multi_target:
-        completeness_score = _multi_target_completeness(
-            forward_func=forward_func,
-            inputs=inputs,
-            attributions_list=attributions,
-            baselines=baselines,
-            additional_forward_args=additional_forward_args,
-            targets_list=target,
-        )
-    else:
-        completeness_score = _completeness(
-            forward_func=forward_func,
-            inputs=inputs,
-            attributions=attributions,
-            baselines=baselines,
-            additional_forward_args=additional_forward_args,
-            target=target,
-        )
+    metric_func = _multi_target_completeness if is_multi_target else _completeness
+    completeness_score = metric_func(
+        forward_func=forward_func,
+        inputs=inputs,
+        **(
+            dict(attributions_list=attributions)
+            if is_multi_target
+            else dict(attributions=attributions)
+        ),
+        baselines=baselines,
+        additional_forward_args=additional_forward_args,
+        **dict(targets_list=target) if is_multi_target else dict(target=target),
+    )
     if return_dict:
         return {"completeness_score": completeness_score}
     return completeness_score

@@ -166,14 +166,10 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             current_n_steps,
             device=inputs[0].device,
         )
-        current_feature_indices = torch.arange(
-            current_n_steps - current_n_perturbed_features, current_n_steps
-        )
-        current_perturbation_mask = global_perturbation_masks[current_feature_indices]
         inputs_perturbed = _generate_perturbations(
-            current_n_perturbed_features, current_perturbation_mask
+            current_n_perturbed_features,
+            global_perturbation_masks[current_feature_indices],
         )
-        # _draw_perturbated_inputs_sequences_images(inputs_perturbed)
         inputs_perturbed = _format_tensor_into_tuples(inputs_perturbed)
         _validate_inputs_and_perturbations(
             cast(Tuple[Tensor, ...], inputs),
@@ -258,9 +254,9 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             # however this makes it impossible to perturb features together for multi-target scenario
             # overall the monotonicity_corr and non-sensitivity should not change too much for small beam sizes
             # and not at all for beam size 0 as the order of the features is not important in that case
-            ascending_attribution_indices = torch.argsort(reduced_attributions)
+            feature_indices = torch.argsort(reduced_attributions)
         else:
-            ascending_attribution_indices = torch.arange(
+            feature_indices = torch.arange(
                 reduced_attributions.size(0), device=inputs[0].device
             )
 
@@ -276,7 +272,7 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             _feature_mask_to_chunked_perturbation_mask_with_attributions(
                 feature_mask_flattened,
                 reduced_attributions,
-                ascending_attribution_indices,
+                feature_indices,
                 frozen_features,
                 percentage_feature_removal_per_step,
             )
@@ -391,6 +387,138 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
         perturbed_fwd_diffs_relative_vars,
         chunk_reduced_attributions.cpu().numpy(),
     )
+
+
+def _monotonicity_corr_and_non_sens(
+    forward_func: Callable,
+    inputs: TensorOrTupleOfTensorsGeneric,
+    attributions: TensorOrTupleOfTensorsGeneric,
+    baselines: BaselineType = None,
+    feature_mask: TensorOrTupleOfTensorsGeneric = None,
+    additional_forward_args: Any = None,
+    target: TargetType = None,
+    frozen_features: Optional[List[torch.Tensor]] = None,
+    perturb_func: Callable = default_fixed_baseline_perturb_func(),
+    n_perturbations_per_feature: int = 10,
+    max_features_processed_per_batch: int = None,
+    percentage_feature_removal_per_step: float = 0.0,
+    zero_attribution_threshold: float = 1e-5,
+    zero_variance_threshold: float = 1e-5,
+    use_percentage_attribution_threshold: bool = False,
+    return_ratio: bool = True,
+    show_progress: bool = False,
+) -> Tuple[Tensor, Tensor, Tensor]:
+    with torch.no_grad():
+        # perform argument formattings
+        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
+        additional_forward_args = _format_additional_forward_args(
+            additional_forward_args
+        )
+        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
+        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
+
+        # Make sure that inputs and corresponding attributions have matching sizes.
+        assert len(inputs) == len(attributions), (
+            """The number of tensors in the inputs and
+            attributions must match. Found number of tensors in the inputs is: {} and in the
+            attributions: {}"""
+        ).format(len(inputs), len(attributions))
+        if feature_mask is not None:
+            for mask, attribution in zip(feature_mask, attributions):
+                assert mask.shape == attribution.shape, (
+                    """The shape of the feature mask and the attribution
+                    must match. Found feature mask shape: {} and attribution shape: {}"""
+                ).format(mask.shape, attribution.shape)
+
+        bsz = inputs[0].size(0)
+        monotonicity_corr_batch = []
+        non_sens_batch = []
+        n_features_batch = []
+        perturbed_fwd_diffs_relative_vars_batch = []
+        feature_group_attribution_scores_batch = []
+        for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
+            (
+                monotonicity_corr,
+                non_sens,
+                n_features,
+                perturbed_fwd_diffs_relative_vars,
+                feature_group_attribution_scores,
+            ) = eval_monotonicity_corr_and_non_sens_single_sample(
+                forward_func=forward_func,
+                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
+                attributions=tuple(
+                    attr[sample_idx].unsqueeze(0) for attr in attributions
+                ),
+                baselines=(
+                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
+                    if baselines is not None
+                    else None
+                ),
+                feature_mask=(
+                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
+                    if feature_mask is not None
+                    else None
+                ),
+                additional_forward_args=(
+                    tuple(
+                        (
+                            arg[sample_idx].unsqueeze(0)
+                            if isinstance(arg, torch.Tensor)
+                            else arg
+                        )
+                        for arg in additional_forward_args
+                    )
+                    if additional_forward_args is not None
+                    else None
+                ),
+                target=(
+                    target[sample_idx]
+                    if isinstance(target, (list, torch.Tensor))
+                    else target
+                ),
+                frozen_features=(
+                    frozen_features[sample_idx]
+                    if frozen_features is not None
+                    else frozen_features
+                ),
+                perturb_func=perturb_func,
+                n_perturbations_per_feature=n_perturbations_per_feature,
+                max_features_processed_per_batch=max_features_processed_per_batch,
+                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
+                zero_attribution_threshold=zero_attribution_threshold,
+                zero_variance_threshold=zero_variance_threshold,
+                use_percentage_attribution_threshold=use_percentage_attribution_threshold,
+                return_ratio=return_ratio,
+                show_progress=show_progress,
+            )
+
+            monotonicity_corr_batch.append(monotonicity_corr)
+            non_sens_batch.append(non_sens)
+            n_features_batch.append(n_features)
+            perturbed_fwd_diffs_relative_vars_batch.append(
+                perturbed_fwd_diffs_relative_vars
+            )
+            feature_group_attribution_scores_batch.append(
+                feature_group_attribution_scores
+            )
+        monotonicity_corr_batch = torch.tensor(monotonicity_corr_batch)
+        non_sens_batch = torch.tensor(non_sens_batch)
+        n_features_batch = torch.tensor(n_features_batch)
+        perturbed_fwd_diffs_relative_vars_batch = [
+            torch.tensor(x) for x in perturbed_fwd_diffs_relative_vars_batch
+        ]
+        feature_group_attribution_scores_batch = [
+            torch.tensor(x) for x in feature_group_attribution_scores_batch
+        ]
+
+        return (
+            monotonicity_corr_batch,
+            non_sens_batch,
+            n_features_batch,
+            perturbed_fwd_diffs_relative_vars_batch,
+            feature_group_attribution_scores_batch,
+        )
 
 
 def monotonicity_corr_and_non_sens(
@@ -684,185 +812,62 @@ def monotonicity_corr_and_non_sens(
         >>> # Computes the monotonicity correlation and non-sensitivity scores for saliency maps
         >>> monotonicity_corr, non_sens, n_features = monotonicity_corr_and_non_sens(net, input, attribution, baselines)
     """
-    if is_multi_target:
-        (
-            monotonicity_corr_batch_list,
-            non_sens_batch_list,
-            n_features_batch,
-            perturbed_fwd_diffs_relative_vars_batch_list,
-            feature_group_attribution_scores_batch_list,
-        ) = _multi_target_monotonicity_corr_and_non_sens(
-            forward_func=forward_func,
-            inputs=inputs,
-            attributions_list=attributions,
-            baselines=baselines,
-            feature_mask=feature_mask,
-            additional_forward_args=additional_forward_args,
-            targets_list=target,
-            frozen_features=frozen_features,
-            perturb_func=perturb_func,
-            n_perturbations_per_feature=n_perturbations_per_feature,
-            max_features_processed_per_batch=max_features_processed_per_batch,
-            percentage_feature_removal_per_step=percentage_feature_removal_per_step,
-            zero_attribution_threshold=zero_attribution_threshold,
-            zero_variance_threshold=zero_variance_threshold,
-            use_percentage_attribution_threshold=use_percentage_attribution_threshold,
-            return_ratio=return_ratio,
-            show_progress=show_progress,
-        )
-
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "monotonicity_corr_score": monotonicity_corr_batch_list,
-                    "non_sensitivity_score": non_sens_batch_list,
-                    "n_features": n_features_batch,
-                    "perturbed_fwd_diffs_relative_vars": perturbed_fwd_diffs_relative_vars_batch_list,
-                    "feature_group_attribution_scores": feature_group_attribution_scores_batch_list,
-                }
-            else:
-                return (
-                    monotonicity_corr_batch_list,
-                    non_sens_batch_list,
-                    n_features_batch,
-                    perturbed_fwd_diffs_relative_vars_batch_list,
-                    feature_group_attribution_scores_batch_list,
-                )
+    metric_func = (
+        _multi_target_monotonicity_corr_and_non_sens
+        if is_multi_target
+        else _monotonicity_corr_and_non_sens
+    )
+    (
+        monotonicity_corr_batch,
+        non_sens_batch,
+        n_features_batch,
+        perturbed_fwd_diffs_relative_vars_batch,
+        feature_group_attribution_scores_batch,
+    ) = metric_func(
+        forward_func=forward_func,
+        inputs=inputs,
+        **(
+            dict(attributions_list=attributions)
+            if is_multi_target
+            else dict(attributions=attributions)
+        ),
+        baselines=baselines,
+        feature_mask=feature_mask,
+        additional_forward_args=additional_forward_args,
+        **(dict(targets_list=target) if is_multi_target else dict(target=target)),
+        frozen_features=frozen_features,
+        perturb_func=perturb_func,
+        n_perturbations_per_feature=n_perturbations_per_feature,
+        max_features_processed_per_batch=max_features_processed_per_batch,
+        percentage_feature_removal_per_step=percentage_feature_removal_per_step,
+        zero_attribution_threshold=zero_attribution_threshold,
+        zero_variance_threshold=zero_variance_threshold,
+        use_percentage_attribution_threshold=use_percentage_attribution_threshold,
+        return_ratio=return_ratio,
+        show_progress=show_progress,
+    )
+    if return_intermediate_results:
+        if return_dict:
+            return {
+                "monotonicity_corr_score": monotonicity_corr_batch,
+                "non_sensitivity_score": non_sens_batch,
+                "n_features": n_features_batch,
+                "perturbed_fwd_diffs_relative_vars": perturbed_fwd_diffs_relative_vars_batch,
+                "feature_group_attribution_scores": feature_group_attribution_scores_batch,
+            }
         else:
-            if return_dict:
-                return {
-                    "monotonicity_corr_score": monotonicity_corr_batch_list,
-                    "non_sensitivity_score": non_sens_batch_list,
-                }
-            else:
-                return monotonicity_corr_batch_list, non_sens_batch_list
-
-    with torch.no_grad():
-        # perform argument formattings
-        inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-        baselines = _format_tensor_into_tuples(baselines)  # type: ignore
-        additional_forward_args = _format_additional_forward_args(
-            additional_forward_args
-        )
-        attributions = _format_tensor_into_tuples(attributions)  # type: ignore
-        feature_mask = _format_tensor_into_tuples(feature_mask)  # type: ignore
-
-        # Make sure that inputs and corresponding attributions have matching sizes.
-        assert len(inputs) == len(attributions), (
-            """The number of tensors in the inputs and
-            attributions must match. Found number of tensors in the inputs is: {} and in the
-            attributions: {}"""
-        ).format(len(inputs), len(attributions))
-        if feature_mask is not None:
-            for mask, attribution in zip(feature_mask, attributions):
-                assert mask.shape == attribution.shape, (
-                    """The shape of the feature mask and the attribution
-                    must match. Found feature mask shape: {} and attribution shape: {}"""
-                ).format(mask.shape, attribution.shape)
-
-        bsz = inputs[0].size(0)
-        monotonicity_corr_batch = []
-        non_sens_batch = []
-        n_features_batch = []
-        perturbed_fwd_diffs_relative_vars_batch = []
-        feature_group_attribution_scores_batch = []
-        for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
-            (
-                monotonicity_corr,
-                non_sens,
-                n_features,
-                perturbed_fwd_diffs_relative_vars,
-                feature_group_attribution_scores,
-            ) = eval_monotonicity_corr_and_non_sens_single_sample(
-                forward_func=forward_func,
-                inputs=tuple(input[sample_idx].unsqueeze(0) for input in inputs),
-                attributions=tuple(
-                    attr[sample_idx].unsqueeze(0) for attr in attributions
-                ),
-                baselines=(
-                    tuple(baseline[sample_idx].unsqueeze(0) for baseline in baselines)
-                    if baselines is not None
-                    else None
-                ),
-                feature_mask=(
-                    tuple(mask[sample_idx].unsqueeze(0) for mask in feature_mask)
-                    if feature_mask is not None
-                    else None
-                ),
-                additional_forward_args=(
-                    tuple(
-                        (
-                            arg[sample_idx].unsqueeze(0)
-                            if isinstance(arg, torch.Tensor)
-                            else arg
-                        )
-                        for arg in additional_forward_args
-                    )
-                    if additional_forward_args is not None
-                    else None
-                ),
-                target=(
-                    target[sample_idx]
-                    if isinstance(target, (list, torch.Tensor))
-                    else target
-                ),
-                frozen_features=(
-                    frozen_features[sample_idx]
-                    if frozen_features is not None
-                    else frozen_features
-                ),
-                perturb_func=perturb_func,
-                n_perturbations_per_feature=n_perturbations_per_feature,
-                max_features_processed_per_batch=max_features_processed_per_batch,
-                percentage_feature_removal_per_step=percentage_feature_removal_per_step,
-                zero_attribution_threshold=zero_attribution_threshold,
-                zero_variance_threshold=zero_variance_threshold,
-                use_percentage_attribution_threshold=use_percentage_attribution_threshold,
-                return_ratio=return_ratio,
-                show_progress=show_progress,
+            return (
+                monotonicity_corr_batch,
+                non_sens_batch,
+                n_features_batch,
+                perturbed_fwd_diffs_relative_vars_batch,
+                feature_group_attribution_scores_batch,
             )
-
-            monotonicity_corr_batch.append(monotonicity_corr)
-            non_sens_batch.append(non_sens)
-            n_features_batch.append(n_features)
-            perturbed_fwd_diffs_relative_vars_batch.append(
-                perturbed_fwd_diffs_relative_vars
-            )
-            feature_group_attribution_scores_batch.append(
-                feature_group_attribution_scores
-            )
-        monotonicity_corr_batch = torch.tensor(monotonicity_corr_batch)
-        non_sens_batch = torch.tensor(non_sens_batch)
-        n_features_batch = torch.tensor(n_features_batch)
-        perturbed_fwd_diffs_relative_vars_batch = [
-            torch.tensor(x) for x in perturbed_fwd_diffs_relative_vars_batch
-        ]
-        feature_group_attribution_scores_batch = [
-            torch.tensor(x) for x in feature_group_attribution_scores_batch
-        ]
-
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "monotonicity_corr_score": monotonicity_corr_batch,
-                    "non_sensitivity_score": non_sens_batch,
-                    "n_features": n_features_batch,
-                    "perturbed_fwd_diffs_relative_vars": perturbed_fwd_diffs_relative_vars_batch,
-                    "feature_group_attribution_scores": feature_group_attribution_scores_batch,
-                }
-            else:
-                return (
-                    monotonicity_corr_batch,
-                    non_sens_batch,
-                    n_features_batch,
-                    perturbed_fwd_diffs_relative_vars_batch,
-                    feature_group_attribution_scores_batch,
-                )
+    else:
+        if return_dict:
+            return {
+                "monotonicity_corr_score": monotonicity_corr_batch,
+                "non_sensitivity_score": non_sens_batch,
+            }
         else:
-            if return_dict:
-                return {
-                    "monotonicity_corr_score": monotonicity_corr_batch,
-                    "non_sensitivity_score": non_sens_batch,
-                }
-            else:
-                return monotonicity_corr_batch, non_sens_batch
+            return monotonicity_corr_batch, non_sens_batch

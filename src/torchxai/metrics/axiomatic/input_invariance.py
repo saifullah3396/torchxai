@@ -7,10 +7,103 @@ from captum.attr import Attribution
 from torch import Tensor
 
 from torchxai.explainers.explainer import Explainer
+from torchxai.metrics.axiomatic.multi_target.input_invariance import (
+    _multi_target_input_invariance,
+)
 from torchxai.metrics.axiomatic.utilities import (
     _create_shifted_expainer,
     _prepare_kwargs_for_base_and_shifted_inputs,
 )
+
+
+def _input_invariance(
+    explainer: Union[Explainer, Attribution],
+    inputs: TensorOrTupleOfTensorsGeneric,
+    constant_shifts: TensorOrTupleOfTensorsGeneric,
+    input_layer_names: Tuple[str],
+    **kwargs: Any,
+) -> Union[Tensor, List[Tensor]]:
+
+    kwargs_copy, shifted_kwargs_copy = _prepare_kwargs_for_base_and_shifted_inputs(
+        kwargs
+    )
+    inputs = _format_tensor_into_tuples(inputs)  # type: ignore
+    constant_shifts = _format_tensor_into_tuples(constant_shifts)  # type: ignore
+
+    assert len(input_layer_names) == len(
+        set(input_layer_names)
+    ), "Each input layer must be unique for each input constant shift tensor."
+
+    assert len(input_layer_names) == len(
+        constant_shifts
+    ), "The number of input layer names should be the same as the number of constant shifts. "
+
+    assert (
+        len(inputs) == len(constant_shifts)
+        and inputs[0].shape[1:] == constant_shifts[0].shape[1:]
+        and constant_shifts[0].shape[0] == 1
+    ), (
+        "The number of inputs should be the same as the number of constant shifts and the batch size of the "
+        "constant shifts should be 1. Current shapes are: "
+        f"{inputs[0].shape} and {constant_shifts[0].shape}"
+    )
+
+    shifted_explainer = _create_shifted_expainer(
+        explainer=explainer,
+        input_layer_names=input_layer_names,
+        constant_shifts=constant_shifts,
+        **kwargs,
+    )
+
+    # create shifted inputs
+    constant_shift_expanded = tuple(
+        constant_shift.expand_as(input)
+        for input, constant_shift in zip(inputs, constant_shifts)
+    )
+    shifted_inputs = tuple(
+        input - constant_shift
+        for input, constant_shift in zip(inputs, constant_shift_expanded)
+    )
+
+    with torch.no_grad():
+        if isinstance(explainer, Explainer):
+            inputs_expl = explainer.explain(inputs, **kwargs_copy)
+            shifted_inputs_expl = shifted_explainer.explain(
+                shifted_inputs, **shifted_kwargs_copy
+            )
+        elif isinstance(explainer, Attribution):
+            inputs_expl = explainer.attribute(inputs, **kwargs_copy)
+            shifted_inputs_expl = shifted_explainer.attribute(
+                shifted_inputs, **shifted_kwargs_copy
+            )
+        else:
+            raise ValueError(
+                "Explanation function must be an instance of Attribution or FusionExplainer"
+            )
+
+        # calculate the difference between the two explanations
+        input_invarance_score = sum(
+            tuple(
+                torch.tensor(
+                    [
+                        torch.mean(
+                            torch.abs(
+                                per_sample_input_expl - per_sample_shifted_input_expl
+                            )
+                        ).item()
+                        for per_sample_input_expl, per_sample_shifted_input_expl in zip(
+                            input_expl, shifted_input_expl
+                        )
+                    ],
+                    device=inputs[0].device,
+                )
+                for input_expl, shifted_input_expl in zip(
+                    inputs_expl, shifted_inputs_expl
+                )
+            )
+        )
+
+        return input_invarance_score, inputs_expl, shifted_inputs_expl
 
 
 def input_invariance(
@@ -114,135 +207,46 @@ def input_invariance(
         >>> input_invarance_score, inputs_expl, shifted_inputs_expl = input_invarance(saliency, input, target = 3)
 
     """
-    if is_multi_target:
-        from torchxai.metrics.axiomatic.multi_target.input_invariance import (
-            _multi_target_input_invariance,
-        )
-
-        input_invarance_score, inputs_expl, shifted_inputs_expl = (
-            _multi_target_input_invariance(
-                explainer=explainer,
-                inputs=inputs,
-                constant_shifts=constant_shifts,
-                input_layer_names=input_layer_names,
-                **kwargs,
-            )
-        )
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "input_invarance_score": input_invarance_score,
-                    "inputs_expl": inputs_expl,
-                    "shifted_inputs_expl": shifted_inputs_expl,
-                }
-            else:
-                return (input_invarance_score, inputs_expl, shifted_inputs_expl)
-        else:
-            if return_dict:
-                return {"input_invarance_score": input_invarance_score}
-            else:
-                return input_invarance_score
+    metric_func = (
+        _multi_target_input_invariance if is_multi_target else _input_invariance
+    )
+    input_invarance_score, inputs_expl, shifted_inputs_expl = metric_func(
+        explainer=explainer,
+        inputs=inputs,
+        constant_shifts=constant_shifts,
+        input_layer_names=input_layer_names,
+        **kwargs,
+    )
 
     # Keeps track whether original input is a tuple or not before
     # converting it into a tuple.
     is_inputs_tuple = _is_tuple(inputs)
 
-    kwargs_copy, shifted_kwargs_copy = _prepare_kwargs_for_base_and_shifted_inputs(
-        kwargs
-    )
-    inputs = _format_tensor_into_tuples(inputs)  # type: ignore
-    constant_shifts = _format_tensor_into_tuples(constant_shifts)  # type: ignore
-
-    assert len(input_layer_names) == len(
-        set(input_layer_names)
-    ), "Each input layer must be unique for each input constant shift tensor."
-
-    assert len(input_layer_names) == len(
-        constant_shifts
-    ), "The number of input layer names should be the same as the number of constant shifts. "
-
-    assert (
-        len(inputs) == len(constant_shifts)
-        and inputs[0].shape[1:] == constant_shifts[0].shape[1:]
-        and constant_shifts[0].shape[0] == 1
-    ), (
-        "The number of inputs should be the same as the number of constant shifts and the batch size of the "
-        "constant shifts should be 1. Current shapes are: "
-        f"{inputs[0].shape} and {constant_shifts[0].shape}"
-    )
-
-    shifted_explainer = _create_shifted_expainer(
-        explainer=explainer,
-        input_layer_names=input_layer_names,
-        constant_shifts=constant_shifts,
-        **kwargs,
-    )
-
-    # create shifted inputs
-    constant_shift_expanded = tuple(
-        constant_shift.expand_as(input)
-        for input, constant_shift in zip(inputs, constant_shifts)
-    )
-    shifted_inputs = tuple(
-        input - constant_shift
-        for input, constant_shift in zip(inputs, constant_shift_expanded)
-    )
-
-    with torch.no_grad():
-        if isinstance(explainer, Explainer):
-            inputs_expl = explainer.explain(inputs, **kwargs_copy)
-            shifted_inputs_expl = shifted_explainer.explain(
-                shifted_inputs, **shifted_kwargs_copy
-            )
-        elif isinstance(explainer, Attribution):
-            inputs_expl = explainer.attribute(inputs, **kwargs_copy)
-            shifted_inputs_expl = shifted_explainer.attribute(
-                shifted_inputs, **shifted_kwargs_copy
-            )
+    if return_intermediate_results:
+        if return_dict:
+            return {
+                "input_invarance_score": input_invarance_score,
+                "inputs_expl": _format_output(is_inputs_tuple, inputs_expl),
+                "shifted_inputs_expl": _format_output(
+                    is_inputs_tuple, shifted_inputs_expl
+                ),
+            }
         else:
-            raise ValueError(
-                "Explanation function must be an instance of Attribution or FusionExplainer"
+            return (
+                input_invarance_score,
+                (
+                    _format_output(is_inputs_tuple, inputs_expl)
+                    if not isinstance(inputs_expl, list)
+                    else inputs_expl
+                ),
+                (
+                    _format_output(is_inputs_tuple, shifted_inputs_expl)
+                    if not isinstance(shifted_inputs_expl, list)
+                    else shifted_inputs_expl
+                ),
             )
-
-        # calculate the difference between the two explanations
-        input_invarance_score = sum(
-            tuple(
-                torch.tensor(
-                    [
-                        torch.mean(
-                            torch.abs(
-                                per_sample_input_expl - per_sample_shifted_input_expl
-                            )
-                        ).item()
-                        for per_sample_input_expl, per_sample_shifted_input_expl in zip(
-                            input_expl, shifted_input_expl
-                        )
-                    ],
-                    device=inputs[0].device,
-                )
-                for input_expl, shifted_input_expl in zip(
-                    inputs_expl, shifted_inputs_expl
-                )
-            )
-        )
-
-        if return_intermediate_results:
-            if return_dict:
-                return {
-                    "input_invarance_score": input_invarance_score,
-                    "inputs_expl": _format_output(is_inputs_tuple, inputs_expl),
-                    "shifted_inputs_expl": _format_output(
-                        is_inputs_tuple, shifted_inputs_expl
-                    ),
-                }
-            else:
-                return (
-                    input_invarance_score,
-                    _format_output(is_inputs_tuple, inputs_expl),
-                    _format_output(is_inputs_tuple, shifted_inputs_expl),
-                )
+    else:
+        if return_dict:
+            return {"input_invarance_score": input_invarance_score}
         else:
-            if return_dict:
-                return {"input_invarance_score": input_invarance_score}
-            else:
-                return input_invarance_score
+            return input_invarance_score

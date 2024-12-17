@@ -17,6 +17,7 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
+
 from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_features
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
@@ -168,7 +169,6 @@ def eval_faithfulness_estimate_single_sample(
         faithfulness_estimate_score = scipy.stats.pearsonr(
             inputs_perturbed_fwd_diffs, chunk_reduced_attributions.cpu().numpy()
         )[0]
-        print("faithfulness_estimate_score", faithfulness_estimate_score)
 
     return (
         torch.tensor(faithfulness_estimate_score),

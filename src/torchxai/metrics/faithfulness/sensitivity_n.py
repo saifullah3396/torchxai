@@ -12,10 +12,8 @@ from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _validate_feature_mask,
 )
-from torchxai.metrics._utils.perturbation import (
-    _generate_random_perturbation_masks,
-)
-from torchxai.metrics.faithfulness.infidelity import infidelity
+from torchxai.metrics._utils.perturbation import _generate_random_perturbation_masks
+from torchxai.metrics.faithfulness.infidelity import _infidelity
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
 )
@@ -347,35 +345,26 @@ def sensitivity_n(
             for input, mask, baseline in zip(inputs, perturbation_masks, baselines)
         )
 
-    if is_multi_target:
-        sensitivity_n_score = _multi_target_infidelity(
-            forward_func=forward_func,
-            perturb_func=sensitivity_perturb_function,
-            inputs=inputs,
-            attributions_list=attributions,
-            baselines=baselines,
-            additional_forward_args=additional_forward_args,
-            targets_list=target,
-            n_perturb_samples=n_perturb_samples,
-            max_examples_per_batch=max_examples_per_batch,
-            normalize=normalize,
-        )
-        if return_dict:
-            return {"sensitivity_n_score": sensitivity_n_score}
-        return sensitivity_n_score
-
-    sensitivity_n_score = infidelity(
+    metric_func = _multi_target_infidelity if is_multi_target else _infidelity
+    score = metric_func(
         forward_func=forward_func,
         perturb_func=sensitivity_perturb_function,
         inputs=inputs,
-        attributions=attributions,
+        **(
+            dict(attributions_list=attributions)
+            if is_multi_target
+            else dict(attributions=attributions)
+        ),
         baselines=baselines,
         additional_forward_args=additional_forward_args,
-        target=target,
+        **dict(targets_list=target) if is_multi_target else dict(target=target),
+        feature_mask=feature_mask,
+        frozen_features=frozen_features,
         n_perturb_samples=n_perturb_samples,
         max_examples_per_batch=max_examples_per_batch,
         normalize=normalize,
     )
+
     if return_dict:
-        return {"sensitivity_n_score": sensitivity_n_score}
-    return sensitivity_n_score
+        return {"sensitivity_n_score": score}
+    return score

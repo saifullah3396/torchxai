@@ -42,4 +42,7 @@
             },
         ]
     },
+    "[ignore]": {
+        "editor.defaultFormatter": "foxundermoon.shell-format"
+    },
 }

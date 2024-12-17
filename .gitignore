@@ -1,14 +1,3 @@
 **/**.pyc
 **/**.__pycache__
-scripts/data/
-scripts/output/
-test.ipynb
-test2.ipynb
-grad_test.ipynb
-tmp/test.py
-tmp/test2.py
-tmp/test3.py
-tmp/input_invariance_setting.ipynb
-tmp/
-test.ipynb
-src/torchxai/metrics/complexity/complexity_entropy copy.py
+.pytest_cache

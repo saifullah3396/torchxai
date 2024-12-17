@@ -20,9 +20,7 @@ from torchxai.metrics._utils.batching import _divide_and_aggregate_metrics_n_fea
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _feature_mask_to_chunked_perturbation_mask_with_attributions,
-    _feature_mask_to_perturbation_mask,
     _reduce_tensor_with_indices,
-    _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
     _tuple_tensors_to_tensors,
     _validate_feature_mask,

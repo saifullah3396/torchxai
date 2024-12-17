@@ -36,9 +36,28 @@ class MetricTestRuntimeConfig(TestRuntimeConfig):
         default_factory=lambda: [1, None, 40]
     )
     set_image_feature_mask: bool = True
+    percentage_feature_removal_per_step: float = 0.0
 
 
 test_configurations = [
+    MetricTestRuntimeConfig(
+        target_fixture="classification_alexnet_model_config",
+        percentage_feature_removal_per_step=0.1,
+    ),
+    MetricTestRuntimeConfig(
+        target_fixture="classification_alexnet_model_single_sample_config",
+        percentage_feature_removal_per_step=0.1,
+    ),
+    MetricTestRuntimeConfig(
+        target_fixture="classification_alexnet_model_real_images_config",
+        explainer="integrated_gradients",
+        percentage_feature_removal_per_step=0.1,
+    ),
+    MetricTestRuntimeConfig(
+        target_fixture="classification_alexnet_model_real_images_single_sample_config",
+        explainer="integrated_gradients",
+        percentage_feature_removal_per_step=0.1,
+    ),
     MetricTestRuntimeConfig(
         target_fixture="classification_alexnet_model_config",
     ),
@@ -113,6 +132,7 @@ def test_non_sensitivity_multi_target(metrics_runtime_test_configuration):
             perturb_func=runtime_config.perturb_func,
             n_perturbations_per_feature=n_perturbs,
             max_features_processed_per_batch=max_features,
+            percentage_feature_removal_per_step=runtime_config.percentage_feature_removal_per_step,
             show_progress=True,
             is_multi_target=True,
             return_intermediate_results=True,
@@ -141,6 +161,7 @@ def test_non_sensitivity_multi_target(metrics_runtime_test_configuration):
                 perturb_func=runtime_config.perturb_func,
                 n_perturbations_per_feature=n_perturbs,
                 max_features_processed_per_batch=max_features,
+                percentage_feature_removal_per_step=runtime_config.percentage_feature_removal_per_step,
                 show_progress=True,
                 return_intermediate_results=True,
                 return_ratio=False,

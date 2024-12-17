@@ -157,6 +157,62 @@ def _feature_mask_to_chunked_perturbation_mask_with_attributions(
     return perturbation_masks, chunk_reduced_attributions
 
 
+def _feature_mask_to_chunked_perturbation_mask_with_attributions_list(
+    feature_mask,
+    attributions_list,
+    feature_indices,
+    frozen_features,
+    n_percentage_features_per_step,
+):
+    # first remove the frozen feature indices from the indices list
+    if frozen_features is not None:
+        valid_indices_mask = ~torch.isin(feature_indices, frozen_features)
+        feature_indices = feature_indices[valid_indices_mask]
+
+    # get total indices and total number of perturbations that will be performed
+    n_indices = feature_indices.shape[0]
+    if n_percentage_features_per_step < 1e-8:
+        chunk_size = 1
+    else:
+        chunk_size = math.ceil(n_indices * n_percentage_features_per_step)
+    total_num_perturbations = math.ceil(n_indices / chunk_size)
+
+    # create a perturbation mask of shape (n_perturations, feature_perturbation_mask)
+    # that will store all the perturbations
+    perturbation_masks = torch.zeros(
+        (total_num_perturbations, feature_mask.shape[0]),
+        dtype=torch.bool,
+        device=feature_mask.device,
+    )
+    chunk_reduced_attributions_list = [
+        torch.zeros(
+            total_num_perturbations,
+            dtype=attributions.dtype,
+            device=attributions.device,
+        )
+        for attributions in attributions_list
+    ]
+
+    chunks = torch.arange(0, n_indices, chunk_size, device=feature_mask.device)
+    for row_idx, start_idx in enumerate(chunks):
+        end_idx = min(start_idx + chunk_size, n_indices)
+        chunk_feature_indices = feature_indices[start_idx:end_idx]
+
+        # update the global perturbation mask
+        current_mask = torch.any(
+            feature_mask.unsqueeze(0) == chunk_feature_indices.unsqueeze(1),
+            dim=0,
+        )
+        perturbation_masks[row_idx] = current_mask
+        for chunk_reduced_attributions, attributions in zip(
+            chunk_reduced_attributions_list, attributions_list
+        ):
+            chunk_reduced_attributions[row_idx] = attributions[
+                chunk_feature_indices
+            ].sum()
+    return perturbation_masks, chunk_reduced_attributions_list
+
+
 def _feature_mask_to_chunked_accumulated_perturbation_mask(
     feature_mask, feature_indices, frozen_features, n_percentage_features_per_step
 ):

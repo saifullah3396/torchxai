@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
 import numpy as np

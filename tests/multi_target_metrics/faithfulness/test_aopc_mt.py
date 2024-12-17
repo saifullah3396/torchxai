@@ -2,6 +2,7 @@ import dataclasses
 from typing import List
 
 import pytest  # noqa
+
 from tests.utils.common import (
     assert_tensor_almost_equal,
     grid_segmenter,
@@ -76,7 +77,7 @@ def test_aopc_multi_target(metrics_runtime_test_configuration):
 
     for max_features in runtime_config.max_features_processed_per_batch:
         set_all_random_seeds(1234)
-        desc_batch_list_1, asc_batch_list_1, rand_batch_list_1 = aopc(
+        desc_batch_list_1, asc_batch_list_1, rand_batch_list_1, _, _, _ = aopc(
             forward_func=base_config.model,
             inputs=base_config.inputs,
             attributions=explanations,

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 

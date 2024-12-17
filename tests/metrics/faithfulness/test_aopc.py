@@ -3,6 +3,7 @@ import itertools
 
 import pytest  # noqa
 import torch
+
 from tests.utils.common import (
     assert_all_tensors_almost_equal,
     assert_tensor_almost_equal,
@@ -260,11 +261,18 @@ def test_aopc(metrics_runtime_test_configuration):
         )
         explanations_flattened, _ = _tuple_tensors_to_tensors(explanations)
 
-        for x in [aopc_output["desc"], aopc_output["asc"], aopc_output["rand"]]:
+        # take mean over random runs
+        aopc_output["rand"] = [x.mean(0) for x in aopc_output["rand"]]
+
+        for aopc_scores in [
+            aopc_output["desc"],
+            aopc_output["asc"],
+            aopc_output["rand"],
+        ]:
             # match the batch size
-            assert len(x) == explanations_flattened.shape[0], (
+            assert len(aopc_scores) == explanations_flattened.shape[0], (
                 f"The number of samples in the aopc output should match the number of samples in the input. "
-                f"Expected: {explanations_flattened.shape[0]}, Got: {len(x)}"
+                f"Expected: {explanations_flattened.shape[0]}, Got: {len(aopc_scores)}"
             )
 
             # total output size is number of features + 1 since the fwd with no perturbation is also included
@@ -281,8 +289,8 @@ def test_aopc(metrics_runtime_test_configuration):
             # these will fail in case a mask is used and the number of features is different for each input
             # in the batch
             assert (
-                x[0].shape[0] == expected_output_size + 1
-            ), f"The output size of aopcs is invalid. Expected: {expected_output_size}, Got: {x[0].shape[0]}"
+                aopc_scores[0].shape[0] == expected_output_size + 1
+            ), f"The output size of aopcs is invalid. Expected: {expected_output_size}, Got: {aopc_scores[0].shape[0]}"
 
         for output, expected in zip(aopc_output["desc"], curr_expected_desc):
             assert_tensor_almost_equal(

@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import inspect
 from typing import Any, Callable, List, Optional, Tuple, Union, cast
 
@@ -23,7 +21,6 @@ from torchxai.metrics._utils.batching import (
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _feature_mask_to_chunked_perturbation_mask_with_attributions,
     _feature_mask_to_chunked_perturbation_mask_with_attributions_list,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,

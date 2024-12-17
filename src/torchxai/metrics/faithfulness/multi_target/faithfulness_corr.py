@@ -55,7 +55,6 @@ def _multi_target_faithfulness_corr(
         """
 
         def call_perturb_func():
-            r""" """
             baselines_arg = None
             inputs_arg: Union[Tensor, Tuple[Tensor, ...]]
             if len(inputs_expanded) == 1:

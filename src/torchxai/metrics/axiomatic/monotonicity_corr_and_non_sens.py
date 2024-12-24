@@ -14,15 +14,12 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from captum.attr._utils.common import _format_baseline
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _draw_perturbated_inputs_sequences_images,
     _feature_mask_to_chunked_perturbation_mask_with_attributions,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,
@@ -372,18 +369,19 @@ def eval_monotonicity_corr_and_non_sens_single_sample(
             return non_sens
 
         perturbed_fwd_diffs_relative_vars = np.array(agg_tensors)
+        chunk_reduced_attributions = chunk_reduced_attributions.cpu().numpy()
         monotonicity_corr = compute_monotonocity_corr(
-            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions.cpu().numpy()
+            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions
         )
         non_sens = compute_non_sens(
-            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions.cpu().numpy()
+            perturbed_fwd_diffs_relative_vars, chunk_reduced_attributions
         )
     return (
         monotonicity_corr,
         non_sens,
         n_features,
         perturbed_fwd_diffs_relative_vars,
-        chunk_reduced_attributions.cpu().numpy(),
+        chunk_reduced_attributions,
     )
 
 
@@ -522,7 +520,9 @@ def _monotonicity_corr_and_non_sens(
 def monotonicity_corr_and_non_sens(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        List[TensorOrTupleOfTensorsGeneric], TensorOrTupleOfTensorsGeneric
+    ],
     baselines: BaselineType = None,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,

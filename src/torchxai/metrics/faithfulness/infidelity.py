@@ -15,7 +15,6 @@ from captum._utils.common import (
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from captum.metrics._utils.batching import _divide_and_aggregate_metrics
 from torch import Tensor
-
 from torchxai.metrics._utils.perturbation import default_infidelity_perturb_fn
 from torchxai.metrics.faithfulness.multi_target.infidelity import (
     _multi_target_infidelity,
@@ -254,7 +253,9 @@ def _infidelity(
 def infidelity(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        List[TensorOrTupleOfTensorsGeneric], TensorOrTupleOfTensorsGeneric
+    ],
     baselines: BaselineType = None,
     additional_forward_args: Any = None,
     target: TargetType = None,

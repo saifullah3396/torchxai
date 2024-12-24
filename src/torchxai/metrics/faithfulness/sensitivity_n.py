@@ -5,7 +5,6 @@ import torch
 from captum._utils.common import _format_tensor_into_tuples
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
     _validate_feature_mask,
@@ -21,7 +20,9 @@ def sensitivity_n(
     n_features_perturbed: Union[int, float],
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        List[TensorOrTupleOfTensorsGeneric], TensorOrTupleOfTensorsGeneric
+    ],
     baselines: BaselineType,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,

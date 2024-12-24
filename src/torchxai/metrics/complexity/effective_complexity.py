@@ -12,15 +12,12 @@ from captum._utils.common import (
     _run_forward,
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
-from matplotlib import pyplot as plt
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
 from torchxai.metrics._utils.common import (
     _construct_default_feature_mask,
-    _draw_perturbated_inputs_sequences_images,
     _feature_mask_to_chunked_accumulated_perturbation_mask,
     _reduce_tensor_with_indices_non_deterministic,
     _split_tensors_to_tuple_tensors,

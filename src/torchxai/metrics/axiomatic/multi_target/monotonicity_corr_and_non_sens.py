@@ -14,7 +14,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.explainers._utils import _run_forward_multi_target
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
@@ -409,7 +408,7 @@ def _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
     return (
         monotonicity_corr_list,
         non_sens_list,
-        n_features,
+        [n_features] * len(monotonicity_corr_list),
         perturbed_fwd_diffs_relative_vars_list,
         chunk_reduced_attributions_list,
     )
@@ -472,14 +471,14 @@ def _multi_target_monotonicity_corr_and_non_sens(
         bsz = inputs[0].size(0)
         monotonicity_corr_list_batch = []
         non_sens_list_batch = []
-        n_features_batch = []
+        n_features_list_batch = []
         perturbed_fwd_diffs_relative_vars_list_batch = []
         feature_group_attribution_scores_list_batch = []
         for sample_idx in tqdm.tqdm(range(bsz), disable=not show_progress):
             (
                 monotonicity_corr_list,
                 non_sens_list,
-                n_features,
+                n_features_list,
                 perturbed_fwd_diffs_relative_vars_list,
                 feature_group_attribution_scores_list,
             ) = _eval_mutli_target_monotonicity_corr_and_non_sens_single_sample(
@@ -530,7 +529,7 @@ def _multi_target_monotonicity_corr_and_non_sens(
 
             monotonicity_corr_list_batch.append(monotonicity_corr_list)
             non_sens_list_batch.append(non_sens_list)
-            n_features_batch.append(n_features)
+            n_features_list_batch.append(n_features_list)
             perturbed_fwd_diffs_relative_vars_list_batch.append(
                 perturbed_fwd_diffs_relative_vars_list
             )
@@ -551,11 +550,13 @@ def _multi_target_monotonicity_corr_and_non_sens(
             torch.tensor(x)
             for x in list(zip(*feature_group_attribution_scores_list_batch))
         ]
-        n_features_batch = torch.tensor(n_features_batch)
+        n_features_list_batch = [
+            torch.tensor(x) for x in list(zip(*n_features_list_batch))
+        ]
         return (
             monotonicity_corr_batch_list,
             non_sens_batch_list,
-            n_features_batch,
+            n_features_list_batch,
             perturbed_fwd_diffs_relative_vars_batch_list,
             feature_group_attribution_scores_batch_list,
         )

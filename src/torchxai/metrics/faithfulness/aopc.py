@@ -14,7 +14,6 @@ from captum._utils.common import (
 )
 from captum._utils.typing import BaselineType, TargetType, TensorOrTupleOfTensorsGeneric
 from torch import Tensor
-
 from torchxai.metrics._utils.batching import (
     _divide_and_aggregate_metrics_n_perturbations_per_feature,
 )
@@ -541,7 +540,9 @@ def _aopc(
 def aopc(
     forward_func: Callable,
     inputs: TensorOrTupleOfTensorsGeneric,
-    attributions: TensorOrTupleOfTensorsGeneric,
+    attributions: Union[
+        List[TensorOrTupleOfTensorsGeneric], TensorOrTupleOfTensorsGeneric
+    ],
     baselines: BaselineType,
     feature_mask: TensorOrTupleOfTensorsGeneric = None,
     additional_forward_args: Any = None,

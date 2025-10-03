@@ -1,3 +1,4 @@
 # Table of contents
 
-* [Usage](README.md)
+* [TorchXAI Documentation](README.md)
+* [Usage](<README (1).md>)

@@ -52,7 +52,7 @@ jobs:
     environment:
       name: pypi
       # OPTIONAL: uncomment and update to include your PyPI project URL in the deployment status:
-      url: https://pypi.org/p/torchxai-tools
+      url: https://pypi.org/project/torchxai-tools
       #
       # ALTERNATIVE: if your GitHub Release name is the PyPI project version string
       # ALTERNATIVE: exactly, uncomment the following line instead:
@@ -69,3 +69,6 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist/
+          pypi-token: ${{ secrets.PYPI_API_TOKEN }}
+
+          

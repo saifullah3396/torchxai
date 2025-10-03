@@ -10,7 +10,7 @@ from tests.utils.common import (
     assert_tensor_almost_equal,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics import faithfulness_corr
 from torchxai.metrics._utils.perturbation import (
     default_fixed_baseline_perturb_func,
@@ -26,7 +26,7 @@ def _format_to_list(value):
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig_(TestRuntimeConfig):
+class MetricTestRuntimeConfig_(RuntimeTestConfig):
     perturb_func: Callable = default_random_perturb_func()
     n_perturb_samples: int = 10
     max_examples_per_batch: int = None

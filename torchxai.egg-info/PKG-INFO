@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: torchxai
 Version: 0.0.0
 Summary: TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques.
@@ -37,28 +37,34 @@ Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
-Classifier: Programming Language :: Python :: 3.12
 Classifier: Programming Language :: Python :: 3 :: Only
-Requires-Python: >=3.8
+Requires-Python: ==3.11.5
 Description-Content-Type: text/markdown
 License-File: LICENSE.txt
-Requires-Dist: autopep8==2.1.0
+Requires-Dist: autopep8>=2.1.0
 Requires-Dist: click>=8.0.0
-Requires-Dist: hydra-core==1.3.2
-Requires-Dist: omegaconf==2.3.0
-Requires-Dist: pytorch-ignite==0.5.0.post2
-Requires-Dist: torch==2.3.0
-Requires-Dist: tqdm==4.66.4
-Requires-Dist: captum
-Requires-Dist: pytest
+Requires-Dist: hydra-core>=1.3.2
+Requires-Dist: omegaconf>=2.3.0
+Requires-Dist: pytorch-ignite>=0.5.0.post2
+Requires-Dist: torch==2.1.2
+Requires-Dist: tqdm>=4.66.4
+Requires-Dist: captum==0.7.0
+Requires-Dist: pytest>=8.3.4
+Requires-Dist: pandas>=2.0.3
+Requires-Dist: scipy>=1.10.1
+Requires-Dist: torchvision>=0.16.2
 Provides-Extra: test
 Requires-Dist: coverage; extra == "test"
+Dynamic: license-file
 
 # TorchXAI
 TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques.
 
 # Description
-TorchXAI provides efficient implementations of several XAI (Explainable AI) metrics that seamlessly integrate with the Captum library. The primary goal of this toolkit is to offer batch computation and task/data-agnostic implementations of various explainability metrics, enabling scalable evaluation while maintaining compatibility with the established Captum framework.
+TorchXAI provides efficient implementations of several XAI (Explainable AI) metrics that seamlessly integrate with the
+Captum library. The primary goal of this toolkit is to offer batch computation and task/data-agnostic implementations
+of various explainability metrics, enabling scalable evaluation while maintaining compatibility with the established
+Captum framework.
 
 # Installation with Pip
 The project can be installed directly with pip:

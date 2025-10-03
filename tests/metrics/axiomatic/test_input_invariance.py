@@ -4,14 +4,14 @@ import pytest
 import torch
 
 from tests.utils.common import assert_tensor_almost_equal, grid_segmenter
-from tests.utils.containers import TestBaseConfig, TestRuntimeConfig
+from tests.utils.containers import BaseTestConfig, RuntimeTestConfig
 from torchxai.explainers.factory import ExplainerFactory
 from torchxai.metrics._utils.visualization import visualize_attribution
 from torchxai.metrics.axiomatic.input_invariance import input_invariance
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig_(TestRuntimeConfig):
+class MetricTestRuntimeConfig_(RuntimeTestConfig):
     model_type: str = "linear"
     train_and_eval_model: bool = False
     constant_shifts: torch.Tensor = None
@@ -32,8 +32,8 @@ class MetricTestRuntimeConfig_(TestRuntimeConfig):
 
 @pytest.fixture
 def metrics_runtime_test_configuration(request):
-    runtime_config: TestRuntimeConfig = request.param
-    base_config: TestBaseConfig = request.getfixturevalue(
+    runtime_config: RuntimeTestConfig = request.param
+    base_config: BaseTestConfig = request.getfixturevalue(
         runtime_config.target_fixture
     )(runtime_config.model_type, runtime_config.train_and_eval_model)
     explainer = ExplainerFactory.create(

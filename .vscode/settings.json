@@ -30,19 +30,5 @@
         "editorHint.border": "#00ff66"
     },
     "notebook.output.textLineLimit": 200,
-    "notebook.output.scrolling": false,
-    // Remove Unused Python imports via bash
-    "emeraldwalk.runonsave": {
-        "commands": [
-            {
-                "match": "\\.py$",
-                "isAsync": true,
-                // Use the full path from above in case it can't find it
-                "cmd": "autoflake --in-place --remove-all-unused-imports \"${file}\""
-            },
-        ]
-    },
-    "[ignore]": {
-        "editor.defaultFormatter": "foxundermoon.shell-format"
-    },
+    "notebook.output.scrolling": false
 }

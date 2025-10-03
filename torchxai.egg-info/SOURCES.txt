@@ -42,6 +42,7 @@ src/torchxai/metrics/faithfulness/faithfulness_corr.py
 src/torchxai/metrics/faithfulness/faithfulness_estimate.py
 src/torchxai/metrics/faithfulness/infidelity.py
 src/torchxai/metrics/faithfulness/monotonicity.py
+src/torchxai/metrics/faithfulness/selectivity.py
 src/torchxai/metrics/faithfulness/sensitivity_n.py
 src/torchxai/metrics/faithfulness/multi_target/faithfulness_corr.py
 src/torchxai/metrics/faithfulness/multi_target/infidelity.py

@@ -9,7 +9,7 @@ from tests.utils.common import (
     assert_tensor_almost_equal,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics import faithfulness_estimate
 
 
@@ -20,7 +20,7 @@ def _format_to_list(value):
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig_(TestRuntimeConfig):
+class MetricTestRuntimeConfig_(RuntimeTestConfig):
     max_features_processed_per_batch: int = None
 
 

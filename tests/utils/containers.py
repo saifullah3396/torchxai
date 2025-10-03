@@ -7,7 +7,7 @@ from ignite.utils import convert_tensor
 
 
 @dataclass
-class TestBaseConfig:
+class BaseTestConfig:
     model: torch.nn.Module = None
     inputs: Tuple[torch.Tensor, ...] = None
     additional_forward_args: Tuple[torch.Tensor, ...] = None
@@ -73,7 +73,7 @@ class TestBaseConfig:
 
 
 @dataclasses.dataclass
-class TestRuntimeConfig:
+class RuntimeTestConfig:
     test_name: str = ""
     target_fixture: str = None
     explainer: str = "integrated_gradients"

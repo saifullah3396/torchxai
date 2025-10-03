@@ -7,7 +7,7 @@ import pytest  # noqa
 import torch
 
 from tests.utils.common import assert_tensor_almost_equal
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics._utils.perturbation import (
     default_fixed_baseline_perturb_func,
     default_random_perturb_func,
@@ -22,7 +22,7 @@ def _format_to_list(value):
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig_(TestRuntimeConfig):
+class MetricTestRuntimeConfig_(RuntimeTestConfig):
     perturb_func: Callable = default_random_perturb_func()
     zero_variance_threshold: float = 1e-5
     n_perturbations_per_feature: int = 10

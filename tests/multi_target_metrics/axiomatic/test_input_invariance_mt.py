@@ -8,13 +8,13 @@ from tests.utils.common import (
     grid_segmenter,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestBaseConfig, TestRuntimeConfig
+from tests.utils.containers import BaseTestConfig, RuntimeTestConfig
 from torchxai.explainers.factory import ExplainerFactory
 from torchxai.metrics.axiomatic.input_invariance import input_invariance
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig(TestRuntimeConfig):
+class MetricTestRuntimeConfig(RuntimeTestConfig):
     model_type: str = "linear"
     train_and_eval_model: bool = False
     constant_shifts: torch.Tensor = None
@@ -35,8 +35,8 @@ class MetricTestRuntimeConfig(TestRuntimeConfig):
 
 @pytest.fixture
 def metrics_runtime_test_configuration(request):
-    runtime_config: TestRuntimeConfig = request.param
-    base_config: TestBaseConfig = request.getfixturevalue(
+    runtime_config: RuntimeTestConfig = request.param
+    base_config: BaseTestConfig = request.getfixturevalue(
         runtime_config.target_fixture
     )(runtime_config.model_type, runtime_config.train_and_eval_model)
     explainer = ExplainerFactory.create(
@@ -65,7 +65,7 @@ def setup_test_config_for_explainer(explainer, **kwargs):
         kwargs["explainer_kwargs"] = {"is_multi_target": True}
     return [
         MetricTestRuntimeConfig(
-            test_name=f"compare_multi_target_to_single_target",
+            test_name="compare_multi_target_to_single_target",
             target_fixture="mnist_train_configuration",
             explainer=explainer,
             train_and_eval_model=True,

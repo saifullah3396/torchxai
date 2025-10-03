@@ -8,12 +8,12 @@ from tests.utils.common import (
     compute_explanations,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.explainers.factory import ExplainerFactory
 
 
 @dataclasses.dataclass
-class ExplainersTestRuntimeConfig(TestRuntimeConfig):
+class ExplainersTestRuntimeConfig(RuntimeTestConfig):
     is_multi_target: bool = False
     grad_batch_size: int = 64
     visualize: bool = False

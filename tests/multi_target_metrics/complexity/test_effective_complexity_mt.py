@@ -9,7 +9,7 @@ from tests.utils.common import (
     grid_segmenter,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics import effective_complexity
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
 
@@ -21,7 +21,7 @@ def _format_to_list(value):
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig(TestRuntimeConfig):
+class MetricTestRuntimeConfig(RuntimeTestConfig):
     perturb_func: Callable = default_random_perturb_func()
     n_perturbations_per_feature: List[int] = dataclasses.field(
         default_factory=lambda: [10, 10, 20]

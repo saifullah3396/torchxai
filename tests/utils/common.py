@@ -12,7 +12,7 @@ from captum.attr import Attribution
 from torch import Tensor, nn
 
 from tests.helpers.basic_models import MNISTCNNModel, MNISTLinearModel
-from tests.utils.containers import TestBaseConfig
+from tests.utils.containers import BaseTestConfig
 from torchxai.explainers.explainer import Explainer
 
 logger = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def mnist_trainer(model_type: bool = "linear", train_and_eval_model: bool = True
     target = batch[1].to(device)
     train_baselines = train_baselines.to(device)
 
-    return TestBaseConfig(
+    return BaseTestConfig(
         model=model,
         inputs=inputs,
         additional_forward_args=None,

@@ -4,14 +4,13 @@ from typing import Callable, List
 
 import pytest
 import torch
-from traitlets import default  # noqa
 
 from tests.utils.common import (
     assert_tensor_almost_equal,
     grid_segmenter,
     set_all_random_seeds,
 )
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics import monotonicity_corr_and_non_sens
 from torchxai.metrics._utils.perturbation import default_random_perturb_func
 
@@ -23,7 +22,7 @@ def _format_to_list(value):
 
 
 @dataclasses.dataclass
-class MetricTestRuntimeConfig(TestRuntimeConfig):
+class MetricTestRuntimeConfig(RuntimeTestConfig):
     test_name: str = "compare_multi_target_to_single_target"
     expainer: str = "saliency"
     override_target: List[int] = field(default_factory=lambda: [0, 1, 2])

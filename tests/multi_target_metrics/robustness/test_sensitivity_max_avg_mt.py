@@ -6,12 +6,12 @@ import pytest
 import torch  # noqa
 
 from tests.utils.common import assert_tensor_almost_equal, set_all_random_seeds
-from tests.utils.containers import TestRuntimeConfig
+from tests.utils.containers import RuntimeTestConfig
 from torchxai.metrics import sensitivity_max_and_avg
 
 
 @dataclass
-class MetricTestRuntimeConfig(TestRuntimeConfig):
+class MetricTestRuntimeConfig(RuntimeTestConfig):
     test_name: str = "compare_multi_target_to_single_target"
     explainer: str = "saliency"
     override_target: List[int] = field(default_factory=lambda: [0, 1, 2])

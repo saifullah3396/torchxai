@@ -18,7 +18,7 @@ from tests.helpers.classification_models import (
     SoftmaxModelTupleInput,
 )
 from tests.utils.common import compute_explanations, mnist_trainer, set_all_random_seeds
-from tests.utils.containers import TestBaseConfig, TestRuntimeConfig
+from tests.utils.containers import BaseTestConfig, RuntimeTestConfig
 from torchxai.explainers.factory import ExplainerFactory
 
 logging.basicConfig(level=logging.INFO)
@@ -31,7 +31,7 @@ def pytest_runtest_setup():
 
 @pytest.fixture()
 def park_function_configuration():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=ParkFunction(),
         inputs=torch.tensor([[0.24, 0.48, 0.56, 0.99, 0.68, 0.86]]),
         n_features=6,
@@ -40,7 +40,7 @@ def park_function_configuration():
 
 @pytest.fixture()
 def basic_model_single_input_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel2(),
         inputs=(
             torch.tensor([3.0]),
@@ -52,7 +52,7 @@ def basic_model_single_input_config():
 
 @pytest.fixture()
 def basic_model_single_batched_input_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel2(),
         inputs=(
             torch.tensor([[3.0]]),
@@ -64,7 +64,7 @@ def basic_model_single_batched_input_config():
 
 @pytest.fixture()
 def basic_model_batch_input_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel2(),
         inputs=(
             torch.tensor([3.0] * 3),
@@ -76,7 +76,7 @@ def basic_model_batch_input_config():
 
 @pytest.fixture()
 def basic_model_batch_input_with_additional_forward_args_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel4_MultiArgs(),
         inputs=(
             torch.tensor([[1.5, 2.0, 3.3]]),
@@ -89,7 +89,7 @@ def basic_model_batch_input_with_additional_forward_args_config():
 
 @pytest.fixture()
 def classification_convnet_model_with_multiple_targets_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel_ConvNet_One_Conv(),
         inputs=torch.stack([torch.arange(1, 17).float()] * 20, dim=0).view(20, 1, 4, 4),
         target=torch.tensor([1] * 20),
@@ -99,7 +99,7 @@ def classification_convnet_model_with_multiple_targets_config():
 
 @pytest.fixture()
 def classification_multilayer_model_with_tuple_targets_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel_MultiLayer(),
         inputs=torch.arange(1.0, 13.0).view(4, 3).float(),
         additional_forward_args=(torch.arange(1, 13).view(4, 3).float(), True),
@@ -110,7 +110,7 @@ def classification_multilayer_model_with_tuple_targets_config():
 
 @pytest.fixture()
 def classification_multilayer_model_with_baseline_and_tuple_targets_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel_MultiLayer(),
         inputs=torch.arange(1.0, 13.0).view(4, 3).float(),
         additional_forward_args=(torch.arange(1, 13).view(4, 3).float(), True),
@@ -122,7 +122,7 @@ def classification_multilayer_model_with_baseline_and_tuple_targets_config():
 
 @pytest.fixture()
 def classification_sigmoid_model_single_input_single_target_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=SigmoidModel(10, 20, 10),
         inputs=torch.tensor([[1.0] * 10]),
         target=torch.tensor([1]),
@@ -131,7 +131,7 @@ def classification_sigmoid_model_single_input_single_target_config():
 
 @pytest.fixture()
 def classification_softmax_model_single_input_single_target_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=SoftmaxModel(10, 20, 10),
         inputs=torch.tensor([[1.0] * 10]),
         target=torch.tensor([1]),
@@ -140,7 +140,7 @@ def classification_softmax_model_single_input_single_target_config():
 
 @pytest.fixture()
 def classification_softmax_model_multi_input_single_target_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=SoftmaxModel(10, 20, 10),
         inputs=torch.tensor([[1.0] * 10] * 3),
         target=torch.tensor([1]),
@@ -149,7 +149,7 @@ def classification_softmax_model_multi_input_single_target_config():
 
 @pytest.fixture()
 def classification_softmax_model_multi_tuple_input_single_target_config():
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=SoftmaxModelTupleInput(10, 20, 10),
         inputs=(torch.tensor([[1.0] * 10] * 3), torch.tensor([[-1.0] * 10] * 3)),
         target=torch.tensor([1]),
@@ -163,7 +163,7 @@ def classification_alexnet_model_single_sample_config():
     model = alexnet(pretrained=True)
     model.eval()
     model.zero_grad()
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=model, inputs=torch.randn(1, 3, 224, 224), target=torch.tensor([1])
     )
 
@@ -175,7 +175,7 @@ def classification_alexnet_model_config():
     model = alexnet(pretrained=True)
     model.eval()
     model.zero_grad()
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=model, inputs=torch.randn(10, 3, 224, 224), target=torch.tensor([1])
     )
 
@@ -220,7 +220,7 @@ def classification_alexnet_model_real_images_single_sample_config():
     model = alexnet(pretrained=True)
     model.eval()
     model.zero_grad()
-    yield TestBaseConfig(model=model, inputs=images, target=labels)
+    yield BaseTestConfig(model=model, inputs=images, target=labels)
 
 
 @pytest.fixture()
@@ -272,7 +272,7 @@ def classification_alexnet_model_real_images_config():
     model = alexnet(pretrained=True)
     model.eval()
     model.zero_grad()
-    yield TestBaseConfig(model=model, inputs=images, target=labels)
+    yield BaseTestConfig(model=model, inputs=images, target=labels)
 
 
 @pytest.fixture()
@@ -285,8 +285,8 @@ def mnist_train_configuration():
 
 @pytest.fixture()
 def metrics_runtime_test_configuration(request):
-    runtime_config: TestRuntimeConfig = request.param
-    base_config: TestBaseConfig = request.getfixturevalue(runtime_config.target_fixture)
+    runtime_config: RuntimeTestConfig = request.param
+    base_config: BaseTestConfig = request.getfixturevalue(runtime_config.target_fixture)
     if runtime_config.override_target is not None:
         base_config.target = runtime_config.override_target
     base_config.model.eval()
@@ -311,8 +311,8 @@ def metrics_runtime_test_configuration(request):
 
 @pytest.fixture()
 def explainer_metrics_runtime_test_configuration(request):
-    runtime_config: TestRuntimeConfig = request.param
-    base_config: TestBaseConfig = request.getfixturevalue(runtime_config.target_fixture)
+    runtime_config: RuntimeTestConfig = request.param
+    base_config: BaseTestConfig = request.getfixturevalue(runtime_config.target_fixture)
     if runtime_config.override_target is not None:
         base_config.target = runtime_config.override_target
     base_config.model.eval()
@@ -325,8 +325,8 @@ def explainer_metrics_runtime_test_configuration(request):
 
 @pytest.fixture()
 def explainer_runtime_test_configuration(request):
-    runtime_config: TestRuntimeConfig = request.param
-    base_config: TestBaseConfig = request.getfixturevalue(runtime_config.target_fixture)
+    runtime_config: RuntimeTestConfig = request.param
+    base_config: BaseTestConfig = request.getfixturevalue(runtime_config.target_fixture)
     if runtime_config.override_target is not None:
         base_config.target = runtime_config.override_target
 
@@ -375,7 +375,7 @@ def multi_modal_sequence_sum():
     inputs = tuple(x / total_sum for x in inputs)
     target = None
 
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel7_SumMultiTensor(),
         inputs=inputs,
         target=target,
@@ -429,7 +429,7 @@ def multi_modal_sequence_relu():
     inputs = tuple((x - mean) / std for x in inputs)
     target = None
 
-    yield TestBaseConfig(
+    yield BaseTestConfig(
         model=BasicModel7_ReluMultiTensor(),
         inputs=inputs,
         target=target,

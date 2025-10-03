@@ -50,8 +50,8 @@ src/torchxai/metrics/localization/attribution_localization.py
 src/torchxai/metrics/robustness/sensitivity.py
 src/torchxai/metrics/robustness/utilities.py
 src/torchxai/metrics/robustness/multi_target/sensitivity.py
-torchxai.egg-info/PKG-INFO
-torchxai.egg-info/SOURCES.txt
-torchxai.egg-info/dependency_links.txt
-torchxai.egg-info/requires.txt
-torchxai.egg-info/top_level.txt
+torchxai_tools.egg-info/PKG-INFO
+torchxai_tools.egg-info/SOURCES.txt
+torchxai_tools.egg-info/dependency_links.txt
+torchxai_tools.egg-info/requires.txt
+torchxai_tools.egg-info/top_level.txt

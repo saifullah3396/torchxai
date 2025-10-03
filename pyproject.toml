@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"  # If not defined, then legacy behavior 
 
 
 [project]
-name = "torchxai"
-version = "0.0.0"  # REQUIRED, although can be dynamic
+name = "torchxai-tools"
+version = "1.0.0"  # REQUIRED, although can be dynamic
 description = "TorchXAI is a PyTorch-based toolkit designed for evaluating machine learning models using explainability techniques."
 readme = "README.md"
 requires-python = "==3.11.5"
